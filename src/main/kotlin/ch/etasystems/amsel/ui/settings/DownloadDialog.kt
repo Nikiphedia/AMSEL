@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ch.etasystems.amsel.data.RegionSetRegistry
+import ch.etasystems.amsel.data.SpeciesRegistry
 import ch.etasystems.amsel.data.reference.ReferenceDownloader
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -40,7 +42,7 @@ internal data class FamilyCategory(
 
 private val downloadCategoriesLogger = LoggerFactory.getLogger("DownloadCategories")
 
-/** Laedt die Artenliste aus der JSON-Ressource. Gekapselt fuer spaetere Erweiterung (Custom-Categories). */
+/** Laedt die Artenliste aus der JSON-Ressource. Wird nur noch fuer Familien-Namens-Lookup verwendet. */
 internal fun loadCategories(): List<FamilyCategory> {
     val stream = object {}::class.java.getResourceAsStream("/species/download_categories.json")
         ?: error("download_categories.json not found in resources")
@@ -49,6 +51,60 @@ internal fun loadCategories(): List<FamilyCategory> {
     downloadCategoriesLogger.debug("Loaded {} families with {} species from download_categories.json",
         categories.size, categories.sumOf { it.species.size })
     return categories
+}
+
+/**
+ * Familien-Namens-Lookup aus download_categories.json.
+ * Maps lateinischen Familiennamen auf den Anzeigenamen: "Turdidae" -> "Drosseln (Turdidae)"
+ */
+private val familyDisplayNames: Map<String, String> by lazy {
+    try {
+        val categories = loadCategories()
+        categories.associate { cat ->
+            val latinFamily = cat.species.firstOrNull()?.family ?: ""
+            latinFamily to cat.family
+        }
+    } catch (e: Exception) {
+        downloadCategoriesLogger.warn("Konnte Familiennamen nicht laden: {}", e.message)
+        emptyMap()
+    }
+}
+
+/**
+ * Baut die Artenliste aus SpeciesRegistry, gefiltert nach aktivem Artenset.
+ * Nur Voegel (taxonGroup "aves"), gruppiert nach Familie.
+ * Familiennamen werden aus download_categories.json bezogen (Fallback: lateinischer Name).
+ */
+internal fun buildCategoriesFromRegistry(regionSetId: String): List<FamilyCategory> {
+    val allAves = SpeciesRegistry.getByTaxonGroup("aves")
+
+    val filtered = if (regionSetId == "all") {
+        allAves
+    } else {
+        val setSpecies = RegionSetRegistry.getSpeciesForSet(regionSetId)
+        if (setSpecies.isEmpty()) {
+            allAves
+        } else {
+            allAves.filter { it.scientificName in setSpecies }
+        }
+    }
+
+    return filtered
+        .groupBy { it.family }
+        .toSortedMap()
+        .map { (family, species) ->
+            val displayName = familyDisplayNames[family] ?: family
+            FamilyCategory(
+                family = displayName,
+                species = species.map { info ->
+                    BirdSpecies(
+                        scientific = info.scientificName.replace('_', ' '),
+                        german = info.commonNames["de"] ?: info.scientificName.replace('_', ' '),
+                        family = info.family
+                    )
+                }.sortedBy { it.german }
+            )
+        }
 }
 
 /**
@@ -62,12 +118,12 @@ fun DownloadDialog(
     referenceRecordingCount: Int,
     onStartDownload: (List<String>, Int) -> Unit,
     onCancelDownload: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    activeRegionSet: String = "all"
 ) {
-    val categories = remember { loadCategories() }
-    // Alle Arten standardmaessig ausgewaehlt
-    val allSpecies = remember { categories.flatMap { it.species }.map { it.scientific }.toSet() }
-    var selectedSpecies by remember { mutableStateOf(allSpecies.toMutableSet()) }
+    val categories = remember(activeRegionSet) { buildCategoriesFromRegistry(activeRegionSet) }
+    val allSpecies = remember(categories) { categories.flatMap { it.species }.map { it.scientific }.toSet() }
+    var selectedSpecies by remember(allSpecies) { mutableStateOf(allSpecies.toMutableSet()) }
     var expandedFamilies by remember { mutableStateOf(mutableSetOf<String>()) }
     var downloadAll by remember { mutableStateOf(true) }
     var maxPerSpecies by remember { mutableStateOf(200f) }

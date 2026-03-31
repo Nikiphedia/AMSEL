@@ -11,6 +11,7 @@ import androidx.compose.ui.window.rememberWindowState
 import ch.etasystems.amsel.ui.theme.AmselTheme
 import ch.etasystems.amsel.ui.compare.CompareScreen
 import ch.etasystems.amsel.core.classifier.BirdNetBridge
+import ch.etasystems.amsel.data.RegionSetRegistry
 import ch.etasystems.amsel.data.SpeciesRegistry
 import java.io.File
 
@@ -21,6 +22,7 @@ fun main() {
     // Species Master Table initialisieren (kopiert aus JAR falls noetig)
     val amselDataDir = File(System.getProperty("user.home"), "Documents/AMSEL")
     SpeciesRegistry.initialize(amselDataDir)
+    RegionSetRegistry.initialize(amselDataDir)
 
     application {
     val windowState = rememberWindowState(width = 1400.dp, height = 900.dp)

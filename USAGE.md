@@ -39,6 +39,13 @@ Die Filter werden in professioneller Reihenfolge angewendet:
 3. Ergebnisse erscheinen als Annotationen im Spektrogramm
 4. Konfidenzwert pro Erkennung, Schwelle einstellbar (0.01–0.5)
 
+## Kandidatenliste
+
+- Pro Erkennung werden die Top 5–10 Alternativvorschläge angezeigt
+- Kandidaten sind nach Konfidenz sortiert
+- Klick auf "Übernehmen" → Annotation wird auf die gewählte Art geändert
+- Referenz-Vergleich direkt aus der Kandidatenliste möglich
+
 ## Annotationen
 
 - **Automatisch** aus BirdNET oder **manuell** erstellen

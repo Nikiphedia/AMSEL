@@ -10,18 +10,17 @@ import java.io.File
  * Zentrale Species Master Table — Single Source of Truth fuer alle Artendaten in AMSEL.
  *
  * Laedt `species_master.json` aus dem User-Verzeichnis (~/Documents/AMSEL/species/).
- * Falls dort nicht vorhanden, wird die Default-Datei aus den JAR-Ressourcen kopiert.
+ * Falls dort nicht vorhanden oder veraltet, wird die Default-Datei aus den JAR-Ressourcen kopiert.
  *
  * Taxon-uebergreifend: Voegel, Fledermaeuse, Amphibien, Heuschrecken etc.
+ * Unterstuetzt 23 Sprachen (22 EU-Amtssprachen + Ukrainisch) seit v2.
  */
 data class SpeciesInfo(
     val scientificName: String,
     val taxonGroup: String,        // "aves", "chiroptera", "amphibia", "orthoptera" etc.
     val order: String,
     val family: String,
-    val commonNameDe: String?,
-    val commonNameEn: String?,
-    val commonNameFr: String?,
+    val commonNames: Map<String, String>,  // Sprachcode -> Name (z.B. "de" -> "Amsel")
     val iucnStatus: String?,
     val regionTags: Set<String>,
     val classifierSupport: Set<String>
@@ -38,7 +37,8 @@ object SpeciesRegistry {
 
     /**
      * Initialisiert das Registry.
-     * Kopiert species_master.json aus JAR-Ressource falls User-Kopie nicht existiert.
+     * Kopiert species_master.json aus JAR-Ressource falls User-Kopie nicht existiert
+     * oder eine aeltere Version hat.
      *
      * @param amselDataDir Das AMSEL-Datenverzeichnis (z.B. ~/Documents/AMSEL)
      */
@@ -46,8 +46,16 @@ object SpeciesRegistry {
         val speciesDir = File(amselDataDir, "species")
         val userFile = File(speciesDir, "species_master.json")
 
-        // JAR -> User-Kopie falls nicht vorhanden
-        if (!userFile.exists()) {
+        // JAR-Version pruefen und bei Bedarf aktualisieren
+        val jarVersion = getJarVersion()
+        val needsCopy = if (!userFile.exists()) {
+            true
+        } else {
+            val userVersion = getUserFileVersion(userFile)
+            jarVersion > userVersion
+        }
+
+        if (needsCopy) {
             try {
                 speciesDir.mkdirs()
                 val stream = this::class.java.getResourceAsStream("/species/species_master.json")
@@ -57,7 +65,7 @@ object SpeciesRegistry {
                             input.copyTo(output)
                         }
                     }
-                    logger.info("species_master.json aus JAR nach {} kopiert", userFile.absolutePath)
+                    logger.info("species_master.json v{} aus JAR nach {} kopiert", jarVersion, userFile.absolutePath)
                 } else {
                     logger.warn("species_master.json nicht in JAR-Ressourcen gefunden")
                 }
@@ -68,6 +76,36 @@ object SpeciesRegistry {
 
         // Laden
         loadFromFile(userFile)
+    }
+
+    /**
+     * Liest die Version aus der JAR-Ressource (ohne vollstaendiges Parsen).
+     */
+    private fun getJarVersion(): Int {
+        return try {
+            val stream = this::class.java.getResourceAsStream("/species/species_master.json")
+            if (stream == null) return 0
+            val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val data = json.decodeFromString<SpeciesMasterFile>(text)
+            data.version
+        } catch (e: Exception) {
+            logger.debug("Konnte JAR-Version nicht lesen: {}", e.message)
+            0
+        }
+    }
+
+    /**
+     * Liest die Version aus der User-Datei (ohne vollstaendiges Parsen).
+     */
+    private fun getUserFileVersion(file: File): Int {
+        return try {
+            val text = file.readText(Charsets.UTF_8)
+            val data = json.decodeFromString<SpeciesMasterFile>(text)
+            data.version
+        } catch (e: Exception) {
+            logger.debug("Konnte User-File-Version nicht lesen: {}", e.message)
+            0
+        }
     }
 
     /**
@@ -112,18 +150,29 @@ object SpeciesRegistry {
 
     /**
      * Parst den JSON-Text und baut die Species-Map auf.
+     * Unterstuetzt sowohl v1 (common_name_de/en/fr) als auch v2 (common_names Map).
      */
     private fun parseSpeciesJson(text: String): Map<String, SpeciesInfo> {
         val data = json.decodeFromString<SpeciesMasterFile>(text)
         return data.taxa.associate { entry ->
+            // v2: common_names Map direkt verwenden
+            // v1 Rueckwaertskompatibilitaet: alte Felder in Map konvertieren
+            val names = if (entry.commonNames.isNotEmpty()) {
+                entry.commonNames.filterValues { it.isNotEmpty() }
+            } else {
+                buildMap {
+                    if (entry.commonNameDe.isNotEmpty()) put("de", entry.commonNameDe)
+                    if (entry.commonNameEn.isNotEmpty()) put("en", entry.commonNameEn)
+                    if (entry.commonNameFr.isNotEmpty()) put("fr", entry.commonNameFr)
+                }
+            }
+
             val info = SpeciesInfo(
                 scientificName = entry.scientificName,
                 taxonGroup = entry.taxonGroup,
                 order = entry.order,
                 family = entry.family,
-                commonNameDe = entry.commonNameDe.ifEmpty { null },
-                commonNameEn = entry.commonNameEn.ifEmpty { null },
-                commonNameFr = entry.commonNameFr.ifEmpty { null },
+                commonNames = names,
                 iucnStatus = entry.iucnStatus.ifEmpty { null },
                 regionTags = entry.regionTags.toSet(),
                 classifierSupport = entry.classifierSupport.toSet()
@@ -175,14 +224,10 @@ object SpeciesRegistry {
     /**
      * Gibt den Anzeigenamen fuer eine Art zurueck.
      *
-     * Fallback-Kette je nach Locale:
-     * - "de": common_name_de > common_name_en > scientific_name (mit Leerzeichen)
-     * - "en": common_name_en > common_name_de > scientific_name
-     * - "fr": common_name_fr > common_name_de > scientific_name
-     * - sonst: scientific_name (mit Leerzeichen)
+     * Fallback-Kette: locale -> "de" -> "en" -> scientific_name (mit Leerzeichen)
      *
      * @param scientificName Wissenschaftlicher Name (mit Unterstrich oder Leerzeichen)
-     * @param locale Sprachcode: "de", "en", "fr"
+     * @param locale Sprachcode: "de", "en", "fr", "it", "es", "uk" etc.
      * @return Anzeigename, nie null
      */
     fun getDisplayName(scientificName: String, locale: String = "de"): String {
@@ -190,12 +235,11 @@ object SpeciesRegistry {
         val info = speciesMap[normalized]
             ?: return normalized.replace('_', ' ')  // Unbekannte Art: Unterstrich -> Leerzeichen
 
-        return when (locale) {
-            "de" -> info.commonNameDe ?: info.commonNameEn ?: normalized.replace('_', ' ')
-            "en" -> info.commonNameEn ?: info.commonNameDe ?: normalized.replace('_', ' ')
-            "fr" -> info.commonNameFr ?: info.commonNameDe ?: normalized.replace('_', ' ')
-            else -> normalized.replace('_', ' ')
-        }
+        val fallback = normalized.replace('_', ' ')
+        return info.commonNames[locale]
+            ?: info.commonNames["de"]
+            ?: info.commonNames["en"]
+            ?: fallback
     }
 
     // ================================================================
@@ -242,6 +286,9 @@ private data class SpeciesMasterEntry(
     @SerialName("taxon_group") val taxonGroup: String,
     val order: String = "",
     val family: String = "",
+    // v2: mehrsprachige Namen als Map
+    @SerialName("common_names") val commonNames: Map<String, String> = emptyMap(),
+    // v1 Rueckwaertskompatibilitaet: alte Einzelfelder
     @SerialName("common_name_de") val commonNameDe: String = "",
     @SerialName("common_name_en") val commonNameEn: String = "",
     @SerialName("common_name_fr") val commonNameFr: String = "",

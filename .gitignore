@@ -1,7 +1,6 @@
 # Gradle
 .gradle/
 build/
-gradle/wrapper/gradle-wrapper.jar
 
 # IDE
 .idea/
@@ -18,14 +17,20 @@ out/
 Thumbs.db
 Desktop.ini
 
-# Lokale Konfiguration
-local.properties
-
 # Logs
 *.log
 
-# Node
+# Lokale Konfiguration
+local.properties
+
+# Node.js (Generator-Scripts)
 node_modules/
+
+# Generierte Zwischendateien
+tools/data/ioc_names.json
+
+# IOC XLSX (zu gross für Git, ~8 MB)
+*.xlsx
 
 # Binäre Dokumente (separat verwaltet)
 *.docx

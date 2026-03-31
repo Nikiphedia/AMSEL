@@ -48,9 +48,9 @@ internal fun TabDatenbank(
     onCancelAudioBatchDownload: () -> Unit = {},
 ) {
     val qualityOrder = listOf("A", "B", "C", "D", "E")
-    val categories = remember { loadCategories() }
-    val allSpecies = remember { categories.flatMap { it.species }.map { it.scientific }.toSet() }
-    var selectedSpecies by remember { mutableStateOf(allSpecies.toMutableSet()) }
+    val categories = remember(activeRegionSet) { buildCategoriesFromRegistry(activeRegionSet) }
+    val allSpecies = remember(categories) { categories.flatMap { it.species }.map { it.scientific }.toSet() }
+    var selectedSpecies by remember(allSpecies) { mutableStateOf(allSpecies.toMutableSet()) }
     var expandedFamilies by remember { mutableStateOf(mutableSetOf<String>()) }
     var downloadAll by remember { mutableStateOf(true) }
     var maxPerSpecies by remember { mutableStateOf(200f) }
