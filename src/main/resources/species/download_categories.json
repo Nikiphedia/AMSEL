@@ -1,0 +1,356 @@
+[
+  {
+    "family": "Drosseln (Turdidae)",
+    "species": [
+      { "scientific": "Turdus merula", "german": "Amsel", "taxonomicFamily": "Turdidae" },
+      { "scientific": "Turdus philomelos", "german": "Singdrossel", "taxonomicFamily": "Turdidae" },
+      { "scientific": "Turdus viscivorus", "german": "Misteldrossel", "taxonomicFamily": "Turdidae" },
+      { "scientific": "Turdus pilaris", "german": "Wacholderdrossel", "taxonomicFamily": "Turdidae" },
+      { "scientific": "Turdus iliacus", "german": "Rotdrossel", "taxonomicFamily": "Turdidae" },
+      { "scientific": "Turdus torquatus", "german": "Ringdrossel", "taxonomicFamily": "Turdidae" },
+      { "scientific": "Monticola saxatilis", "german": "Steinroettel", "taxonomicFamily": "Turdidae" }
+    ]
+  },
+  {
+    "family": "Meisen (Paridae)",
+    "species": [
+      { "scientific": "Parus major", "german": "Kohlmeise", "taxonomicFamily": "Paridae" },
+      { "scientific": "Cyanistes caeruleus", "german": "Blaumeise", "taxonomicFamily": "Paridae" },
+      { "scientific": "Periparus ater", "german": "Tannenmeise", "taxonomicFamily": "Paridae" },
+      { "scientific": "Lophophanes cristatus", "german": "Haubenmeise", "taxonomicFamily": "Paridae" },
+      { "scientific": "Poecile palustris", "german": "Sumpfmeise", "taxonomicFamily": "Paridae" },
+      { "scientific": "Poecile montanus", "german": "Weidenmeise", "taxonomicFamily": "Paridae" },
+      { "scientific": "Aegithalos caudatus", "german": "Schwanzmeise", "taxonomicFamily": "Paridae" },
+      { "scientific": "Remiz pendulinus", "german": "Beutelmeise", "taxonomicFamily": "Paridae" }
+    ]
+  },
+  {
+    "family": "Finken (Fringillidae)",
+    "species": [
+      { "scientific": "Fringilla coelebs", "german": "Buchfink", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Fringilla montifringilla", "german": "Bergfink", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Carduelis carduelis", "german": "Stieglitz", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Chloris chloris", "german": "Gruenfink", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Serinus serinus", "german": "Girlitz", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Linaria cannabina", "german": "Bluthaenfling", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Acanthis flammea", "german": "Birkenzeisig", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Spinus spinus", "german": "Erlenzeisig", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Pyrrhula pyrrhula", "german": "Gimpel", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Coccothraustes coccothraustes", "german": "Kernbeisser", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Loxia curvirostra", "german": "Fichtenkreuzschnabel", "taxonomicFamily": "Fringillidae" },
+      { "scientific": "Pinicola enucleator", "german": "Hakengimpel", "taxonomicFamily": "Fringillidae" }
+    ]
+  },
+  {
+    "family": "Ammern (Emberizidae)",
+    "species": [
+      { "scientific": "Emberiza citrinella", "german": "Goldammer", "taxonomicFamily": "Emberizidae" },
+      { "scientific": "Emberiza calandra", "german": "Grauammer", "taxonomicFamily": "Emberizidae" },
+      { "scientific": "Emberiza cia", "german": "Zippammer", "taxonomicFamily": "Emberizidae" },
+      { "scientific": "Emberiza hortulana", "german": "Ortolan", "taxonomicFamily": "Emberizidae" },
+      { "scientific": "Calcarius lapponicus", "german": "Spornammer", "taxonomicFamily": "Emberizidae" },
+      { "scientific": "Plectrophenax nivalis", "german": "Schneeammer", "taxonomicFamily": "Emberizidae" }
+    ]
+  },
+  {
+    "family": "Laubsaenger (Phylloscopidae)",
+    "species": [
+      { "scientific": "Phylloscopus collybita", "german": "Zilpzalp", "taxonomicFamily": "Phylloscopidae" },
+      { "scientific": "Phylloscopus trochilus", "german": "Fitis", "taxonomicFamily": "Phylloscopidae" },
+      { "scientific": "Phylloscopus sibilatrix", "german": "Waldlaubsaenger", "taxonomicFamily": "Phylloscopidae" },
+      { "scientific": "Phylloscopus bonelli", "german": "Berglaubsaenger", "taxonomicFamily": "Phylloscopidae" }
+    ]
+  },
+  {
+    "family": "Grasmuecken (Sylviidae)",
+    "species": [
+      { "scientific": "Sylvia atricapilla", "german": "Moenchsgrasmuecke", "taxonomicFamily": "Sylviidae" },
+      { "scientific": "Sylvia borin", "german": "Gartengrasmuecke", "taxonomicFamily": "Sylviidae" },
+      { "scientific": "Sylvia communis", "german": "Dorngrasmuecke", "taxonomicFamily": "Sylviidae" },
+      { "scientific": "Sylvia curruca", "german": "Klappergrasmuecke", "taxonomicFamily": "Sylviidae" }
+    ]
+  },
+  {
+    "family": "Rohrsaenger (Acrocephalidae)",
+    "species": [
+      { "scientific": "Acrocephalus arundinaceus", "german": "Drosselrohrsaenger", "taxonomicFamily": "Acrocephalidae" },
+      { "scientific": "Acrocephalus scirpaceus", "german": "Teichrohrsaenger", "taxonomicFamily": "Acrocephalidae" },
+      { "scientific": "Acrocephalus palustris", "german": "Sumpfrohrsaenger", "taxonomicFamily": "Acrocephalidae" },
+      { "scientific": "Hippolais icterina", "german": "Gelbspoetter", "taxonomicFamily": "Acrocephalidae" },
+      { "scientific": "Hippolais polyglotta", "german": "Orpheusspoetter", "taxonomicFamily": "Acrocephalidae" },
+      { "scientific": "Locustella naevia", "german": "Feldschwirl", "taxonomicFamily": "Acrocephalidae" },
+      { "scientific": "Locustella luscinioides", "german": "Rohrschwirl", "taxonomicFamily": "Acrocephalidae" }
+    ]
+  },
+  {
+    "family": "Fliegenschnaepper (Muscicapidae)",
+    "species": [
+      { "scientific": "Erithacus rubecula", "german": "Rotkehlchen", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Luscinia megarhynchos", "german": "Nachtigall", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Luscinia svecica", "german": "Blaukehlchen", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Phoenicurus ochruros", "german": "Hausrotschwanz", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Phoenicurus phoenicurus", "german": "Gartenrotschwanz", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Saxicola rubetra", "german": "Braunkehlchen", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Saxicola rubicola", "german": "Schwarzkehlchen", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Oenanthe oenanthe", "german": "Steinschmaetzer", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Muscicapa striata", "german": "Grauschnaepper", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Ficedula hypoleuca", "german": "Trauerschnaepper", "taxonomicFamily": "Muscicapidae" },
+      { "scientific": "Ficedula albicollis", "german": "Halsbandschnaepper", "taxonomicFamily": "Muscicapidae" }
+    ]
+  },
+  {
+    "family": "Spechte (Picidae)",
+    "species": [
+      { "scientific": "Dendrocopos major", "german": "Buntspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Dendrocopos minor", "german": "Kleinspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Dendrocopos medius", "german": "Mittelspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Dendrocopos leucotos", "german": "Weissrueckenspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Dryocopus martius", "german": "Schwarzspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Picus viridis", "german": "Gruenspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Picus canus", "german": "Grauspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Picoides tridactylus", "german": "Dreizehenspecht", "taxonomicFamily": "Picidae" },
+      { "scientific": "Jynx torquilla", "german": "Wendehals", "taxonomicFamily": "Picidae" }
+    ]
+  },
+  {
+    "family": "Eulen (Strigidae)",
+    "species": [
+      { "scientific": "Strix aluco", "german": "Waldkauz", "taxonomicFamily": "Strigidae" },
+      { "scientific": "Athene noctua", "german": "Steinkauz", "taxonomicFamily": "Strigidae" },
+      { "scientific": "Asio otus", "german": "Waldohreule", "taxonomicFamily": "Strigidae" },
+      { "scientific": "Tyto alba", "german": "Schleiereule", "taxonomicFamily": "Strigidae" },
+      { "scientific": "Bubo bubo", "german": "Uhu", "taxonomicFamily": "Strigidae" },
+      { "scientific": "Aegolius funereus", "german": "Rauhfusskauz", "taxonomicFamily": "Strigidae" },
+      { "scientific": "Glaucidium passerinum", "german": "Sperlingskauz", "taxonomicFamily": "Strigidae" },
+      { "scientific": "Otus scops", "german": "Zwergohreule", "taxonomicFamily": "Strigidae" }
+    ]
+  },
+  {
+    "family": "Greifvoegel (Accipitridae)",
+    "species": [
+      { "scientific": "Buteo buteo", "german": "Maeusebussard", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Accipiter nisus", "german": "Sperber", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Accipiter gentilis", "german": "Habicht", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Milvus milvus", "german": "Rotmilan", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Milvus migrans", "german": "Schwarzmilan", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Aquila chrysaetos", "german": "Steinadler", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Circus aeruginosus", "german": "Rohrweihe", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Circus cyaneus", "german": "Kornweihe", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Pernis apivorus", "german": "Wespenbussard", "taxonomicFamily": "Accipitridae" },
+      { "scientific": "Pandion haliaetus", "german": "Fischadler", "taxonomicFamily": "Accipitridae" }
+    ]
+  },
+  {
+    "family": "Falken (Falconidae)",
+    "species": [
+      { "scientific": "Falco tinnunculus", "german": "Turmfalke", "taxonomicFamily": "Falconidae" },
+      { "scientific": "Falco peregrinus", "german": "Wanderfalke", "taxonomicFamily": "Falconidae" },
+      { "scientific": "Falco subbuteo", "german": "Baumfalke", "taxonomicFamily": "Falconidae" }
+    ]
+  },
+  {
+    "family": "Enten & Gaense (Anatidae)",
+    "species": [
+      { "scientific": "Anas platyrhynchos", "german": "Stockente", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Anas crecca", "german": "Krickente", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Anas strepera", "german": "Schnatterente", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Aythya fuligula", "german": "Reiherente", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Aythya ferina", "german": "Tafelente", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Anser anser", "german": "Graugans", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Anser fabalis", "german": "Saatgans", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Cygnus olor", "german": "Hoeckerschwan", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Mergus merganser", "german": "Gaensesaeger", "taxonomicFamily": "Anatidae" },
+      { "scientific": "Tadorna tadorna", "german": "Brandgans", "taxonomicFamily": "Anatidae" }
+    ]
+  },
+  {
+    "family": "Reiher (Ardeidae)",
+    "species": [
+      { "scientific": "Ardea cinerea", "german": "Graureiher", "taxonomicFamily": "Ardeidae" },
+      { "scientific": "Ardea alba", "german": "Silberreiher", "taxonomicFamily": "Ardeidae" },
+      { "scientific": "Egretta garzetta", "german": "Seidenreiher", "taxonomicFamily": "Ardeidae" },
+      { "scientific": "Nycticorax nycticorax", "german": "Nachtreiher", "taxonomicFamily": "Ardeidae" },
+      { "scientific": "Botaurus stellaris", "german": "Rohrdommel", "taxonomicFamily": "Ardeidae" }
+    ]
+  },
+  {
+    "family": "Rallen (Rallidae)",
+    "species": [
+      { "scientific": "Fulica atra", "german": "Blaesshuhn", "taxonomicFamily": "Rallidae" },
+      { "scientific": "Gallinula chloropus", "german": "Teichhuhn", "taxonomicFamily": "Rallidae" },
+      { "scientific": "Rallus aquaticus", "german": "Wasserralle", "taxonomicFamily": "Rallidae" },
+      { "scientific": "Crex crex", "german": "Wachtelkoenig", "taxonomicFamily": "Rallidae" }
+    ]
+  },
+  {
+    "family": "Limikolen (Charadriiformes)",
+    "species": [
+      { "scientific": "Vanellus vanellus", "german": "Kiebitz", "taxonomicFamily": "Charadriiformes" },
+      { "scientific": "Charadrius dubius", "german": "Flussregenpfeifer", "taxonomicFamily": "Charadriiformes" },
+      { "scientific": "Gallinago gallinago", "german": "Bekassine", "taxonomicFamily": "Charadriiformes" },
+      { "scientific": "Scolopax rusticola", "german": "Waldschnepfe", "taxonomicFamily": "Charadriiformes" },
+      { "scientific": "Actitis hypoleucos", "german": "Flussuferlaeufer", "taxonomicFamily": "Charadriiformes" },
+      { "scientific": "Tringa ochropus", "german": "Waldwasserlaeufer", "taxonomicFamily": "Charadriiformes" },
+      { "scientific": "Tringa totanus", "german": "Rotschenkel", "taxonomicFamily": "Charadriiformes" },
+      { "scientific": "Numenius arquata", "german": "Grosser Brachvogel", "taxonomicFamily": "Charadriiformes" }
+    ]
+  },
+  {
+    "family": "Moewen & Seeschwalben (Laridae)",
+    "species": [
+      { "scientific": "Chroicocephalus ridibundus", "german": "Lachmoewe", "taxonomicFamily": "Laridae" },
+      { "scientific": "Larus canus", "german": "Sturmmoewe", "taxonomicFamily": "Laridae" },
+      { "scientific": "Sterna hirundo", "german": "Flussseeschwalbe", "taxonomicFamily": "Laridae" }
+    ]
+  },
+  {
+    "family": "Tauben (Columbidae)",
+    "species": [
+      { "scientific": "Columba palumbus", "german": "Ringeltaube", "taxonomicFamily": "Columbidae" },
+      { "scientific": "Streptopelia turtur", "german": "Turteltaube", "taxonomicFamily": "Columbidae" },
+      { "scientific": "Streptopelia decaocto", "german": "Tuerkentaube", "taxonomicFamily": "Columbidae" }
+    ]
+  },
+  {
+    "family": "Kormorane & Taucher (Div.)",
+    "species": [
+      { "scientific": "Phalacrocorax carbo", "german": "Kormoran", "taxonomicFamily": "Phalacrocoracidae" },
+      { "scientific": "Podiceps cristatus", "german": "Haubentaucher", "taxonomicFamily": "Podicipedidae" },
+      { "scientific": "Tachybaptus ruficollis", "german": "Zwergtaucher", "taxonomicFamily": "Podicipedidae" }
+    ]
+  },
+  {
+    "family": "Stoerche (Ciconiidae)",
+    "species": [
+      { "scientific": "Ciconia ciconia", "german": "Weissstorch", "taxonomicFamily": "Ciconiidae" },
+      { "scientific": "Ciconia nigra", "german": "Schwarzstorch", "taxonomicFamily": "Ciconiidae" }
+    ]
+  },
+  {
+    "family": "Lerchen (Alaudidae)",
+    "species": [
+      { "scientific": "Alauda arvensis", "german": "Feldlerche", "taxonomicFamily": "Alaudidae" },
+      { "scientific": "Lullula arborea", "german": "Heidelerche", "taxonomicFamily": "Alaudidae" }
+    ]
+  },
+  {
+    "family": "Pieper & Stelzen (Motacillidae)",
+    "species": [
+      { "scientific": "Anthus pratensis", "german": "Wiesenpieper", "taxonomicFamily": "Motacillidae" },
+      { "scientific": "Anthus trivialis", "german": "Baumpieper", "taxonomicFamily": "Motacillidae" },
+      { "scientific": "Anthus spinoletta", "german": "Bergpieper", "taxonomicFamily": "Motacillidae" },
+      { "scientific": "Motacilla alba", "german": "Bachstelze", "taxonomicFamily": "Motacillidae" },
+      { "scientific": "Motacilla cinerea", "german": "Gebirgsstelze", "taxonomicFamily": "Motacillidae" },
+      { "scientific": "Motacilla flava", "german": "Schafstelze", "taxonomicFamily": "Motacillidae" }
+    ]
+  },
+  {
+    "family": "Schwalben (Hirundinidae)",
+    "species": [
+      { "scientific": "Hirundo rustica", "german": "Rauchschwalbe", "taxonomicFamily": "Hirundinidae" },
+      { "scientific": "Delichon urbicum", "german": "Mehlschwalbe", "taxonomicFamily": "Hirundinidae" },
+      { "scientific": "Riparia riparia", "german": "Uferschwalbe", "taxonomicFamily": "Hirundinidae" }
+    ]
+  },
+  {
+    "family": "Segler (Apodidae)",
+    "species": [
+      { "scientific": "Apus apus", "german": "Mauersegler", "taxonomicFamily": "Apodidae" },
+      { "scientific": "Tachymarptis melba", "german": "Alpensegler", "taxonomicFamily": "Apodidae" }
+    ]
+  },
+  {
+    "family": "Sperlinge (Passeridae)",
+    "species": [
+      { "scientific": "Passer domesticus", "german": "Haussperling", "taxonomicFamily": "Passeridae" },
+      { "scientific": "Passer montanus", "german": "Feldsperling", "taxonomicFamily": "Passeridae" }
+    ]
+  },
+  {
+    "family": "Wuerger (Laniidae)",
+    "species": [
+      { "scientific": "Lanius collurio", "german": "Neuntoeter", "taxonomicFamily": "Laniidae" },
+      { "scientific": "Lanius excubitor", "german": "Raubwuerger", "taxonomicFamily": "Laniidae" }
+    ]
+  },
+  {
+    "family": "Rabenvoegel (Corvidae)",
+    "species": [
+      { "scientific": "Corvus corax", "german": "Kolkrabe", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Corvus corone", "german": "Rabenkraehe", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Corvus frugilegus", "german": "Saatkraehe", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Corvus monedula", "german": "Dohle", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Garrulus glandarius", "german": "Eichelhaeher", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Pica pica", "german": "Elster", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Nucifraga caryocatactes", "german": "Tannenhaher", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Pyrrhocorax graculus", "german": "Alpendohle", "taxonomicFamily": "Corvidae" },
+      { "scientific": "Pyrrhocorax pyrrhocorax", "german": "Alpenkraehe", "taxonomicFamily": "Corvidae" }
+    ]
+  },
+  {
+    "family": "Kleiber & Baumlaufer (Sittidae/Certhiidae)",
+    "species": [
+      { "scientific": "Sitta europaea", "german": "Kleiber", "taxonomicFamily": "Sittidae" },
+      { "scientific": "Certhia brachydactyla", "german": "Gartenbaeumlaufer", "taxonomicFamily": "Certhiidae" },
+      { "scientific": "Certhia familiaris", "german": "Waldbaeumlaufer", "taxonomicFamily": "Certhiidae" },
+      { "scientific": "Tichodroma muraria", "german": "Mauerlaeufer", "taxonomicFamily": "Tichodromidae" }
+    ]
+  },
+  {
+    "family": "Zaunkoenig & Wasseramsel (Div.)",
+    "species": [
+      { "scientific": "Troglodytes troglodytes", "german": "Zaunkoenig", "taxonomicFamily": "Troglodytidae" },
+      { "scientific": "Cinclus cinclus", "german": "Wasseramsel", "taxonomicFamily": "Cinclidae" },
+      { "scientific": "Prunella modularis", "german": "Heckenbraunelle", "taxonomicFamily": "Prunellidae" }
+    ]
+  },
+  {
+    "family": "Goldhaehnchen (Regulidae)",
+    "species": [
+      { "scientific": "Regulus regulus", "german": "Wintergoldhaehnchen", "taxonomicFamily": "Regulidae" },
+      { "scientific": "Regulus ignicapilla", "german": "Sommergoldhaehnchen", "taxonomicFamily": "Regulidae" }
+    ]
+  },
+  {
+    "family": "Eisvogel & Verwandte (Div.)",
+    "species": [
+      { "scientific": "Alcedo atthis", "german": "Eisvogel", "taxonomicFamily": "Alcedinidae" },
+      { "scientific": "Merops apiaster", "german": "Bienenfresser", "taxonomicFamily": "Meropidae" },
+      { "scientific": "Coracias garrulus", "german": "Blauracke", "taxonomicFamily": "Coraciidae" },
+      { "scientific": "Upupa epops", "german": "Wiedehopf", "taxonomicFamily": "Upupidae" }
+    ]
+  },
+  {
+    "family": "Huehnervoegel (Phasianidae)",
+    "species": [
+      { "scientific": "Coturnix coturnix", "german": "Wachtel", "taxonomicFamily": "Phasianidae" },
+      { "scientific": "Perdix perdix", "german": "Rebhuhn", "taxonomicFamily": "Phasianidae" },
+      { "scientific": "Phasianus colchicus", "german": "Fasan", "taxonomicFamily": "Phasianidae" },
+      { "scientific": "Tetrao tetrix", "german": "Birkhuhn", "taxonomicFamily": "Phasianidae" },
+      { "scientific": "Tetrao urogallus", "german": "Auerhuhn", "taxonomicFamily": "Phasianidae" },
+      { "scientific": "Tetrastes bonasia", "german": "Haselhuhn", "taxonomicFamily": "Phasianidae" },
+      { "scientific": "Lagopus muta", "german": "Alpenschneehuhn", "taxonomicFamily": "Phasianidae" }
+    ]
+  },
+  {
+    "family": "Star & Seidenschwanz (Div.)",
+    "species": [
+      { "scientific": "Sturnus vulgaris", "german": "Star", "taxonomicFamily": "Sturnidae" },
+      { "scientific": "Bombycilla garrulus", "german": "Seidenschwanz", "taxonomicFamily": "Bombycillidae" },
+      { "scientific": "Oriolus oriolus", "german": "Pirol", "taxonomicFamily": "Oriolidae" }
+    ]
+  },
+  {
+    "family": "Kuckuck & Nachtschwalbe (Div.)",
+    "species": [
+      { "scientific": "Cuculus canorus", "german": "Kuckuck", "taxonomicFamily": "Cuculidae" },
+      { "scientific": "Caprimulgus europaeus", "german": "Ziegenmelker", "taxonomicFamily": "Caprimulgidae" }
+    ]
+  },
+  {
+    "family": "Bartmeise & Panurus (Div.)",
+    "species": [
+      { "scientific": "Panurus biarmicus", "german": "Bartmeise", "taxonomicFamily": "Panuridae" }
+    ]
+  }
+]

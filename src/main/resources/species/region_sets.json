@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "sets": [
+    {
+      "id": "all",
+      "name_de": "Alle Arten",
+      "name_en": "All Species",
+      "description_de": "Alle vom Modell unterstuetzten Arten",
+      "species": []
+    },
+    {
+      "id": "ch_breeding",
+      "name_de": "Schweizer Brutvoegel",
+      "name_en": "Swiss Breeding Birds",
+      "description_de": "Regelmaessige Brutvoegel der Schweiz (~210 Arten)",
+      "species": [
+        "Accipiter_gentilis",
+        "Accipiter_nisus",
+        "Aegithalos_caudatus",
+        "Alauda_arvensis",
+        "Anthus_trivialis"
+      ]
+    },
+    {
+      "id": "ch_all",
+      "name_de": "Schweiz komplett",
+      "name_en": "Switzerland All",
+      "description_de": "Alle in der Schweiz nachgewiesenen Arten (~420 Arten)",
+      "species": [
+        "Accipiter_gentilis",
+        "Accipiter_nisus",
+        "Aegithalos_caudatus",
+        "Alauda_arvensis",
+        "Anthus_trivialis",
+        "Aquila_chrysaetos",
+        "Ardea_cinerea"
+      ]
+    },
+    {
+      "id": "central_europe",
+      "name_de": "Mitteleuropa",
+      "name_en": "Central Europe",
+      "description_de": "Brutvoegel Mitteleuropas (~550 Arten)",
+      "species": [
+        "Accipiter_gentilis",
+        "Accipiter_nisus",
+        "Aegithalos_caudatus",
+        "Alauda_arvensis",
+        "Anthus_trivialis",
+        "Aquila_chrysaetos",
+        "Ardea_cinerea",
+        "Buteo_buteo",
+        "Carduelis_carduelis"
+      ]
+    }
+  ]
+}

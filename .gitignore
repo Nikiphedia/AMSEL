@@ -1,0 +1,38 @@
+# Gradle
+.gradle/
+build/
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Kotlin
+*.class
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Lokale Konfiguration
+local.properties
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
+# Binäre Dokumente (separat verwaltet)
+*.docx
+*.pdf
+
+# BirdNET Dev-Quellen (nicht ins Repo)
+birdnet-V3.0-dev-main/
+
+# Report-Outputs
+report/

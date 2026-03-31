@@ -1,0 +1,37 @@
+[versions]
+kotlin = "2.1.0"
+compose-plugin = "1.7.3"
+coroutines = "1.9.0"
+ktor = "3.0.3"
+jtransforms = "3.2"
+slf4j = "2.0.16"
+kamel = "1.0.3"
+
+[libraries]
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
+
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
+
+jtransforms = { module = "com.github.wendykierp:JTransforms", version.ref = "jtransforms" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+
+kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
+
+# Audio Decode (MP3 + FLAC + AAC Unterstützung auf JVM)
+jlayer = { module = "javazoom:jlayer", version = "1.0.1" }
+jflac = { module = "org.jflac:jflac-codec", version = "1.5.2" }
+mp3spi = { module = "com.googlecode.soundlibs:mp3spi", version = "1.9.5.4" }
+jcodec = { module = "org.jcodec:jcodec", version = "0.2.5" }
+
+# ONNX Runtime (fuer zukuenftige EfficientNet-basierte Vergleiche)
+onnxruntime = { module = "com.microsoft.onnxruntime:onnxruntime", version = "1.19.0" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+compose = { id = "org.jetbrains.compose", version.ref = "compose-plugin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

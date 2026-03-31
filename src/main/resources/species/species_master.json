@@ -1,0 +1,2921 @@
+{
+  "version": 1,
+  "generated": "2026-03-31",
+  "sources": [
+    "download_categories",
+    "species_de",
+    "region_sets",
+    "manual"
+  ],
+  "taxa": [
+    {
+      "scientific_name": "Acanthis_flammea",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Birkenzeisig",
+      "common_name_en": "Common Redpoll",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Accipiter_gentilis",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Habicht",
+      "common_name_en": "Northern Goshawk",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_breeding",
+        "CH_all",
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Accipiter_nisus",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Sperber",
+      "common_name_en": "Eurasian Sparrowhawk",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_breeding",
+        "CH_all",
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Acrocephalus_arundinaceus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Acrocephalidae",
+      "common_name_de": "Drosselrohrsaenger",
+      "common_name_en": "Great Reed Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Acrocephalus_palustris",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Acrocephalidae",
+      "common_name_de": "Sumpfrohrsaenger",
+      "common_name_en": "Marsh Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Acrocephalus_scirpaceus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Acrocephalidae",
+      "common_name_de": "Teichrohrsaenger",
+      "common_name_en": "Eurasian Reed Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Actitis_hypoleucos",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Flussuferlaeufer",
+      "common_name_en": "Common Sandpiper",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Aegithalos_caudatus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Schwanzmeise",
+      "common_name_en": "Long-tailed Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_breeding",
+        "CH_all",
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Aegolius_funereus",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Rauhfusskauz",
+      "common_name_en": "Boreal Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Alauda_arvensis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Alaudidae",
+      "common_name_de": "Feldlerche",
+      "common_name_en": "Eurasian Skylark",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_breeding",
+        "CH_all",
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Alcedo_atthis",
+      "taxon_group": "aves",
+      "order": "Coraciiformes",
+      "family": "Alcedinidae",
+      "common_name_de": "Eisvogel",
+      "common_name_en": "Common Kingfisher",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anas_crecca",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Krickente",
+      "common_name_en": "Eurasian Teal",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anas_platyrhynchos",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Stockente",
+      "common_name_en": "Mallard",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anas_strepera",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Schnatterente",
+      "common_name_en": "Gadwall",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anser_anser",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Graugans",
+      "common_name_en": "Greylag Goose",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anser_fabalis",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Saatgans",
+      "common_name_en": "Bean Goose",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anthus_pratensis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Motacillidae",
+      "common_name_de": "Wiesenpieper",
+      "common_name_en": "Meadow Pipit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anthus_spinoletta",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Motacillidae",
+      "common_name_de": "Bergpieper",
+      "common_name_en": "Water Pipit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Anthus_trivialis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Motacillidae",
+      "common_name_de": "Baumpieper",
+      "common_name_en": "Tree Pipit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_breeding",
+        "CH_all",
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Apus_apus",
+      "taxon_group": "aves",
+      "order": "Apodiformes",
+      "family": "Apodidae",
+      "common_name_de": "Mauersegler",
+      "common_name_en": "Common Swift",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Aquila_chrysaetos",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Steinadler",
+      "common_name_en": "Golden Eagle",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_all",
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Ardea_alba",
+      "taxon_group": "aves",
+      "order": "Pelecaniformes",
+      "family": "Ardeidae",
+      "common_name_de": "Silberreiher",
+      "common_name_en": "Great Egret",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Ardea_cinerea",
+      "taxon_group": "aves",
+      "order": "Pelecaniformes",
+      "family": "Ardeidae",
+      "common_name_de": "Graureiher",
+      "common_name_en": "Grey Heron",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_all",
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Asio_otus",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Waldohreule",
+      "common_name_en": "Long-eared Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Athene_noctua",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Steinkauz",
+      "common_name_en": "Little Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Aythya_ferina",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Tafelente",
+      "common_name_en": "Common Pochard",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Aythya_fuligula",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Reiherente",
+      "common_name_en": "Tufted Duck",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Bombycilla_garrulus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Bombycillidae",
+      "common_name_de": "Seidenschwanz",
+      "common_name_en": "Bohemian Waxwing",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Botaurus_stellaris",
+      "taxon_group": "aves",
+      "order": "Pelecaniformes",
+      "family": "Ardeidae",
+      "common_name_de": "Rohrdommel",
+      "common_name_en": "Eurasian Bittern",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Bubo_bubo",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Uhu",
+      "common_name_en": "Eurasian Eagle-Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Buteo_buteo",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Maeusebussard",
+      "common_name_en": "Common Buzzard",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Calcarius_lapponicus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Emberizidae",
+      "common_name_de": "Spornammer",
+      "common_name_en": "Lapland Longspur",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Caprimulgus_europaeus",
+      "taxon_group": "aves",
+      "order": "Caprimulgiformes",
+      "family": "Caprimulgidae",
+      "common_name_de": "Ziegenmelker",
+      "common_name_en": "European Nightjar",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Carduelis_carduelis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Stieglitz",
+      "common_name_en": "European Goldfinch",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [
+        "central_europe"
+      ],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Certhia_brachydactyla",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Certhiidae",
+      "common_name_de": "Gartenbaeumlaufer",
+      "common_name_en": "Short-toed Treecreeper",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Certhia_familiaris",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Certhiidae",
+      "common_name_de": "Waldbaeumlaufer",
+      "common_name_en": "Eurasian Treecreeper",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Charadrius_dubius",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Flussregenpfeifer",
+      "common_name_en": "Little Ringed Plover",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Chloris_chloris",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Gruenfink",
+      "common_name_en": "European Greenfinch",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Chroicocephalus_ridibundus",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Laridae",
+      "common_name_de": "Lachmoewe",
+      "common_name_en": "Black-headed Gull",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Ciconia_ciconia",
+      "taxon_group": "aves",
+      "order": "Ciconiiformes",
+      "family": "Ciconiidae",
+      "common_name_de": "Weissstorch",
+      "common_name_en": "White Stork",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Ciconia_nigra",
+      "taxon_group": "aves",
+      "order": "Ciconiiformes",
+      "family": "Ciconiidae",
+      "common_name_de": "Schwarzstorch",
+      "common_name_en": "Black Stork",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Cinclus_cinclus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Cinclidae",
+      "common_name_de": "Wasseramsel",
+      "common_name_en": "White-throated Dipper",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Circus_aeruginosus",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Rohrweihe",
+      "common_name_en": "Western Marsh Harrier",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Circus_cyaneus",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Kornweihe",
+      "common_name_en": "Hen Harrier",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Coccothraustes_coccothraustes",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Kernbeisser",
+      "common_name_en": "Hawfinch",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Columba_palumbus",
+      "taxon_group": "aves",
+      "order": "Columbiformes",
+      "family": "Columbidae",
+      "common_name_de": "Ringeltaube",
+      "common_name_en": "Common Wood Pigeon",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Coracias_garrulus",
+      "taxon_group": "aves",
+      "order": "Coraciiformes",
+      "family": "Coraciidae",
+      "common_name_de": "Blauracke",
+      "common_name_en": "European Roller",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Corvus_corax",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Kolkrabe",
+      "common_name_en": "Common Raven",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Corvus_corone",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Rabenkraehe",
+      "common_name_en": "Carrion Crow",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Corvus_frugilegus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Saatkraehe",
+      "common_name_en": "Rook",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Corvus_monedula",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Dohle",
+      "common_name_en": "Western Jackdaw",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Coturnix_coturnix",
+      "taxon_group": "aves",
+      "order": "Galliformes",
+      "family": "Phasianidae",
+      "common_name_de": "Wachtel",
+      "common_name_en": "Common Quail",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Crex_crex",
+      "taxon_group": "aves",
+      "order": "Gruiformes",
+      "family": "Rallidae",
+      "common_name_de": "Wachtelkoenig",
+      "common_name_en": "Corncrake",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Cuculus_canorus",
+      "taxon_group": "aves",
+      "order": "Cuculiformes",
+      "family": "Cuculidae",
+      "common_name_de": "Kuckuck",
+      "common_name_en": "Common Cuckoo",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Cyanistes_caeruleus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Blaumeise",
+      "common_name_en": "Blue Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Cygnus_olor",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Hoeckerschwan",
+      "common_name_en": "Mute Swan",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Delichon_urbicum",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Hirundinidae",
+      "common_name_de": "Mehlschwalbe",
+      "common_name_en": "Common House Martin",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Dendrocopos_leucotos",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Weissrueckenspecht",
+      "common_name_en": "White-backed Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Dendrocopos_major",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Buntspecht",
+      "common_name_en": "Great Spotted Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Dendrocopos_medius",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Mittelspecht",
+      "common_name_en": "Middle Spotted Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Dendrocopos_minor",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Kleinspecht",
+      "common_name_en": "Lesser Spotted Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Dryocopus_martius",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Schwarzspecht",
+      "common_name_en": "Black Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Egretta_garzetta",
+      "taxon_group": "aves",
+      "order": "Pelecaniformes",
+      "family": "Ardeidae",
+      "common_name_de": "Seidenreiher",
+      "common_name_en": "Little Egret",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Emberiza_calandra",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Emberizidae",
+      "common_name_de": "Grauammer",
+      "common_name_en": "Corn Bunting",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Emberiza_cia",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Emberizidae",
+      "common_name_de": "Zippammer",
+      "common_name_en": "Rock Bunting",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Emberiza_citrinella",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Emberizidae",
+      "common_name_de": "Goldammer",
+      "common_name_en": "Yellowhammer",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Emberiza_hortulana",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Emberizidae",
+      "common_name_de": "Ortolan",
+      "common_name_en": "Ortolan Bunting",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Erithacus_rubecula",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Rotkehlchen",
+      "common_name_en": "European Robin",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Falco_peregrinus",
+      "taxon_group": "aves",
+      "order": "Falconiformes",
+      "family": "Falconidae",
+      "common_name_de": "Wanderfalke",
+      "common_name_en": "Peregrine Falcon",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Falco_subbuteo",
+      "taxon_group": "aves",
+      "order": "Falconiformes",
+      "family": "Falconidae",
+      "common_name_de": "Baumfalke",
+      "common_name_en": "Eurasian Hobby",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Falco_tinnunculus",
+      "taxon_group": "aves",
+      "order": "Falconiformes",
+      "family": "Falconidae",
+      "common_name_de": "Turmfalke",
+      "common_name_en": "Common Kestrel",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Ficedula_albicollis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Halsbandschnaepper",
+      "common_name_en": "Collared Flycatcher",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Ficedula_hypoleuca",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Trauerschnaepper",
+      "common_name_en": "European Pied Flycatcher",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Fringilla_coelebs",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Buchfink",
+      "common_name_en": "Common Chaffinch",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Fringilla_montifringilla",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Bergfink",
+      "common_name_en": "Brambling",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Fulica_atra",
+      "taxon_group": "aves",
+      "order": "Gruiformes",
+      "family": "Rallidae",
+      "common_name_de": "Blaesshuhn",
+      "common_name_en": "Eurasian Coot",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Gallinago_gallinago",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Bekassine",
+      "common_name_en": "Common Snipe",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Gallinula_chloropus",
+      "taxon_group": "aves",
+      "order": "Gruiformes",
+      "family": "Rallidae",
+      "common_name_de": "Teichhuhn",
+      "common_name_en": "Common Moorhen",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Garrulus_glandarius",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Eichelhaeher",
+      "common_name_en": "Eurasian Jay",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Glaucidium_passerinum",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Sperlingskauz",
+      "common_name_en": "Eurasian Pygmy-Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Hippolais_icterina",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Acrocephalidae",
+      "common_name_de": "Gelbspoetter",
+      "common_name_en": "Icterine Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Hippolais_polyglotta",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Acrocephalidae",
+      "common_name_de": "Orpheusspoetter",
+      "common_name_en": "Melodious Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Hirundo_rustica",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Hirundinidae",
+      "common_name_de": "Rauchschwalbe",
+      "common_name_en": "Barn Swallow",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Jynx_torquilla",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Wendehals",
+      "common_name_en": "Eurasian Wryneck",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Lagopus_muta",
+      "taxon_group": "aves",
+      "order": "Galliformes",
+      "family": "Phasianidae",
+      "common_name_de": "Alpenschneehuhn",
+      "common_name_en": "Rock Ptarmigan",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Lanius_collurio",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Laniidae",
+      "common_name_de": "Neuntoeter",
+      "common_name_en": "Red-backed Shrike",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Lanius_excubitor",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Laniidae",
+      "common_name_de": "Raubwuerger",
+      "common_name_en": "Great Grey Shrike",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Larus_canus",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Laridae",
+      "common_name_de": "Sturmmoewe",
+      "common_name_en": "Mew Gull",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Linaria_cannabina",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Bluthaenfling",
+      "common_name_en": "Common Linnet",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Locustella_luscinioides",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Acrocephalidae",
+      "common_name_de": "Rohrschwirl",
+      "common_name_en": "Savi's Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Locustella_naevia",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Acrocephalidae",
+      "common_name_de": "Feldschwirl",
+      "common_name_en": "Common Grasshopper Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Lophophanes_cristatus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Haubenmeise",
+      "common_name_en": "Crested Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Loxia_curvirostra",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Fichtenkreuzschnabel",
+      "common_name_en": "Common Crossbill",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Lullula_arborea",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Alaudidae",
+      "common_name_de": "Heidelerche",
+      "common_name_en": "Woodlark",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Luscinia_megarhynchos",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Nachtigall",
+      "common_name_en": "Common Nightingale",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Luscinia_svecica",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Blaukehlchen",
+      "common_name_en": "Bluethroat",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Mergus_merganser",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Gaensesaeger",
+      "common_name_en": "Common Merganser",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Merops_apiaster",
+      "taxon_group": "aves",
+      "order": "Coraciiformes",
+      "family": "Meropidae",
+      "common_name_de": "Bienenfresser",
+      "common_name_en": "European Bee-eater",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Milvus_migrans",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Schwarzmilan",
+      "common_name_en": "Black Kite",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Milvus_milvus",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Rotmilan",
+      "common_name_en": "Red Kite",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Monticola_saxatilis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Turdidae",
+      "common_name_de": "Steinroettel",
+      "common_name_en": "Rufous-tailed Rock Thrush",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Motacilla_alba",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Motacillidae",
+      "common_name_de": "Bachstelze",
+      "common_name_en": "White Wagtail",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Motacilla_cinerea",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Motacillidae",
+      "common_name_de": "Gebirgsstelze",
+      "common_name_en": "Grey Wagtail",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Motacilla_flava",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Motacillidae",
+      "common_name_de": "Schafstelze",
+      "common_name_en": "Western Yellow Wagtail",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Muscicapa_striata",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Grauschnaepper",
+      "common_name_en": "Spotted Flycatcher",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Nucifraga_caryocatactes",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Tannenhaher",
+      "common_name_en": "Spotted Nutcracker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Numenius_arquata",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Grosser Brachvogel",
+      "common_name_en": "Eurasian Curlew",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Nycticorax_nycticorax",
+      "taxon_group": "aves",
+      "order": "Pelecaniformes",
+      "family": "Ardeidae",
+      "common_name_de": "Nachtreiher",
+      "common_name_en": "Black-crowned Night Heron",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Oenanthe_oenanthe",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Steinschmaetzer",
+      "common_name_en": "Northern Wheatear",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Oriolus_oriolus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Oriolidae",
+      "common_name_de": "Pirol",
+      "common_name_en": "Eurasian Golden Oriole",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Otus_scops",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Zwergohreule",
+      "common_name_en": "Eurasian Scops-Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Pandion_haliaetus",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Fischadler",
+      "common_name_en": "Western Osprey",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Panurus_biarmicus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Panuridae",
+      "common_name_de": "Bartmeise",
+      "common_name_en": "Bearded Reedling",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Parus_major",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Kohlmeise",
+      "common_name_en": "Great Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Passer_domesticus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Passeridae",
+      "common_name_de": "Haussperling",
+      "common_name_en": "House Sparrow",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Passer_montanus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Passeridae",
+      "common_name_de": "Feldsperling",
+      "common_name_en": "Eurasian Tree Sparrow",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Perdix_perdix",
+      "taxon_group": "aves",
+      "order": "Galliformes",
+      "family": "Phasianidae",
+      "common_name_de": "Rebhuhn",
+      "common_name_en": "Grey Partridge",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Periparus_ater",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Tannenmeise",
+      "common_name_en": "Coal Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Pernis_apivorus",
+      "taxon_group": "aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "common_name_de": "Wespenbussard",
+      "common_name_en": "European Honey Buzzard",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phalacrocorax_carbo",
+      "taxon_group": "aves",
+      "order": "Suliformes",
+      "family": "Phalacrocoracidae",
+      "common_name_de": "Kormoran",
+      "common_name_en": "Great Cormorant",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phasianus_colchicus",
+      "taxon_group": "aves",
+      "order": "Galliformes",
+      "family": "Phasianidae",
+      "common_name_de": "Fasan",
+      "common_name_en": "Common Pheasant",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phoenicurus_ochruros",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Hausrotschwanz",
+      "common_name_en": "Black Redstart",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phoenicurus_phoenicurus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Gartenrotschwanz",
+      "common_name_en": "Common Redstart",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phylloscopus_bonelli",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Phylloscopidae",
+      "common_name_de": "Berglaubsaenger",
+      "common_name_en": "Western Bonelli's Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phylloscopus_collybita",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Phylloscopidae",
+      "common_name_de": "Zilpzalp",
+      "common_name_en": "Common Chiffchaff",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phylloscopus_sibilatrix",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Phylloscopidae",
+      "common_name_de": "Waldlaubsaenger",
+      "common_name_en": "Wood Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Phylloscopus_trochilus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Phylloscopidae",
+      "common_name_de": "Fitis",
+      "common_name_en": "Willow Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Pica_pica",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Elster",
+      "common_name_en": "Eurasian Magpie",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Picoides_tridactylus",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Dreizehenspecht",
+      "common_name_en": "Eurasian Three-toed Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Picus_canus",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Grauspecht",
+      "common_name_en": "Grey-headed Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Picus_viridis",
+      "taxon_group": "aves",
+      "order": "Piciformes",
+      "family": "Picidae",
+      "common_name_de": "Gruenspecht",
+      "common_name_en": "European Green Woodpecker",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Pinicola_enucleator",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Hakengimpel",
+      "common_name_en": "Pine Grosbeak",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Plectrophenax_nivalis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Emberizidae",
+      "common_name_de": "Schneeammer",
+      "common_name_en": "Snow Bunting",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Podiceps_cristatus",
+      "taxon_group": "aves",
+      "order": "Podicipediformes",
+      "family": "Podicipedidae",
+      "common_name_de": "Haubentaucher",
+      "common_name_en": "Great Crested Grebe",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Poecile_montanus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Weidenmeise",
+      "common_name_en": "Willow Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Poecile_palustris",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Sumpfmeise",
+      "common_name_en": "Marsh Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Prunella_modularis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Prunellidae",
+      "common_name_de": "Heckenbraunelle",
+      "common_name_en": "Dunnock",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Pyrrhocorax_graculus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Alpendohle",
+      "common_name_en": "Alpine Chough",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Pyrrhocorax_pyrrhocorax",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Corvidae",
+      "common_name_de": "Alpenkraehe",
+      "common_name_en": "Red-billed Chough",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Pyrrhula_pyrrhula",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Gimpel",
+      "common_name_en": "Eurasian Bullfinch",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Rallus_aquaticus",
+      "taxon_group": "aves",
+      "order": "Gruiformes",
+      "family": "Rallidae",
+      "common_name_de": "Wasserralle",
+      "common_name_en": "Water Rail",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Regulus_ignicapilla",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Regulidae",
+      "common_name_de": "Sommergoldhaehnchen",
+      "common_name_en": "Common Firecrest",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Regulus_regulus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Regulidae",
+      "common_name_de": "Wintergoldhaehnchen",
+      "common_name_en": "Goldcrest",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Remiz_pendulinus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Paridae",
+      "common_name_de": "Beutelmeise",
+      "common_name_en": "Penduline Tit",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Riparia_riparia",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Hirundinidae",
+      "common_name_de": "Uferschwalbe",
+      "common_name_en": "Sand Martin",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Saxicola_rubetra",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Braunkehlchen",
+      "common_name_en": "Whinchat",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Saxicola_rubicola",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Muscicapidae",
+      "common_name_de": "Schwarzkehlchen",
+      "common_name_en": "European Stonechat",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Scolopax_rusticola",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Waldschnepfe",
+      "common_name_en": "Eurasian Woodcock",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Serinus_serinus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Girlitz",
+      "common_name_en": "European Serin",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Sitta_europaea",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Sittidae",
+      "common_name_de": "Kleiber",
+      "common_name_en": "Eurasian Nuthatch",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Spinus_spinus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Fringillidae",
+      "common_name_de": "Erlenzeisig",
+      "common_name_en": "Eurasian Siskin",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Sterna_hirundo",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Laridae",
+      "common_name_de": "Flussseeschwalbe",
+      "common_name_en": "Common Tern",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Streptopelia_decaocto",
+      "taxon_group": "aves",
+      "order": "Columbiformes",
+      "family": "Columbidae",
+      "common_name_de": "Tuerkentaube",
+      "common_name_en": "Eurasian Collared Dove",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Streptopelia_turtur",
+      "taxon_group": "aves",
+      "order": "Columbiformes",
+      "family": "Columbidae",
+      "common_name_de": "Turteltaube",
+      "common_name_en": "European Turtle Dove",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Strix_aluco",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Waldkauz",
+      "common_name_en": "Tawny Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Sturnus_vulgaris",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Sturnidae",
+      "common_name_de": "Star",
+      "common_name_en": "Common Starling",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Sylvia_atricapilla",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Sylviidae",
+      "common_name_de": "Moenchsgrasmuecke",
+      "common_name_en": "Eurasian Blackcap",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Sylvia_borin",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Sylviidae",
+      "common_name_de": "Gartengrasmuecke",
+      "common_name_en": "Garden Warbler",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Sylvia_communis",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Sylviidae",
+      "common_name_de": "Dorngrasmuecke",
+      "common_name_en": "Common Whitethroat",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Sylvia_curruca",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Sylviidae",
+      "common_name_de": "Klappergrasmuecke",
+      "common_name_en": "Lesser Whitethroat",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tachybaptus_ruficollis",
+      "taxon_group": "aves",
+      "order": "Podicipediformes",
+      "family": "Podicipedidae",
+      "common_name_de": "Zwergtaucher",
+      "common_name_en": "Little Grebe",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tachymarptis_melba",
+      "taxon_group": "aves",
+      "order": "Apodiformes",
+      "family": "Apodidae",
+      "common_name_de": "Alpensegler",
+      "common_name_en": "Alpine Swift",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tadorna_tadorna",
+      "taxon_group": "aves",
+      "order": "Anseriformes",
+      "family": "Anatidae",
+      "common_name_de": "Brandgans",
+      "common_name_en": "Common Shelduck",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tetrao_tetrix",
+      "taxon_group": "aves",
+      "order": "Galliformes",
+      "family": "Phasianidae",
+      "common_name_de": "Birkhuhn",
+      "common_name_en": "Black Grouse",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tetrao_urogallus",
+      "taxon_group": "aves",
+      "order": "Galliformes",
+      "family": "Phasianidae",
+      "common_name_de": "Auerhuhn",
+      "common_name_en": "Western Capercaillie",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tetrastes_bonasia",
+      "taxon_group": "aves",
+      "order": "Galliformes",
+      "family": "Phasianidae",
+      "common_name_de": "Haselhuhn",
+      "common_name_en": "Hazel Grouse",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tichodroma_muraria",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Tichodromidae",
+      "common_name_de": "Mauerlaeufer",
+      "common_name_en": "Wallcreeper",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tringa_ochropus",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Waldwasserlaeufer",
+      "common_name_en": "Green Sandpiper",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tringa_totanus",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Rotschenkel",
+      "common_name_en": "Common Redshank",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Troglodytes_troglodytes",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Troglodytidae",
+      "common_name_de": "Zaunkoenig",
+      "common_name_en": "Eurasian Wren",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Turdus_iliacus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Turdidae",
+      "common_name_de": "Rotdrossel",
+      "common_name_en": "Redwing",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Turdus_merula",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Turdidae",
+      "common_name_de": "Amsel",
+      "common_name_en": "Eurasian Blackbird",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Turdus_philomelos",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Turdidae",
+      "common_name_de": "Singdrossel",
+      "common_name_en": "Song Thrush",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Turdus_pilaris",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Turdidae",
+      "common_name_de": "Wacholderdrossel",
+      "common_name_en": "Fieldfare",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Turdus_torquatus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Turdidae",
+      "common_name_de": "Ringdrossel",
+      "common_name_en": "Ring Ouzel",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Turdus_viscivorus",
+      "taxon_group": "aves",
+      "order": "Passeriformes",
+      "family": "Turdidae",
+      "common_name_de": "Misteldrossel",
+      "common_name_en": "Mistle Thrush",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Tyto_alba",
+      "taxon_group": "aves",
+      "order": "Strigiformes",
+      "family": "Strigidae",
+      "common_name_de": "Schleiereule",
+      "common_name_en": "Barn Owl",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Upupa_epops",
+      "taxon_group": "aves",
+      "order": "Bucerotiformes",
+      "family": "Upupidae",
+      "common_name_de": "Wiedehopf",
+      "common_name_en": "Eurasian Hoopoe",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Vanellus_vanellus",
+      "taxon_group": "aves",
+      "order": "Charadriiformes",
+      "family": "Charadriiformes",
+      "common_name_de": "Kiebitz",
+      "common_name_en": "Northern Lapwing",
+      "common_name_fr": "",
+      "iucn_status": "",
+      "region_tags": [],
+      "classifier_support": [
+        "birdnet_v3",
+        "birdnet_v2"
+      ]
+    },
+    {
+      "scientific_name": "Myotis_myotis",
+      "taxon_group": "chiroptera",
+      "order": "Chiroptera",
+      "family": "Vespertilionidae",
+      "common_name_de": "Grosses Mausohr",
+      "common_name_en": "Greater Mouse-eared Bat",
+      "common_name_fr": "Grand murin",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Myotis_daubentonii",
+      "taxon_group": "chiroptera",
+      "order": "Chiroptera",
+      "family": "Vespertilionidae",
+      "common_name_de": "Wasserfledermaus",
+      "common_name_en": "Daubenton's Bat",
+      "common_name_fr": "Murin de Daubenton",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Pipistrellus_pipistrellus",
+      "taxon_group": "chiroptera",
+      "order": "Chiroptera",
+      "family": "Vespertilionidae",
+      "common_name_de": "Zwergfledermaus",
+      "common_name_en": "Common Pipistrelle",
+      "common_name_fr": "Pipistrelle commune",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Nyctalus_noctula",
+      "taxon_group": "chiroptera",
+      "order": "Chiroptera",
+      "family": "Vespertilionidae",
+      "common_name_de": "Grosser Abendsegler",
+      "common_name_en": "Common Noctule",
+      "common_name_fr": "Noctule commune",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Plecotus_auritus",
+      "taxon_group": "chiroptera",
+      "order": "Chiroptera",
+      "family": "Vespertilionidae",
+      "common_name_de": "Braunes Langohr",
+      "common_name_en": "Brown Long-eared Bat",
+      "common_name_fr": "Oreillard brun",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Bombina_variegata",
+      "taxon_group": "amphibia",
+      "order": "Anura",
+      "family": "Bombinatoridae",
+      "common_name_de": "Gelbbauchunke",
+      "common_name_en": "Yellow-bellied Toad",
+      "common_name_fr": "Sonneur a ventre jaune",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Hyla_arborea",
+      "taxon_group": "amphibia",
+      "order": "Anura",
+      "family": "Hylidae",
+      "common_name_de": "Laubfrosch",
+      "common_name_en": "European Tree Frog",
+      "common_name_fr": "Rainette verte",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Bufo_bufo",
+      "taxon_group": "amphibia",
+      "order": "Anura",
+      "family": "Bufonidae",
+      "common_name_de": "Erdkroete",
+      "common_name_en": "Common Toad",
+      "common_name_fr": "Crapaud commun",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Pelophylax_esculentus",
+      "taxon_group": "amphibia",
+      "order": "Anura",
+      "family": "Ranidae",
+      "common_name_de": "Wasserfrosch",
+      "common_name_en": "Edible Frog",
+      "common_name_fr": "Grenouille verte",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Alytes_obstetricans",
+      "taxon_group": "amphibia",
+      "order": "Anura",
+      "family": "Alytidae",
+      "common_name_de": "Geburtshelferkroete",
+      "common_name_en": "Common Midwife Toad",
+      "common_name_fr": "Alyte accoucheur",
+      "iucn_status": "LC",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Gryllus_campestris",
+      "taxon_group": "orthoptera",
+      "order": "Orthoptera",
+      "family": "Gryllidae",
+      "common_name_de": "Feldgrille",
+      "common_name_en": "Field Cricket",
+      "common_name_fr": "Grillon champetre",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Tettigonia_viridissima",
+      "taxon_group": "orthoptera",
+      "order": "Orthoptera",
+      "family": "Tettigoniidae",
+      "common_name_de": "Gruenes Heupferd",
+      "common_name_en": "Great Green Bush-Cricket",
+      "common_name_fr": "Grande sauterelle verte",
+      "iucn_status": "",
+      "region_tags": [
+        "CH_breeding",
+        "central_europe"
+      ],
+      "classifier_support": []
+    },
+    {
+      "scientific_name": "Oecanthus_pellucens",
+      "taxon_group": "orthoptera",
+      "order": "Orthoptera",
+      "family": "Gryllidae",
+      "common_name_de": "Weinhaehnchen",
+      "common_name_en": "Italian Tree Cricket",
+      "common_name_fr": "Grillon d'Italie",
+      "iucn_status": "",
+      "region_tags": [
+        "central_europe"
+      ],
+      "classifier_support": []
+    }
+  ]
+}

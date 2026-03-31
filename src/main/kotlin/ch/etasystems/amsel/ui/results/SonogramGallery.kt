@@ -1,0 +1,507 @@
+package ch.etasystems.amsel.ui.results
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import ch.etasystems.amsel.core.annotation.MatchResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * Horizontale Thumbnail-Galerie fuer Referenz-Sonogramme.
+ * Zeigt matchResults als scrollbare Reihe mit kleinen Vorschaubildern.
+ * Klick auf ein Thumbnail waehlt es aus und zeigt es gross im Referenz-Bereich darueber.
+ *
+ * Layout (von oben nach unten):
+ * 1. Grosses Referenz-Sonogramm (wenn selectedResult != null)
+ * 2. Horizontale LazyRow mit Thumbnails (3-4 nebeneinander sichtbar)
+ */
+@Composable
+fun SonogramGallery(
+    matchResults: List<MatchResult>,
+    selectedResult: MatchResult?,
+    onSelectResult: (MatchResult) -> Unit,
+    onPlayAudio: (MatchResult) -> Unit,
+    onStopAudio: () -> Unit = {},
+    onClose: () -> Unit,
+    isLoading: Boolean = false,
+    isPlayingAudio: Boolean = false,
+    playingRecordingId: String = "",
+    downloadingRecordingId: String = "",
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        // Grosses Referenz-Sonogramm (wenn ausgewaehlt)
+        if (selectedResult != null) {
+            HorizontalDivider(thickness = 2.dp, color = Color(0xFFFFEB3B).copy(alpha = 0.7f))
+            ReferenceImageLarge(
+                result = selectedResult,
+                onClose = onClose,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            )
+        }
+
+        // Thumbnail-Galerie
+        when {
+            isLoading -> {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Text(
+                                "Suche Referenz-Sonogramme...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            matchResults.isEmpty() -> {
+                // Platzhalter: dezenter Hinweis
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    color = Color.Transparent
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            "Referenz-Sonogramme erscheinen hier nach Auswahl einer Markierung",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                // Header mit Anzahl
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ) {
+                    Text(
+                        "${matchResults.size} Referenz-Sonogramme",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Horizontale Thumbnail-Reihe
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(matchResults, key = { it.recordingId }) { result ->
+                        val isThisPlaying = isPlayingAudio && playingRecordingId == result.recordingId
+                        val isThisDownloading = downloadingRecordingId == result.recordingId
+                        ThumbnailCard(
+                            result = result,
+                            isSelected = selectedResult?.recordingId == result.recordingId,
+                            onClick = { onSelectResult(result) },
+                            onPlay = {
+                                if (isThisPlaying) onStopAudio()
+                                else onPlayAudio(result)
+                            },
+                            isPlaying = isThisPlaying,
+                            isDownloading = isThisDownloading
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ================================================================
+// Grosses Referenz-Bild (wiederverwendet Lade-Logik aus ReferenceSonogramPanel)
+// ================================================================
+
+@Composable
+private fun ReferenceImageLarge(
+    result: MatchResult,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var bitmap by remember(result.sonogramUrl) { mutableStateOf<ImageBitmap?>(null) }
+    var loadError by remember(result.sonogramUrl) { mutableStateOf(false) }
+
+    LaunchedEffect(result.sonogramUrl) {
+        if (result.sonogramUrl.isBlank()) {
+            loadError = true
+            return@LaunchedEffect
+        }
+        loadError = false
+        bitmap = null
+
+        try {
+            bitmap = withContext(Dispatchers.IO) {
+                val raw = ImageLoader.loadBufferedImage(result.sonogramUrl)
+                if (raw == null) return@withContext null
+                // Grosse Bilder runterskalieren
+                val scaled = ImageLoader.scaleIfNeeded(raw, maxWidth = 2000)
+                // Schwarze/korrupte Bilder erkennen
+                if (ImageLoader.isImageBlack(scaled)) return@withContext null
+                // Auf ARGB konvertieren (noetig fuer toComposeImageBitmap)
+                ImageLoader.toArgb(scaled).toComposeImageBitmap()
+            }
+            if (bitmap == null) loadError = true
+        } catch (_: Exception) {
+            loadError = true
+        }
+    }
+
+    Surface(
+        modifier = modifier,
+        color = Color(0xFF1A1A2E)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
+            // Header: Art-Info + Close
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Wissenschaftlicher Name als Haupttitel (species kann leer sein bei lokalen Referenzen)
+                    val displayName = result.species.ifBlank { result.scientificName }
+                    Text(
+                        displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                    if (result.species.isNotBlank() && result.scientificName.isNotBlank()) {
+                        Text(
+                            result.scientificName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.6f),
+                            maxLines = 1
+                        )
+                    }
+                    if (result.type.isNotBlank()) {
+                        Surface(
+                            shape = MaterialTheme.shapes.extraSmall,
+                            color = Color.White.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                result.type,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                    // ID anzeigen (XC-Prefix nur wenn es eine XC-Aufnahme ist)
+                    val idLabel = if (result.recordingId.all { it.isDigit() }) "#${result.recordingId}" else "XC${result.recordingId}"
+                    Text(
+                        idLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.35f)
+                    )
+                }
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Schliessen",
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            // Bild
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f).background(Color.White)
+            ) {
+                if (bitmap != null) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawImage(
+                            image = bitmap!!,
+                            dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                        )
+                    }
+                } else if (loadError) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Sonogramm nicht verfuegbar",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.4f)
+                        )
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ================================================================
+// Thumbnail-Karte (einzelnes Item in der Galerie)
+// ================================================================
+
+@Composable
+private fun ThumbnailCard(
+    result: MatchResult,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onPlay: () -> Unit,
+    isPlaying: Boolean = false,
+    isDownloading: Boolean = false
+) {
+    var bitmap by remember(result.sonogramUrl) { mutableStateOf<ImageBitmap?>(null) }
+    var loadError by remember(result.sonogramUrl) { mutableStateOf(false) }
+    var isCorrupt by remember(result.sonogramUrl) { mutableStateOf(false) }
+
+    LaunchedEffect(result.sonogramUrl) {
+        if (result.sonogramUrl.isBlank()) {
+            loadError = true
+            return@LaunchedEffect
+        }
+        loadError = false
+        isCorrupt = false
+        bitmap = null
+
+        try {
+            val (bmp, corrupt) = withContext(Dispatchers.IO) {
+                val raw = ImageLoader.loadBufferedImage(result.sonogramUrl)
+                if (raw == null) return@withContext Pair(null, false)
+                // Thumbnail-Groesse: max 300px breit
+                val scaled = ImageLoader.scaleIfNeeded(raw, maxWidth = 300)
+                // Schwarze Bilder erkennen
+                if (ImageLoader.isImageBlack(scaled)) return@withContext Pair(null, true)
+                val composeBmp = ImageLoader.toArgb(scaled).toComposeImageBitmap()
+                Pair(composeBmp, false)
+            }
+            bitmap = bmp
+            isCorrupt = corrupt
+            if (bmp == null && !corrupt) loadError = true
+        } catch (_: Exception) {
+            loadError = true
+        }
+    }
+
+    // Thumbnail: 200 x 90dp
+    val borderColor = if (isSelected) Color(0xFFFFEB3B) else Color.Transparent
+    val borderWidth = if (isSelected) 2.dp else 0.dp
+
+    Card(
+        modifier = Modifier
+            .width(200.dp)
+            .height(110.dp)
+            .then(
+                if (isSelected) Modifier.border(borderWidth, borderColor, MaterialTheme.shapes.medium)
+                else Modifier
+            ),
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column {
+            // Sonogramm-Thumbnail
+            Box(modifier = Modifier.fillMaxWidth().height(60.dp)) {
+                when {
+                    isCorrupt -> {
+                        // Korruptes/schwarzes Bild: dezenter Platzhalter
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Image,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                    )
+                                    Text(
+                                        "n/a",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    bitmap != null -> {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawImage(
+                                image = bitmap!!,
+                                dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                            )
+                        }
+                    }
+                    loadError -> {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    "n/a",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 1.5.dp
+                            )
+                        }
+                    }
+                }
+
+                // Play-Button Overlay (unten rechts)
+                if (bitmap != null && !isCorrupt) {
+                    if (isDownloading) {
+                        // Downloading-State: Spinner
+                        Box(
+                            modifier = Modifier.align(Alignment.BottomEnd).size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraSmall,
+                                color = Color.Black.copy(alpha = 0.6f),
+                                modifier = Modifier.size(20.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 1.5.dp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        IconButton(
+                            onClick = onPlay,
+                            modifier = Modifier.align(Alignment.BottomEnd).size(24.dp)
+                        ) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraSmall,
+                                color = if (isPlaying) Color(0xCC4CAF50) else Color.Black.copy(alpha = 0.6f),
+                                modifier = Modifier.size(20.dp)
+                            ) {
+                                Icon(
+                                    if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "Stoppen" else "Abspielen",
+                                    tint = Color.White,
+                                    modifier = Modifier.padding(1.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Art-Name + Qualitaet
+            Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) {
+                val displayName = result.species.ifBlank { result.scientificName }
+                Text(
+                    displayName,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Qualitaets-Badge
+                    if (result.quality.isNotBlank()) {
+                        Surface(
+                            shape = MaterialTheme.shapes.extraSmall,
+                            color = qualityColor(result.quality)
+                        ) {
+                            Text(
+                                "Q:${result.quality}",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
+                                color = Color.White
+                            )
+                        }
+                    }
+                    if (result.type.isNotBlank()) {
+                        Text(
+                            result.type,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            maxLines = 1
+                        )
+                    }
+                    val idLabel = if (result.recordingId.all { it.isDigit() }) "#${result.recordingId}" else "XC${result.recordingId}"
+                    Text(
+                        idLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ================================================================
+// Hilfsfunktionen fuer Bild-Laden (gemeinsam genutzt)
+// ================================================================
+
+
+private fun qualityColor(q: String) = when (q.uppercase()) {
+    "A" -> Color(0xFF4CAF50)
+    "B" -> Color(0xFF8BC34A)
+    "C" -> Color(0xFFFFC107)
+    "D" -> Color(0xFFFF9800)
+    else -> Color(0xFFF44336)
+}
