@@ -1,8 +1,11 @@
 package ch.etasystems.amsel.core.spectrogram
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.jtransforms.fft.DoubleFFT_1D
 import kotlin.math.log10
-import kotlin.math.sqrt
 
 /**
  * Berechnet ein Mel-Spektrogramm aus rohem PCM-Audio.
@@ -16,35 +19,48 @@ class MelSpectrogram(
     val fMax: Float = 7500f,
     val sampleRate: Int = 16000
 ) {
-    private val fft = DoubleFFT_1D(fftSize.toLong())
     private val filterbank = MelFilterbank.build(nMels, fftSize, sampleRate, fMin, fMax)
     private val window = hannWindow(fftSize)
 
     companion object {
+        /** Cache fuer MelSpectrogram-Instanzen: key = Preset + Parameter */
+        private val instanceCache = mutableMapOf<String, MelSpectrogram>()
+
         /**
          * Voegel-Preset: Maximale Aufloesung (Ornitho-Qualitaet).
          * FFT 4096 → 4x so feine Frequenzaufloesung wie vorher
          * 160 Mel-Bins → doppelte Frequenz-Detailtiefe
          * Hop 256 → 4x hoehere Zeitaufloesung
          */
-        fun bird(sampleRate: Int = 48000, maxFreqHz: Float = 16000f) = MelSpectrogram(
-            fftSize = 4096,
-            hopSize = 128,        // feinere Zeitaufloesung fuer Zoom-Ansicht
-            nMels = 256,          // hoehere Frequenzaufloesung (vorher 160)
-            fMin = 100f,          // etwas tiefer fuer tiefe Rufe (Uhu, Rohrdommel)
-            fMax = maxFreqHz.coerceAtMost(sampleRate / 2f),  // nie ueber Nyquist
-            sampleRate = sampleRate
-        )
+        fun bird(sampleRate: Int = 48000, maxFreqHz: Float = 16000f): MelSpectrogram {
+            val fMax = maxFreqHz.coerceAtMost(sampleRate / 2f)
+            val key = "bird_${sampleRate}_${fMax.toInt()}"
+            return instanceCache.getOrPut(key) {
+                MelSpectrogram(
+                    fftSize = 4096,
+                    hopSize = 128,
+                    nMels = 256,
+                    fMin = 100f,
+                    fMax = fMax,
+                    sampleRate = sampleRate
+                )
+            }
+        }
 
         /** Fledermaus-Preset (Ultraschall) */
-        fun bat(sampleRate: Int = 256000) = MelSpectrogram(
-            fftSize = 1024,
-            hopSize = 256,
-            nMels = 80,
-            fMin = 15000f,
-            fMax = 125000f,
-            sampleRate = sampleRate
-        )
+        fun bat(sampleRate: Int = 256000): MelSpectrogram {
+            val key = "bat_$sampleRate"
+            return instanceCache.getOrPut(key) {
+                MelSpectrogram(
+                    fftSize = 1024,
+                    hopSize = 256,
+                    nMels = 80,
+                    fMin = 15000f,
+                    fMax = 125000f,
+                    sampleRate = sampleRate
+                )
+            }
+        }
 
         /** Automatisch: Vogel oder Fledermaus basierend auf Sample-Rate */
         fun auto(sampleRate: Int, maxFreqHz: Float = 16000f): MelSpectrogram {
@@ -60,10 +76,12 @@ class MelSpectrogram(
 
     /**
      * Berechnet das Mel-Spektrogramm.
+     * Nutzt Coroutines fuer parallele FFT-Berechnung auf mehreren Cores.
+     *
      * @param samples PCM-Audiodaten (Mono, Float [-1..1])
      * @return SpectrogramData mit log-skalierten Mel-Energien
      */
-    fun compute(samples: FloatArray): SpectrogramData {
+    suspend fun compute(samples: FloatArray): SpectrogramData {
         val nFrames = (samples.size - fftSize) / hopSize + 1
         if (nFrames <= 0) {
             return SpectrogramData(
@@ -80,50 +98,61 @@ class MelSpectrogram(
 
         val numBins = fftSize / 2 + 1
         val matrix = FloatArray(nMels * nFrames)
-        val fftBuffer = DoubleArray(fftSize * 2)  // JTransforms braucht 2*N für reale FFT
-        val powerSpectrum = FloatArray(numBins)
 
-        for (frame in 0 until nFrames) {
-            val offset = frame * hopSize
+        // Parallele Verarbeitung: Frames in Batches aufteilen
+        val numCores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+        val batchSize = (nFrames + numCores - 1) / numCores  // Ceiling-Division
 
-            // Hann-Fenster anwenden + in FFT-Buffer kopieren
-            for (i in 0 until fftSize) {
-                val sampleIdx = offset + i
-                fftBuffer[i] = if (sampleIdx < samples.size) {
-                    (samples[sampleIdx] * window[i]).toDouble()
-                } else {
-                    0.0
+        coroutineScope {
+            (0 until nFrames step batchSize).map { batchStart ->
+                async(Dispatchers.Default) {
+                    val batchEnd = minOf(batchStart + batchSize, nFrames)
+                    // Jeder Thread bekommt eigene Arbeitsbuffer (nicht geteilt!)
+                    val localFft = DoubleFFT_1D(fftSize.toLong())
+                    val localFftBuffer = DoubleArray(fftSize * 2)
+                    val localPowerSpectrum = FloatArray(numBins)
+
+                    for (frame in batchStart until batchEnd) {
+                        val offset = frame * hopSize
+
+                        // Hann-Fenster anwenden + in FFT-Buffer kopieren
+                        for (i in 0 until fftSize) {
+                            val sampleIdx = offset + i
+                            localFftBuffer[i] = if (sampleIdx < samples.size) {
+                                (samples[sampleIdx] * window[i]).toDouble()
+                            } else {
+                                0.0
+                            }
+                        }
+                        // Imaginaerteil auf 0
+                        for (i in fftSize until fftSize * 2) {
+                            localFftBuffer[i] = 0.0
+                        }
+
+                        // FFT berechnen
+                        localFft.realForwardFull(localFftBuffer)
+
+                        // Power-Spektrum
+                        for (k in 0 until numBins) {
+                            val re = localFftBuffer[2 * k].toFloat()
+                            val im = localFftBuffer[2 * k + 1].toFloat()
+                            localPowerSpectrum[k] = re * re + im * im
+                        }
+
+                        // Mel-Filterbank anwenden
+                        for (m in 0 until nMels) {
+                            var energy = 0f
+                            for (k in 0 until numBins) {
+                                energy += filterbank[m][k] * localPowerSpectrum[k]
+                            }
+                            // Matrix-Zugriff ist thread-safe: jeder Frame schreibt nur seine eigene Spalte
+                            matrix[m * nFrames + frame] = log10(energy + 1e-10f)
+                        }
+                    }
                 }
-            }
-            // Imaginärteil auf 0
-            for (i in fftSize until fftSize * 2) {
-                fftBuffer[i] = 0.0
-            }
-
-            // FFT berechnen
-            fft.realForwardFull(fftBuffer)
-
-            // Power-Spektrum: |X(k)|² = Re² + Im²
-            for (k in 0 until numBins) {
-                val re = fftBuffer[2 * k].toFloat()
-                val im = fftBuffer[2 * k + 1].toFloat()
-                powerSpectrum[k] = re * re + im * im
-            }
-
-            // Mel-Filterbank anwenden
-            for (m in 0 until nMels) {
-                var energy = 0f
-                for (k in 0 until numBins) {
-                    energy += filterbank[m][k] * powerSpectrum[k]
-                }
-                // Log-Skalierung: log10(energy + epsilon)
-                matrix[m * nFrames + frame] = log10(energy + 1e-10f)
-            }
+            }.awaitAll()
         }
 
-        // 0 dBFS Referenz: log10 der max. Mel-Energie bei Vollaussteuerung.
-        // Fuer Sinus mit Amplitude 1.0: FFT-Bin-Magnitude ≈ N/2 (Hann-Fenster),
-        // Power ≈ (N/2)², Mel-Filterbank-Gewicht ≈ 1 am Peak.
         val ref0dBFS = (2.0 * log10(fftSize.toDouble() / 2.0)).toFloat()
 
         return SpectrogramData(

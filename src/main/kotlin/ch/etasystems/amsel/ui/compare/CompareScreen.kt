@@ -28,12 +28,27 @@ import ch.etasystems.amsel.ui.settings.UnifiedSettingsDialog
 import ch.etasystems.amsel.core.spectrogram.Colormap
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Sync
-import ch.etasystems.amsel.ui.layout.HorizontalSplitter
 import ch.etasystems.amsel.ui.layout.VerticalSplitter
 import ch.etasystems.amsel.ui.sonogram.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.*
 import java.io.File
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
+import ch.etasystems.amsel.core.export.AudioExporter
+import ch.etasystems.amsel.core.export.SpeciesCsvExporter
+import ch.etasystems.amsel.core.classifier.ClassifierResult
+import ch.etasystems.amsel.data.resolvedExportDir
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalDensity
 
 /**
  * Haupt-Composable der Anwendung.
@@ -61,6 +76,19 @@ fun CompareScreen(
     val savedSettings = remember { ch.etasystems.amsel.data.SettingsStore.load() }
     var sidebarWidth by remember { mutableStateOf(savedSettings.sidebarWidth) }
     var galleryHeight by remember { mutableStateOf(savedSettings.galleryHeight) }
+
+    // Sidebar + Gallery Groesse persistent speichern (debounced)
+    LaunchedEffect(sidebarWidth, galleryHeight) {
+        kotlinx.coroutines.delay(1000)
+        val current = ch.etasystems.amsel.data.SettingsStore.load()
+        if (current.sidebarWidth != sidebarWidth || current.galleryHeight != galleryHeight) {
+            ch.etasystems.amsel.data.SettingsStore.save(current.copy(
+                sidebarWidth = sidebarWidth,
+                galleryHeight = galleryHeight
+            ))
+        }
+    }
+
     DisposableEffect(viewModel) {
         onDispose { viewModel.dispose() }
     }
@@ -120,7 +148,23 @@ fun CompareScreen(
 
     val isBusy = uiState.isProcessing || uiState.isComputingZoom
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // U1: Globale Tastaturkuerzel — Focus auf Root-Container
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(100)  // Frame abwarten
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                handleGlobalShortcut(event, viewModel, uiState)
+            }
+    ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Tab-State (fuer Toolbar + Panel)
         var selectedTab by remember { mutableIntStateOf(-1) }
@@ -167,6 +211,8 @@ fun CompareScreen(
                     when (type) {
                         "wav" -> viewModel.exportAudio(file, format = "wav")
                         "mp3" -> viewModel.exportAudio(file, format = "mp3")
+                        "flac" -> viewModel.exportAudio(file, format = "flac")
+                        "m4a" -> viewModel.exportAudio(file, format = "m4a")
                         "wav10x" -> viewModel.exportAudio(file, format = "wav", timeStretch = 10)
                         else -> viewModel.exportAnnotation(file)
                     }
@@ -257,7 +303,43 @@ fun CompareScreen(
                 }
             },
             hasProject = uiState.projectFile != null,
-            projectDirty = uiState.projectDirty
+            projectDirty = uiState.projectDirty,
+            onExportReport = viewModel::exportReport,
+            speciesCsvEnabled = uiState.annotations.any { it.isBirdNetDetection },
+            onExportSpeciesCsv = {
+                val annotations = uiState.annotations.filter { it.isBirdNetDetection }
+                if (annotations.isNotEmpty()) {
+                    val results = annotations.mapNotNull { ann ->
+                        val best = ann.candidates.maxByOrNull { it.confidence } ?: return@mapNotNull null
+                        ClassifierResult(
+                            species = ann.label,
+                            scientificName = best.scientificName,
+                            confidence = best.confidence,
+                            startTime = ann.startTimeSec,
+                            endTime = ann.endTimeSec
+                        )
+                    }
+                    val audioName = uiState.audioFile?.name ?: "unbekannt"
+                    val csvSettings = ch.etasystems.amsel.data.SettingsStore.load()
+                    val csvStartDir = lastExportDir
+                        ?: csvSettings.resolvedExportDir()
+                        ?: javax.swing.filechooser.FileSystemView.getFileSystemView().defaultDirectory
+                    val chooser = javax.swing.JFileChooser(csvStartDir).apply {
+                        dialogTitle = "Arten-CSV exportieren"
+                        fileFilter = FileNameExtensionFilter("CSV (*.csv)", "csv")
+                        selectedFile = File(
+                            csvStartDir,
+                            audioName.substringBeforeLast('.') + "_arten.csv"
+                        )
+                    }
+                    if (chooser.showSaveDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                        var file = chooser.selectedFile
+                        if (!file.name.endsWith(".csv")) file = File(file.absolutePath + ".csv")
+                        lastExportDir = file.parentFile
+                        SpeciesCsvExporter.export(file, results, audioName)
+                    }
+                }
+            }
         )
 
         // Edit-Modus ist jetzt in der Toolbar (Edit-Icon)
@@ -315,9 +397,8 @@ fun CompareScreen(
                         onStartEdit = viewModel::startEditingLabel,
                         onStopEdit = viewModel::stopEditingLabel,
                         onZoomToEvent = { ann ->
-                            val settings = ch.etasystems.amsel.data.SettingsStore.load()
-                            val pre = settings.eventPrerollSec
-                            val post = settings.eventPostrollSec
+                            val pre = savedSettings.eventPrerollSec
+                            val post = savedSettings.eventPostrollSec
                             viewModel.selectAnnotation(ann.id)
                             viewModel.zoomToRange(
                                 (ann.startTimeSec - pre).coerceAtLeast(0f),
@@ -325,9 +406,17 @@ fun CompareScreen(
                             )
                         },
                         speciesLanguage = ch.etasystems.amsel.core.i18n.SpeciesTranslations.Language.valueOf(
-                            ch.etasystems.amsel.data.SettingsStore.load().speciesLanguage
+                            savedSettings.speciesLanguage
                         ),
-                        showScientificNames = ch.etasystems.amsel.data.SettingsStore.load().showScientificNames,
+                        showScientificNames = savedSettings.showScientificNames,
+                        // Multi-Select (U3)
+                        selectedAnnotationIds = uiState.selectedAnnotationIds,
+                        onToggleSelection = viewModel::toggleMultiSelection,
+                        onSelectAll = viewModel::selectAllAnnotations,
+                        onClearSelection = viewModel::clearMultiSelection,
+                        onDeleteSelected = viewModel::deleteSelectedAnnotations,
+                        onExportReport = viewModel::exportReport,
+                        onShiftClick = viewModel::selectRange,
                         modifier = Modifier.weight(1f)
                     )
                     // Kandidatenliste fuer aktive BirdNET-Annotation
@@ -338,7 +427,18 @@ fun CompareScreen(
                             annotation = activeAnn,
                             onAdoptCandidate = { candidate ->
                                 viewModel.adoptCandidate(activeAnn.id, candidate)
-                            }
+                            },
+                            onVerifyCandidate = { candidate ->
+                                viewModel.verifyCandidateAndSearch(activeAnn.id, candidate)
+                            },
+                            onRejectCandidate = { candidate ->
+                                viewModel.rejectCandidateInAnnotation(activeAnn.id, candidate)
+                            },
+                            onResetCandidate = { candidate ->
+                                viewModel.resetCandidateInAnnotation(activeAnn.id, candidate)
+                            },
+                            onUpdateNotes = { notes -> viewModel.updateAnnotationNotes(activeAnn.id, notes) },
+                            onUpdateLabel = { label -> viewModel.updateAnnotationLabel(activeAnn.id, label) }
                         )
                     }
 
@@ -360,7 +460,7 @@ fun CompareScreen(
                     Column(modifier = Modifier.padding(8.dp)) {
                         // Preset-Name (Vogel/Fledermaus/Insekt)
                         if (uiState.detectedMode.isNotEmpty()) {
-                            val presetName = ch.etasystems.amsel.data.SettingsStore.load().let { s ->
+                            val presetName = savedSettings.let { s ->
                                 if (s.maxFrequencyHz > 20000) "Fledermaus"
                                 else if (s.maxFrequencyHz > 16000) "Insekt"
                                 else "Vogel"
@@ -486,6 +586,11 @@ fun CompareScreen(
                         var contextMenuOffset by remember { mutableStateOf(androidx.compose.ui.unit.DpOffset.Zero) }
                         val density = androidx.compose.ui.platform.LocalDensity.current
 
+                        // U2b: Kontextmenu-State fuer Rechtsklick auf leere Canvas-Stelle
+                        var showCanvasContextMenu by remember { mutableStateOf(false) }
+                        var canvasContextMenuOffset by remember { mutableStateOf(androidx.compose.ui.unit.DpOffset.Zero) }
+                        var canvasContextMenuTimeSec by remember { mutableStateOf(0f) }
+
                         Box {
                         ZoomedCanvas(
                             spectrogramData = uiState.zoomedSpectrogramData,
@@ -503,6 +608,13 @@ fun CompareScreen(
                                     androidx.compose.ui.unit.DpOffset(px.toDp(), py.toDp())
                                 }
                                 viewModel.selectAnnotation(annId)
+                            },
+                            onCanvasRightClicked = { timeSec, _, px, py ->
+                                canvasContextMenuTimeSec = timeSec
+                                canvasContextMenuOffset = with(density) {
+                                    androidx.compose.ui.unit.DpOffset(px.toDp(), py.toDp())
+                                }
+                                showCanvasContextMenu = true
                             },
                             playbackPositionSec = if (uiState.isPlaying || uiState.isPaused) {
                                 uiState.playbackPositionSec
@@ -528,7 +640,7 @@ fun CompareScreen(
                             normReferenceMaxDb = uiState.normReferenceMaxDb
                         )
 
-                        // Kontextmenu bei Rechtsklick auf Annotation
+                        // U2a: Erweitertes Kontextmenu bei Rechtsklick auf Annotation
                         DropdownMenu(
                             expanded = contextMenuAnnotationId != null,
                             onDismissRequest = { contextMenuAnnotationId = null },
@@ -546,20 +658,32 @@ fun CompareScreen(
                                 leadingIcon = { Icon(Icons.Default.Search, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Loeschen") },
+                                text = { Text("Umbenennen (F2)") },
+                                onClick = {
+                                    contextMenuAnnotationId = null
+                                    if (annId != null) viewModel.startEditingLabel(annId)
+                                },
+                                leadingIcon = { Icon(Icons.Default.Edit, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Loeschen (Del)") },
                                 onClick = {
                                     contextMenuAnnotationId = null
                                     if (annId != null) viewModel.deleteAnnotation(annId)
                                 },
                                 leadingIcon = { Icon(Icons.Default.Delete, null) }
                             )
+
+                            HorizontalDivider()
+
                             if (ann != null) {
                                 DropdownMenuItem(
                                     text = { Text("Hierhin zoomen") },
                                     onClick = {
                                         contextMenuAnnotationId = null
-                                        val pre = ch.etasystems.amsel.data.SettingsStore.load().eventPrerollSec
-                                        val post = ch.etasystems.amsel.data.SettingsStore.load().eventPostrollSec
+                                        val zoomSettings = ch.etasystems.amsel.data.SettingsStore.load()
+                                        val pre = zoomSettings.eventPrerollSec
+                                        val post = zoomSettings.eventPostrollSec
                                         viewModel.zoomToRange(
                                             (ann.startTimeSec - pre).coerceAtLeast(0f),
                                             ann.endTimeSec + post
@@ -567,12 +691,40 @@ fun CompareScreen(
                                     },
                                     leadingIcon = { Icon(Icons.Default.ZoomIn, null) }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Abspielen") },
+                                    onClick = {
+                                        contextMenuAnnotationId = null
+                                        viewModel.playRange(ann.startTimeSec, ann.endTimeSec)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Search, null) }
+                                )
+
                                 HorizontalDivider()
+
+                                DropdownMenuItem(
+                                    text = { Text("Region als WAV exportieren") },
+                                    onClick = {
+                                        contextMenuAnnotationId = null
+                                        viewModel.exportRegionWav(ann.startTimeSec, ann.endTimeSec)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.AudioFile, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Region als PNG exportieren") },
+                                    onClick = {
+                                        contextMenuAnnotationId = null
+                                        viewModel.exportRegionPng(ann.startTimeSec, ann.endTimeSec)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Image, null) }
+                                )
+
+                                HorizontalDivider()
+
                                 DropdownMenuItem(
                                     text = { Text("Vergleichen — Sonogramm laden") },
                                     onClick = {
                                         contextMenuAnnotationId = null
-                                        // Auf Annotation zoomen, dann Sonogramm-Bild laden
                                         viewModel.zoomToRange(ann.startTimeSec, ann.endTimeSec)
                                         val chooser = javax.swing.JFileChooser().apply {
                                             dialogTitle = "Sonogramm-Bild zum Vergleichen"
@@ -588,11 +740,10 @@ fun CompareScreen(
                                     text = { Text("Vergleichen — Audio laden") },
                                     onClick = {
                                         contextMenuAnnotationId = null
-                                        // Auf Annotation zoomen, dann Audio-Vergleichsdatei laden
                                         viewModel.zoomToRange(ann.startTimeSec, ann.endTimeSec)
                                         val chooser = javax.swing.JFileChooser().apply {
                                             dialogTitle = "Audio zum Vergleichen"
-                                            fileFilter = javax.swing.filechooser.FileNameExtensionFilter("Audio (WAV, MP3, FLAC)", "wav", "mp3", "flac", "m4a")
+                                            fileFilter = javax.swing.filechooser.FileNameExtensionFilter("Audio (WAV, MP3, FLAC, M4A)", "wav", "mp3", "flac", "m4a", "m4p")
                                         }
                                         if (chooser.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
                                             viewModel.importCompareFile(chooser.selectedFile)
@@ -601,6 +752,46 @@ fun CompareScreen(
                                     leadingIcon = { Icon(Icons.Default.AudioFile, null) }
                                 )
                             }
+                        }
+
+                        // U2b: Canvas-Kontextmenue (Rechtsklick auf leere Stelle)
+                        DropdownMenu(
+                            expanded = showCanvasContextMenu,
+                            onDismissRequest = { showCanvasContextMenu = false },
+                            offset = canvasContextMenuOffset
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Neue Annotation hier") },
+                                onClick = {
+                                    viewModel.createAnnotationAt(canvasContextMenuTimeSec)
+                                    showCanvasContextMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.Edit, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Hierhin zoomen") },
+                                onClick = {
+                                    viewModel.zoomToTime(canvasContextMenuTimeSec)
+                                    showCanvasContextMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.ZoomIn, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Ab hier abspielen") },
+                                onClick = {
+                                    viewModel.playFromTime(canvasContextMenuTimeSec)
+                                    showCanvasContextMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.Search, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("BirdNET: Sichtbaren Bereich scannen") },
+                                onClick = {
+                                    viewModel.scanBirdNetVisible()
+                                    showCanvasContextMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.Search, null) }
+                            )
                         }
                         } // Box
                     } else {
@@ -696,11 +887,33 @@ fun CompareScreen(
                 // Referenz-Sonogramm-Galerie (Thumbnails + grosses Bild)
                 val activeResults = uiState.activeAnnotation?.matchResults ?: emptyList()
                 if (activeResults.isNotEmpty() || uiState.selectedMatchResult != null) {
-                    HorizontalSplitter(
-                        onDrag = { delta ->
-                            galleryHeight = (galleryHeight - delta).coerceIn(80f, 500f)
-                        }
-                    )
+                    // Draggable Splitter mit detectVerticalDragGestures fuer korrekte Pointer-Capture
+                    // (HorizontalSplitter nutzt raw awaitPointerEvent, das keine Pointer-Capture macht —
+                    //  bei 4dp Hoehe verliert der Handler sofort die Events)
+                    val splitterInteraction = remember { MutableInteractionSource() }
+                    val splitterHovered by splitterInteraction.collectIsHoveredAsState()
+                    val density = LocalDensity.current
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .hoverable(splitterInteraction)
+                            .pointerHoverIcon(PointerIcon(java.awt.Cursor(java.awt.Cursor.N_RESIZE_CURSOR)))
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures { _, dragAmount ->
+                                    val deltaDp = dragAmount / density.density
+                                    galleryHeight = (galleryHeight - deltaDp).coerceIn(80f, 500f)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(if (splitterHovered) Color(0xFF4CAF50) else Color(0xFF333333))
+                        )
+                    }
                     SonogramGallery(
                         matchResults = activeResults,
                         selectedResult = uiState.selectedMatchResult,
@@ -756,24 +969,87 @@ fun CompareScreen(
 }
 
 
+// ====================================================================
+// U1: Globale Tastaturkuerzel
+// ====================================================================
+
+private fun handleGlobalShortcut(
+    event: KeyEvent,
+    viewModel: CompareViewModel,
+    uiState: CompareUiState
+): Boolean {
+    val ctrl = event.isCtrlPressed
+    return when {
+        // === Datei ===
+        ctrl && event.key == Key.S -> { viewModel.saveProjectManual(); true }
+        ctrl && event.key == Key.Z -> { viewModel.undo(); true }
+
+        // === Wiedergabe ===
+        event.key == Key.Spacebar -> {
+            viewModel.togglePlayPause()
+            true
+        }
+        event.key == Key.Escape -> {
+            when {
+                uiState.isPlaying -> { viewModel.stopPlayback(); true }
+                uiState.selectedAnnotationIds.isNotEmpty() -> { viewModel.clearMultiSelection(); true }
+                uiState.activeAnnotationId != null -> { viewModel.clearSelection(); true }
+                else -> false
+            }
+        }
+
+        // === Navigation ===
+        event.key == Key.DirectionLeft && !ctrl -> { viewModel.navigateLeft(); true }
+        event.key == Key.DirectionRight && !ctrl -> { viewModel.navigateRight(); true }
+        event.key == Key.DirectionLeft && ctrl -> { viewModel.previousAnnotation(); true }
+        event.key == Key.DirectionRight && ctrl -> { viewModel.nextAnnotation(); true }
+
+        // === Zoom ===
+        event.key == Key.Plus || event.key == Key.Equals -> { viewModel.zoomIn(); true }
+        event.key == Key.Minus -> { viewModel.zoomOut(); true }
+        event.key == Key.Zero && ctrl -> { viewModel.zoomReset(); true }
+
+        // === Multi-Select (U3) ===
+        ctrl && event.key == Key.A -> { viewModel.selectAllAnnotations(); true }
+
+        // === Annotation ===
+        event.key == Key.Delete || event.key == Key.Backspace -> {
+            if (uiState.selectedAnnotationIds.isNotEmpty()) {
+                viewModel.deleteSelectedAnnotations(); true
+            } else {
+                val annId = uiState.activeAnnotationId
+                if (annId != null) { viewModel.deleteAnnotation(annId); true } else false
+            }
+        }
+
+        // === Analyse ===
+        event.key == Key.F5 -> { viewModel.fullScanBirdNet(); true }
+        event.key == Key.F2 -> {
+            val annId = uiState.activeAnnotationId
+            if (annId != null) { viewModel.startEditingLabel(annId); true } else false
+        }
+
+        else -> false
+    }
+}
+
+
 private var lastExportDir: File? = null
 
-/** Prueft ob ffmpeg im PATH verfuegbar ist. */
-private val ffmpegAvailable: Boolean by lazy {
-    try {
-        val p = ProcessBuilder("ffmpeg", "-version").redirectErrorStream(true).start()
-        p.inputStream.readBytes()
-        p.waitFor() == 0
-    } catch (_: Exception) { false }
-}
+/** Delegiert an AudioExporter.ffmpegAvailable. */
+private val ffmpegAvailable: Boolean get() = AudioExporter.ffmpegAvailable
 
 /** Rueckgabe: Datei + Typ ("png", "wav", "flac", "mp3", "wav10x") */
 private fun showExportDialog(suggestedName: String = "sonogramm_export.png", isBatMode: Boolean = false): Pair<File, String>? {
+    val exportSettings = ch.etasystems.amsel.data.SettingsStore.load()
     val startDir = lastExportDir
+        ?: exportSettings.resolvedExportDir()
         ?: javax.swing.filechooser.FileSystemView.getFileSystemView().defaultDirectory
     val pngFilter = FileNameExtensionFilter("Sonogramm (*.png)", "png")
     val wavFilter = FileNameExtensionFilter("Audio WAV (*.wav)", "wav")
     val mp3Filter = FileNameExtensionFilter("Audio MP3 (*.mp3)", "mp3")
+    val flacFilter = FileNameExtensionFilter("Audio FLAC (*.flac)", "flac")
+    val m4aFilter = FileNameExtensionFilter("Audio M4A/AAC (*.m4a)", "m4a")
     val wav10xFilter = FileNameExtensionFilter("Audio WAV 10x Zeitdehnung (*.wav)", "wav")
 
     // Filter-Typ-Zuordnung
@@ -781,14 +1057,22 @@ private fun showExportDialog(suggestedName: String = "sonogramm_export.png", isB
         pngFilter to "png",
         wavFilter to "wav"
     )
-    if (ffmpegAvailable) filterToType[mp3Filter] = "mp3"
+    if (ffmpegAvailable) {
+        filterToType[mp3Filter] = "mp3"
+        filterToType[flacFilter] = "flac"
+        filterToType[m4aFilter] = "m4a"
+    }
     if (isBatMode) filterToType[wav10xFilter] = "wav10x"
 
     val chooser = JFileChooser(startDir).apply {
         dialogTitle = "Region exportieren"
         addChoosableFileFilter(pngFilter)
         addChoosableFileFilter(wavFilter)
-        if (ffmpegAvailable) addChoosableFileFilter(mp3Filter)
+        if (ffmpegAvailable) {
+            addChoosableFileFilter(flacFilter)
+            addChoosableFileFilter(m4aFilter)
+            addChoosableFileFilter(mp3Filter)
+        }
         if (isBatMode) addChoosableFileFilter(wav10xFilter)
         fileFilter = pngFilter
         isAcceptAllFileFilterUsed = false

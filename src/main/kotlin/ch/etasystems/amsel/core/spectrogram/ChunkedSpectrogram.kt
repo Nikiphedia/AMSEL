@@ -21,7 +21,7 @@ object ChunkedSpectrogram {
      * @param onProgress Fortschritts-Callback (0.0 .. 1.0)
      * @return Paar aus AudioSegment-Metadaten und heruntergesampletem SpectrogramData
      */
-    fun computeOverview(
+    suspend fun computeOverview(
         file: File,
         targetFrames: Int = 4000,
         maxFreqHz: Float = 16000f,
@@ -80,7 +80,7 @@ object ChunkedSpectrogram {
      * Berechnet ein Uebersichts-Spektrogramm aus einem bereits dekodierten AudioSegment.
      * Fuer Normalisierung/Bearbeitung wo das Segment schon im Speicher liegt.
      */
-    fun computeOverview(
+    suspend fun computeOverview(
         segment: AudioSegment,
         targetFrames: Int = 4000,
         maxFreqHz: Float = 16000f
@@ -116,7 +116,7 @@ object ChunkedSpectrogram {
      * @param startSec Startzeit in Sekunden
      * @param endSec Endzeit in Sekunden
      */
-    fun computeRegion(
+    suspend fun computeRegion(
         segment: AudioSegment,
         startSec: Float,
         endSec: Float,
@@ -131,7 +131,7 @@ object ChunkedSpectrogram {
      * Berechnet ein Spektrogramm für einen Zeitbereich aus einer Datei (ohne vorheriges Dekodieren).
      * Langsamer als die Variante mit AudioSegment, spart aber RAM.
      */
-    fun computeRegionFromFile(
+    suspend fun computeRegionFromFile(
         file: File,
         startSec: Float,
         endSec: Float,

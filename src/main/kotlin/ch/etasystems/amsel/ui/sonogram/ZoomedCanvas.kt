@@ -67,6 +67,7 @@ fun ZoomedCanvas(
     activeAnnotationId: String? = null,
     onAnnotationClicked: (String) -> Unit = {},
     onAnnotationRightClicked: (annotationId: String, posX: Float, posY: Float) -> Unit = { _, _, _ -> },
+    onCanvasRightClicked: (timeSec: Float, freqHz: Float, posX: Float, posY: Float) -> Unit = { _, _, _, _ -> },
     playbackPositionSec: Float? = null,
     isComputing: Boolean = false,
     paletteVersion: Int = 0,
@@ -368,9 +369,9 @@ fun ZoomedCanvas(
                     }
                 }
             }
-            // Rechtsklick auf Annotation: Zone-Analyse anbieten
+            // Rechtsklick: Annotation-Kontextmenue ODER Canvas-Kontextmenue (leere Stelle)
             .pointerInput(annotations, spectrogramData) {
-                if (annotations.isEmpty() || spectrogramData == null) return@pointerInput
+                if (spectrogramData == null) return@pointerInput
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Main)
@@ -379,7 +380,6 @@ fun ZoomedCanvas(
                         val change = event.changes.firstOrNull() ?: continue
                         // Pruefen ob Rechtsklick: Secondary Button gerade losgelassen
                         if (!change.previousPressed || change.pressed) continue
-                        // button ist nur bei Press/Release Events gesetzt
                         val btn = event.button ?: continue
                         if (btn != androidx.compose.ui.input.pointer.PointerButton.Secondary) continue
 
@@ -400,6 +400,9 @@ fun ZoomedCanvas(
                         }
                         if (clicked != null) {
                             onAnnotationRightClicked(clicked.id, offset.x, offset.y)
+                        } else {
+                            // Leere Stelle: Canvas-Kontextmenue
+                            onCanvasRightClicked(clickTimeSec, clickFreqHz, offset.x, offset.y)
                         }
                     }
                 }

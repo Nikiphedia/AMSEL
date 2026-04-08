@@ -54,6 +54,7 @@ data class CompareUiState(
     val annotations: List<Annotation> = emptyList(),
     val activeAnnotationId: String? = null,
     val editingLabelId: String? = null,
+    val selectedAnnotationIds: Set<String> = emptySet(),
 
     // Playback
     val isPlaying: Boolean = false,
@@ -389,10 +390,11 @@ class CompareViewModel {
                     isNormalized = spectro.isNormalized,
                     normGainDb = spectro.normGainDb,
                     normReferenceMaxDb = spectro.normReferenceMaxDb,
-                    // Annotation (7 Felder)
+                    // Annotation (8 Felder)
                     annotations = annotation.annotations,
                     activeAnnotationId = annotation.activeAnnotationId,
                     editingLabelId = annotation.editingLabelId,
+                    selectedAnnotationIds = annotation.selectedAnnotationIds,
                     selection = annotation.selection,
                     selectionMode = annotation.selectionMode,
                     editMode = annotation.editMode,
@@ -832,6 +834,14 @@ class CompareViewModel {
 
     fun syncReferenceToEvent() = annotationManager.syncReferenceToEvent()
 
+    // Multi-Select (U3)
+    fun toggleMultiSelection(annotationId: String) = annotationManager.toggleMultiSelection(annotationId)
+    fun selectAllAnnotations() = annotationManager.selectAll()
+    fun clearMultiSelection() = annotationManager.clearMultiSelection()
+    fun selectRange(toAnnotationId: String) = annotationManager.selectRange(toAnnotationId)
+    fun deleteSelectedAnnotations() = annotationManager.deleteSelected()
+    fun getSelectedAnnotations(): List<Annotation> = annotationManager.getSelectedAnnotations()
+
     // ====================================================================
     // Filter & Display — delegiert an SpectrogramManager
     // ====================================================================
@@ -852,6 +862,22 @@ class CompareViewModel {
     fun adoptCandidate(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =
         classificationManager.adoptCandidate(annotationId, candidate)
 
+    fun verifyAnnotation(id: String) = annotationManager.verifyAnnotation(id)
+    fun rejectAnnotation(id: String) = annotationManager.rejectAnnotation(id)
+    fun unrejectAnnotation(id: String) = annotationManager.unrejectAnnotation(id)
+    fun updateAnnotationNotes(id: String, notes: String) = annotationManager.updateAnnotationNotes(id, notes)
+    fun verifySelected() = annotationManager.verifySelected()
+    fun rejectSelected() = annotationManager.rejectSelected()
+
+    fun verifyCandidateInAnnotation(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =
+        annotationManager.verifyCandidateInAnnotation(annotationId, candidate.species)
+    fun verifyCandidateAndSearch(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =
+        classificationManager.verifyCandidateAndSearch(annotationId, candidate)
+    fun rejectCandidateInAnnotation(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =
+        annotationManager.rejectCandidateInAnnotation(annotationId, candidate.species)
+    fun resetCandidateInAnnotation(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =
+        annotationManager.resetCandidateInAnnotation(annotationId, candidate.species)
+
     // ====================================================================
     // Export — delegiert an ExportManager
     // ====================================================================
@@ -861,6 +887,91 @@ class CompareViewModel {
     }
 
     fun toggleExportBlackAndWhite() = projectManager.toggleExportBlackAndWhite()
+
+    /** Report exportieren (U4): PDF + CSV der selektierten (oder aller) Annotationen */
+    fun exportReport() {
+        scope.launch {
+            val settings = ch.etasystems.amsel.data.SettingsStore.load()
+            val allAnnotations = annotationManager.getSelectedAnnotations().ifEmpty {
+                _uiState.value.annotations
+            }
+            val annotations = allAnnotations.filter { !it.rejected }
+            if (annotations.isEmpty()) {
+                _localState.update { it.copy(statusText = "Keine Annotationen vorhanden") }
+                return@launch
+            }
+
+            // Warnung bei unverifizierten Chunks
+            val unverifiedCount = annotations.count { !it.verified }
+            if (unverifiedCount > 0) {
+                val totalCount = annotations.size
+                val userConfirmed = withContext(Dispatchers.IO) {
+                    var confirmed = false
+                    javax.swing.SwingUtilities.invokeAndWait {
+                        val result = javax.swing.JOptionPane.showConfirmDialog(
+                            null,
+                            "$unverifiedCount von $totalCount Chunks nicht verifiziert.\nTrotzdem exportieren?",
+                            "Export-Warnung",
+                            javax.swing.JOptionPane.YES_NO_OPTION,
+                            javax.swing.JOptionPane.WARNING_MESSAGE
+                        )
+                        confirmed = result == javax.swing.JOptionPane.YES_OPTION
+                    }
+                    confirmed
+                }
+                if (!userConfirmed) {
+                    return@launch
+                }
+            }
+
+            val config = ch.etasystems.amsel.core.export.ReportExporter.ReportConfig(
+                audioFileName = audioManager.state.value.audioFile?.name ?: "",
+                operatorName = settings.operatorName,
+                deviceName = settings.deviceName,
+                locationName = settings.locationName,
+                audioDurationSec = spectrogramManager.state.value.totalDurationSec,
+                annotations = annotations
+            )
+
+            val baseName = audioManager.state.value.audioFile?.nameWithoutExtension ?: "AMSEL_Report"
+
+            // PDF Speichern-Dialog
+            val pdfFile = showReportSaveDialog("PDF Report speichern", "$baseName.pdf", "pdf")
+            if (pdfFile != null) {
+                try {
+                    ch.etasystems.amsel.core.export.ReportExporter.exportPdf(pdfFile, config)
+                    _localState.update { it.copy(statusText = "PDF exportiert: ${pdfFile.name}") }
+                } catch (e: Exception) {
+                    _localState.update { it.copy(statusText = "PDF-Fehler: ${e.message}") }
+                }
+            }
+
+            // CSV Speichern-Dialog
+            val csvFile = showReportSaveDialog("CSV Export speichern", "$baseName.csv", "csv")
+            if (csvFile != null) {
+                try {
+                    ch.etasystems.amsel.core.export.ReportExporter.exportCsv(csvFile, config)
+                    _localState.update { it.copy(statusText = "CSV exportiert: ${csvFile.name}") }
+                } catch (e: Exception) {
+                    _localState.update { it.copy(statusText = "CSV-Fehler: ${e.message}") }
+                }
+            }
+        }
+    }
+
+    private fun showReportSaveDialog(title: String, defaultName: String, extension: String): File? {
+        val chooser = javax.swing.JFileChooser()
+        chooser.dialogTitle = title
+        chooser.selectedFile = File(defaultName)
+        chooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+            "$extension-Dateien (*.${extension})", extension
+        )
+        val result = chooser.showSaveDialog(null)
+        if (result != javax.swing.JFileChooser.APPROVE_OPTION) return null
+        var file = chooser.selectedFile
+        if (!file.name.endsWith(".$extension")) file = File(file.parent, "${file.name}.$extension")
+        return file
+    }
 
     fun exportAudio(outputFile: File, format: String = "wav", timeStretch: Int = 1) {
         exportManager.exportAudio(outputFile, _uiState.value, format, timeStretch)
@@ -960,6 +1071,132 @@ class CompareViewModel {
 
     suspend fun rescanReferences() {
         referenceLibrary.rescan()
+    }
+
+    // ====================================================================
+    // U1: Tastaturkuerzel — Navigation & Annotation
+    // ====================================================================
+
+    /** Viewport um 25% der sichtbaren Breite nach links scrollen */
+    fun navigateLeft() {
+        val s = _uiState.value
+        val range = s.viewEndSec - s.viewStartSec
+        if (range <= 0f) return
+        val shift = range * 0.25f
+        val newStart = (s.viewStartSec - shift).coerceAtLeast(0f)
+        spectrogramManager.zoomToRange(newStart, newStart + range)
+    }
+
+    /** Viewport um 25% der sichtbaren Breite nach rechts scrollen */
+    fun navigateRight() {
+        val s = _uiState.value
+        val range = s.viewEndSec - s.viewStartSec
+        if (range <= 0f) return
+        val shift = range * 0.25f
+        val duration = s.totalDurationSec
+        val newEnd = (s.viewEndSec + shift).coerceAtMost(duration)
+        spectrogramManager.zoomToRange(newEnd - range, newEnd)
+    }
+
+    /** Zur vorherigen Annotation springen (zeitlich sortiert, zyklisch) */
+    fun previousAnnotation() {
+        val anns = _uiState.value.annotations.sortedBy { it.startTimeSec }
+        if (anns.isEmpty()) return
+        val currentId = _uiState.value.activeAnnotationId
+        val currentIdx = anns.indexOfFirst { it.id == currentId }
+        val prevIdx = if (currentIdx > 0) currentIdx - 1 else anns.lastIndex
+        val ann = anns[prevIdx]
+        selectAnnotation(ann.id)
+        val settings = ch.etasystems.amsel.data.SettingsStore.load()
+        spectrogramManager.zoomToRange(
+            (ann.startTimeSec - settings.eventPrerollSec).coerceAtLeast(0f),
+            ann.endTimeSec + settings.eventPostrollSec
+        )
+    }
+
+    /** Zur naechsten Annotation springen (zeitlich sortiert, zyklisch) */
+    fun nextAnnotation() {
+        val anns = _uiState.value.annotations.sortedBy { it.startTimeSec }
+        if (anns.isEmpty()) return
+        val currentId = _uiState.value.activeAnnotationId
+        val currentIdx = anns.indexOfFirst { it.id == currentId }
+        val nextIdx = if (currentIdx < 0 || currentIdx >= anns.lastIndex) 0 else currentIdx + 1
+        val ann = anns[nextIdx]
+        selectAnnotation(ann.id)
+        val settings = ch.etasystems.amsel.data.SettingsStore.load()
+        spectrogramManager.zoomToRange(
+            (ann.startTimeSec - settings.eventPrerollSec).coerceAtLeast(0f),
+            ann.endTimeSec + settings.eventPostrollSec
+        )
+    }
+
+    /** Auswahl aufheben */
+    fun clearSelection() = annotationManager.clearSelection()
+
+    /** Undo (Platzhalter — TODO: vollstaendige Undo-Implementierung) */
+    fun undo() {
+        logger.info("TODO: Undo ist noch nicht implementiert")
+    }
+
+    // ====================================================================
+    // U2: Kontextmenue-Aktionen
+    // ====================================================================
+
+    /** Neue Annotation an der angegebenen Zeitposition erstellen (±1s Breite) */
+    fun createAnnotationAt(timeSec: Float) {
+        val s = _uiState.value
+        val data = s.zoomedSpectrogramData ?: return
+        val startSec = (timeSec - 1f).coerceAtLeast(0f)
+        val endSec = (timeSec + 1f).coerceAtMost(s.totalDurationSec)
+        annotationManager.createAnnotationAtRange(startSec, endSec, data.fMin, data.fMax)
+    }
+
+    /** Viewport auf eine bestimmte Zeit zentrieren */
+    fun zoomToTime(timeSec: Float) {
+        val s = _uiState.value
+        val range = s.viewEndSec - s.viewStartSec
+        if (range <= 0f) return
+        val halfRange = range / 2f
+        val newStart = (timeSec - halfRange).coerceAtLeast(0f)
+        val newEnd = (newStart + range).coerceAtMost(s.totalDurationSec)
+        spectrogramManager.zoomToRange(newEnd - range, newEnd)
+    }
+
+    /** Wiedergabe ab einer bestimmten Position starten — zoomt hin und startet Play */
+    fun playFromTime(timeSec: Float) {
+        // Viewport auf die Position zentrieren, dann Play
+        zoomToTime(timeSec)
+        if (!_uiState.value.isPlaying) {
+            togglePlayPause()
+        }
+    }
+
+    /** BirdNET-Scan fuer den aktuell sichtbaren Bereich */
+    fun scanBirdNetVisible() {
+        // Vollscan nutzt den sichtbaren Bereich wenn keine Annotation aktiv
+        val prevActiveId = _uiState.value.activeAnnotationId
+        if (prevActiveId != null) {
+            annotationManager.clearSelection()
+        }
+        classificationManager.fullScanBirdNet()
+    }
+
+    /** Zeitbereich einer Annotation abspielen — zoomt hin und startet Play */
+    fun playRange(startSec: Float, endSec: Float) {
+        spectrogramManager.zoomToRange(startSec, endSec)
+        if (!_uiState.value.isPlaying) {
+            togglePlayPause()
+        }
+    }
+
+    /** Region als WAV exportieren */
+    fun exportRegionWav(startSec: Float, endSec: Float) {
+        logger.info("TODO: exportRegionWav($startSec, $endSec) — muss in ExportManager implementiert werden")
+    }
+
+    /** Region als PNG exportieren */
+    fun exportRegionPng(startSec: Float, endSec: Float) {
+        logger.info("TODO: exportRegionPng($startSec, $endSec) — muss in ExportManager implementiert werden")
     }
 
     // ====================================================================

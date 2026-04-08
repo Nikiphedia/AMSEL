@@ -32,6 +32,12 @@ import ch.etasystems.amsel.ui.sonogram.OverviewStrip
 import ch.etasystems.amsel.ui.sonogram.ZoomedCanvas
 import ch.etasystems.amsel.ui.sonogram.createSpectrogramBitmap
 import ch.etasystems.amsel.core.audio.AudioPlayer
+import ch.etasystems.amsel.core.audio.FilteredAudio
+import ch.etasystems.amsel.core.export.AudioExporter
+import ch.etasystems.amsel.core.export.AudioExportFormat
+import ch.etasystems.amsel.core.export.SpeciesCsvExporter
+import ch.etasystems.amsel.core.classifier.BirdNetBridge
+import ch.etasystems.amsel.core.classifier.ClassifierResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -103,6 +109,11 @@ fun ReferenceEditorScreen(
     var quality by remember { mutableStateOf("B") }
     var notes by remember { mutableStateOf("") }
     var selectedCollection by remember { mutableStateOf("xeno") }
+
+    // Export / Klassifikation
+    var isExporting by remember { mutableStateOf(false) }
+    var classificationResults by remember { mutableStateOf<List<ClassifierResult>>(emptyList()) }
+    var isClassifying by remember { mutableStateOf(false) }
 
     // Filter
     var filterConfig by remember { mutableStateOf(FilterConfig()) }
@@ -292,7 +303,7 @@ fun ReferenceEditorScreen(
                         onClick = {
                             val chooser = JFileChooser().apply {
                                 isMultiSelectionEnabled = true
-                                fileFilter = FileNameExtensionFilter("Audio (WAV, MP3, FLAC)", "wav", "mp3", "flac", "ogg")
+                                fileFilter = FileNameExtensionFilter("Audio (WAV, MP3, FLAC, M4A)", "wav", "mp3", "flac", "ogg", "m4a", "m4p")
                             }
                             if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
                                 batchFiles = chooser.selectedFiles.toList()
@@ -660,6 +671,165 @@ fun ReferenceEditorScreen(
                             Icon(Icons.Default.Save, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Referenz speichern")
+                        }
+
+                        // --- Audio-Export ---
+                        OutlinedButton(
+                            onClick = {
+                                val seg = audioSegment ?: return@OutlinedButton
+                                // Format-Chooser
+                                val wavFilter = FileNameExtensionFilter("Audio WAV (*.wav)", "wav")
+                                val flacFilter = FileNameExtensionFilter("Audio FLAC (*.flac)", "flac")
+                                val m4aFilter = FileNameExtensionFilter("Audio M4A/AAC (*.m4a)", "m4a")
+                                val filterToFormat = mutableMapOf(wavFilter to AudioExportFormat.WAV)
+                                if (AudioExporter.ffmpegAvailable) {
+                                    filterToFormat[flacFilter] = AudioExportFormat.FLAC
+                                    filterToFormat[m4aFilter] = AudioExportFormat.M4A
+                                }
+                                val chooser = JFileChooser().apply {
+                                    dialogTitle = "Audio-Ausschnitt exportieren"
+                                    addChoosableFileFilter(wavFilter)
+                                    if (AudioExporter.ffmpegAvailable) {
+                                        addChoosableFileFilter(flacFilter)
+                                        addChoosableFileFilter(m4aFilter)
+                                    }
+                                    fileFilter = wavFilter
+                                    isAcceptAllFileFilterUsed = false
+                                }
+                                if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                    val format = filterToFormat[chooser.fileFilter] ?: AudioExportFormat.WAV
+                                    var file = chooser.selectedFile
+                                    val ext = when (format) {
+                                        AudioExportFormat.FLAC -> "flac"
+                                        AudioExportFormat.M4A -> "m4a"
+                                        else -> "wav"
+                                    }
+                                    if (!file.name.endsWith(".$ext")) file = File(file.absolutePath + ".$ext")
+
+                                    scope.launch {
+                                        isExporting = true
+                                        statusText = "Exportiere Audio..."
+                                        try {
+                                            val sub = seg.subRangeSec(viewStartSec, viewEndSec)
+                                            val samples = if (filterConfig.isActive) {
+                                                withContext(Dispatchers.Default) {
+                                                    FilteredAudio.apply(sub, filterConfig)
+                                                }
+                                            } else {
+                                                sub.samples
+                                            }
+                                            withContext(Dispatchers.IO) {
+                                                AudioExporter.export(file, samples, sub.sampleRate, format)
+                                            }
+                                            statusText = "Audio exportiert: ${file.name}"
+                                        } catch (e: Exception) {
+                                            statusText = "Export-Fehler: ${e.message}"
+                                        } finally {
+                                            isExporting = false
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = audioSegment != null && !isLoading && !isExporting
+                        ) {
+                            Icon(Icons.Default.AudioFile, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Audio exportieren")
+                        }
+
+                        // --- Artenbestimmung ---
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        Text("Artenbestimmung", style = MaterialTheme.typography.labelMedium)
+
+                        Button(
+                            onClick = {
+                                val seg = audioSegment ?: return@Button
+                                scope.launch {
+                                    isClassifying = true
+                                    statusText = "BirdNET Analyse laeuft..."
+                                    try {
+                                        val sub = seg.subRangeSec(viewStartSec, viewEndSec)
+                                        classificationResults = withContext(Dispatchers.IO) {
+                                            BirdNetBridge.classify(sub.samples, sub.sampleRate)
+                                        }
+                                        statusText = "${classificationResults.size} Arten erkannt"
+                                    } catch (e: Exception) {
+                                        statusText = "BirdNET Fehler: ${e.message}"
+                                        classificationResults = emptyList()
+                                    }
+                                    isClassifying = false
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = audioSegment != null && !isLoading && !isClassifying && BirdNetBridge.isAvailable(),
+                            contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
+                            if (isClassifying) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Pets, null, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (isClassifying) "Analysiere..." else "BirdNET Analyse")
+                        }
+
+                        if (!BirdNetBridge.isAvailable()) {
+                            Text(
+                                "Python + birdnetlib nicht gefunden",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                            )
+                        }
+
+                        // Ergebnisse anzeigen
+                        if (classificationResults.isNotEmpty()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                classificationResults.take(10).forEach { result ->
+                                    Text(
+                                        "${result.species} — ${"%.0f".format(result.confidence * 100)}%  (${"%.1f".format(result.startTime)}s–${"%.1f".format(result.endTime)}s)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                if (classificationResults.size > 10) {
+                                    Text(
+                                        "... und ${classificationResults.size - 10} weitere",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            // CSV-Export Button
+                            OutlinedButton(
+                                onClick = {
+                                    val chooser = JFileChooser().apply {
+                                        dialogTitle = "Arten-CSV exportieren"
+                                        fileFilter = FileNameExtensionFilter("CSV (*.csv)", "csv")
+                                        val baseName = batchFiles.getOrNull(currentIndex)?.nameWithoutExtension ?: "analyse"
+                                        selectedFile = File(currentDirectory, "${baseName}_arten.csv")
+                                    }
+                                    if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                        var file = chooser.selectedFile
+                                        if (!file.name.endsWith(".csv")) file = File(file.absolutePath + ".csv")
+                                        val audioName = batchFiles.getOrNull(currentIndex)?.name ?: ""
+                                        SpeciesCsvExporter.export(file, classificationResults, audioName)
+                                        statusText = "Arten-CSV exportiert: ${file.name}"
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 12.dp)
+                            ) {
+                                Icon(Icons.Default.TableChart, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Arten-CSV exportieren")
+                            }
                         }
 
                         // Skip

@@ -5,8 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.VerticalScrollbar
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
@@ -22,17 +26,18 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import ch.etasystems.amsel.core.annotation.MatchResult
+import ch.etasystems.amsel.ui.layout.HorizontalSplitter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Horizontale Thumbnail-Galerie fuer Referenz-Sonogramme.
- * Zeigt matchResults als scrollbare Reihe mit kleinen Vorschaubildern.
- * Klick auf ein Thumbnail waehlt es aus und zeigt es gross im Referenz-Bereich darueber.
+ * Adaptive Thumbnail-Galerie fuer Referenz-Sonogramme.
+ * Zeigt matchResults als scrollbares Grid mit kleinen Vorschaubildern.
+ * Eintraege mit Sonogramm werden vor n/a-Eintraegen sortiert.
  *
  * Layout (von oben nach unten):
- * 1. Grosses Referenz-Sonogramm (wenn selectedResult != null)
- * 2. Horizontale LazyRow mit Thumbnails (3-4 nebeneinander sichtbar)
+ * 1. Grosses Referenz-Sonogramm (wenn selectedResult != null, feste Hoehe 150dp)
+ * 2. LazyVerticalGrid mit adaptiven Spalten (min 200dp pro Karte)
  */
 @Composable
 fun SonogramGallery(
@@ -48,6 +53,9 @@ fun SonogramGallery(
     downloadingRecordingId: String = "",
     modifier: Modifier = Modifier
 ) {
+    // Ziehbare Hoehe fuer das grosse Referenzbild (80-500dp)
+    var referenceHeight by remember { mutableStateOf(180f) }
+
     Column(modifier = modifier) {
         // Grosses Referenz-Sonogramm (wenn ausgewaehlt)
         if (selectedResult != null) {
@@ -55,7 +63,12 @@ fun SonogramGallery(
             ReferenceImageLarge(
                 result = selectedResult,
                 onClose = onClose,
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier.fillMaxWidth().height(referenceHeight.dp)
+            )
+            HorizontalSplitter(
+                onDrag = { deltaDp ->
+                    referenceHeight = (referenceHeight + deltaDp).coerceIn(80f, 500f)
+                }
             )
         }
 
@@ -112,27 +125,43 @@ fun SonogramGallery(
                     )
                 }
 
-                // Horizontale Thumbnail-Reihe
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(matchResults, key = { it.recordingId }) { result ->
-                        val isThisPlaying = isPlayingAudio && playingRecordingId == result.recordingId
-                        val isThisDownloading = downloadingRecordingId == result.recordingId
-                        ThumbnailCard(
-                            result = result,
-                            isSelected = selectedResult?.recordingId == result.recordingId,
-                            onClick = { onSelectResult(result) },
-                            onPlay = {
-                                if (isThisPlaying) onStopAudio()
-                                else onPlayAudio(result)
-                            },
-                            isPlaying = isThisPlaying,
-                            isDownloading = isThisDownloading
-                        )
+                // Vertikales Grid — passt sich der Fensterbreite an
+                val sortedResults = remember(matchResults) {
+                    matchResults.sortedWith(compareBy(
+                        { if (it.sonogramUrl.isNotBlank()) 0 else 1 },
+                        { -it.similarity }
+                    ))
+                }
+                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    val gridState = rememberLazyGridState()
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 200.dp),
+                        state = gridState,
+                        modifier = Modifier.fillMaxSize().padding(end = 12.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(sortedResults, key = { it.recordingId }) { result ->
+                            val isThisPlaying = isPlayingAudio && playingRecordingId == result.recordingId
+                            val isThisDownloading = downloadingRecordingId == result.recordingId
+                            ThumbnailCard(
+                                result = result,
+                                isSelected = selectedResult?.recordingId == result.recordingId,
+                                onClick = { onSelectResult(result) },
+                                onPlay = {
+                                    if (isThisPlaying) onStopAudio()
+                                    else onPlayAudio(result)
+                                },
+                                isPlaying = isThisPlaying,
+                                isDownloading = isThisDownloading
+                            )
+                        }
                     }
+                    VerticalScrollbar(
+                        adapter = rememberScrollbarAdapter(gridState),
+                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+                    )
                 }
             }
         }
@@ -327,7 +356,7 @@ private fun ThumbnailCard(
 
     Card(
         modifier = Modifier
-            .width(200.dp)
+            .fillMaxWidth()
             .height(110.dp)
             .then(
                 if (isSelected) Modifier.border(borderWidth, borderColor, MaterialTheme.shapes.medium)

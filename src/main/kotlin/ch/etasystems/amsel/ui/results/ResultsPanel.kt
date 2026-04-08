@@ -1,18 +1,30 @@
 package ch.etasystems.amsel.ui.results
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.HorizontalScrollbar
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import ch.etasystems.amsel.core.annotation.MatchResult
 
@@ -21,14 +33,23 @@ import ch.etasystems.amsel.core.annotation.MatchResult
  * Zeigt den besten Treffer pro Gruppe als Repraesentant,
  * aufklappbar fuer alle Varianten.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun ResultsPanel(
     results: List<MatchResult>,
     isLoading: Boolean,
     onResultClicked: (MatchResult) -> Unit,
     onPlayAudio: ((MatchResult) -> Unit)? = null,
+    onShowInSonogram: ((MatchResult) -> Unit)? = null,
+    onAdoptSpecies: ((MatchResult) -> Unit)? = null,
+    onSearchXenoCanto: ((MatchResult) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    // U2c: Rechtsklick-Kontextmenue State
+    var rightClickedResult by remember { mutableStateOf<MatchResult?>(null) }
+    var rightClickOffset by remember { mutableStateOf(DpOffset.Zero) }
+    val density = LocalDensity.current
+
     Box(modifier = modifier.fillMaxSize()) {
         when {
             isLoading -> {
@@ -73,22 +94,79 @@ fun ResultsPanel(
                         )
                     }
 
-                    // Gruppierte Liste
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(grouped, key = { it.key }) { group ->
-                            SpeciesGroup(
-                                group = group,
-                                onResultClicked = onResultClicked,
-                                onPlayAudio = onPlayAudio
-                            )
+                    // Gruppierte Liste mit sichtbarem Scrollbalken
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        val lazyListState = rememberLazyListState()
+                        LazyColumn(
+                            state = lazyListState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(grouped, key = { it.key }) { group ->
+                                SpeciesGroup(
+                                    group = group,
+                                    onResultClicked = onResultClicked,
+                                    onPlayAudio = onPlayAudio,
+                                    onResultRightClicked = { result, px, py ->
+                                        rightClickedResult = result
+                                        rightClickOffset = with(density) {
+                                            DpOffset(px.toDp(), py.toDp())
+                                        }
+                                    }
+                                )
+                            }
                         }
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(lazyListState),
+                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+                        )
                     }
                 }
             }
+        }
+
+        // U2c: Ergebnis-Kontextmenue
+        DropdownMenu(
+            expanded = rightClickedResult != null,
+            onDismissRequest = { rightClickedResult = null },
+            offset = rightClickOffset
+        ) {
+            val result = rightClickedResult ?: return@DropdownMenu
+            DropdownMenuItem(
+                text = { Text("In Sonogramm anzeigen") },
+                onClick = {
+                    onShowInSonogram?.invoke(result)
+                    rightClickedResult = null
+                },
+                leadingIcon = { Icon(Icons.Default.ZoomIn, null) }
+            )
+            DropdownMenuItem(
+                text = { Text("Art uebernehmen") },
+                onClick = {
+                    onAdoptSpecies?.invoke(result)
+                    rightClickedResult = null
+                },
+                leadingIcon = { Icon(Icons.Default.ExpandMore, null) }
+            )
+            if (onPlayAudio != null) {
+                DropdownMenuItem(
+                    text = { Text("Abspielen") },
+                    onClick = {
+                        onPlayAudio.invoke(result)
+                        rightClickedResult = null
+                    },
+                    leadingIcon = { Icon(Icons.Default.ExpandLess, null) }
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("Auf Xeno-Canto suchen") },
+                onClick = {
+                    onSearchXenoCanto?.invoke(result)
+                    rightClickedResult = null
+                },
+                leadingIcon = { Icon(Icons.Default.Search, null) }
+            )
         }
     }
 }
@@ -96,11 +174,13 @@ fun ResultsPanel(
 /**
  * Eine Artgruppe: bester Treffer als Karte, aufklappbar fuer Varianten.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun SpeciesGroup(
     group: ResultGroup,
     onResultClicked: (MatchResult) -> Unit,
-    onPlayAudio: ((MatchResult) -> Unit)? = null
+    onPlayAudio: ((MatchResult) -> Unit)? = null,
+    onResultRightClicked: ((MatchResult, Float, Float) -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -111,12 +191,29 @@ private fun SpeciesGroup(
             verticalAlignment = Alignment.Top
         ) {
             // Ergebnis-Karte
-            ResultCard(
-                result = group.best,
-                onClick = { onResultClicked(group.best) },
-                onPlayAudio = onPlayAudio,
+            Box(
                 modifier = Modifier.weight(1f)
-            )
+                    .pointerInput(group.best) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                if (event.type != PointerEventType.Release) continue
+                                val change = event.changes.firstOrNull() ?: continue
+                                if (!change.previousPressed || change.pressed) continue
+                                val btn = event.button ?: continue
+                                if (btn != androidx.compose.ui.input.pointer.PointerButton.Secondary) continue
+                                change.consume()
+                                onResultRightClicked?.invoke(group.best, change.position.x, change.position.y)
+                            }
+                        }
+                    }
+            ) {
+                ResultCard(
+                    result = group.best,
+                    onClick = { onResultClicked(group.best) },
+                    onPlayAudio = onPlayAudio
+                )
+            }
 
             // Gruppen-Info Seitenleiste
             if (group.variants.size > 1) {
@@ -169,17 +266,47 @@ private fun SpeciesGroup(
             }
         }
 
-        // Aufgeklappte Varianten (ohne den besten, der ist schon oben)
+        // Aufgeklappte Varianten als horizontale scrollbare Reihe
         AnimatedVisibility(visible = expanded) {
-            Column(
-                modifier = Modifier.padding(start = 16.dp, top = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                for (variant in group.variants.drop(1)) {
-                    ResultCard(
-                        result = variant,
-                        onClick = { onResultClicked(variant) },
-                        onPlayAudio = onPlayAudio
+            Box(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp)) {
+                val rowState = rememberLazyListState()
+                LazyRow(
+                    state = rowState,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(end = 8.dp)
+                ) {
+                    items(group.variants.drop(1), key = { it.recordingId }) { variant ->
+                        Box(
+                            modifier = Modifier.width(200.dp)
+                                .pointerInput(variant) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent(PointerEventPass.Main)
+                                            if (event.type != PointerEventType.Release) continue
+                                            val change = event.changes.firstOrNull() ?: continue
+                                            if (!change.previousPressed || change.pressed) continue
+                                            val btn = event.button ?: continue
+                                            if (btn != androidx.compose.ui.input.pointer.PointerButton.Secondary) continue
+                                            change.consume()
+                                            onResultRightClicked?.invoke(variant, change.position.x, change.position.y)
+                                        }
+                                    }
+                                }
+                        ) {
+                            ResultCard(
+                                result = variant,
+                                onClick = { onResultClicked(variant) },
+                                onPlayAudio = onPlayAudio
+                            )
+                        }
+                    }
+                }
+                if (group.variants.size > 2) {
+                    HorizontalScrollbar(
+                        adapter = rememberScrollbarAdapter(rowState),
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                            .padding(horizontal = 4.dp)
                     )
                 }
             }

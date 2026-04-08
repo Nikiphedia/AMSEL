@@ -189,6 +189,14 @@ data class AppSettings(
     val sidebarWidth: Float = 280f,
     /** UI: Galerie-Hoehe in dp */
     val galleryHeight: Float = 250f,
+    /** UI: Fenster-Breite in dp (0 = Standard 1400) */
+    val windowWidth: Int = 0,
+    /** UI: Fenster-Hoehe in dp (0 = Standard 900) */
+    val windowHeight: Int = 0,
+    /** UI: Fenster X-Position (-1 = System-Standard) */
+    val windowX: Int = -1,
+    /** UI: Fenster Y-Position (-1 = System-Standard) */
+    val windowY: Int = -1,
     /** Chunk-Laenge fuer grosse Dateien in Minuten (Standard 10) */
     val chunkLengthMin: Float = 10f,
     /** Chunk-Ueberlappung in Sekunden (Standard 5) */
@@ -202,8 +210,40 @@ data class AppSettings(
     /** Minimale Qualitaet fuer XC-Downloads (A=beste, E=schlechteste) */
     val referenceMinQualityDownload: String = "B",
     /** Minimale Qualitaet fuer Referenzanzeige */
-    val referenceMinQualityDisplay: String = "C"
+    val referenceMinQualityDisplay: String = "C",
+    /** Ordner fuer importierte Audio-Dateien (leer = ~/Documents/AMSEL/audio/) */
+    val audioImportDir: String = "",
+    /** Ordner fuer Projekt-Dateien (leer = neben Audio-Datei, bisheriges Verhalten) */
+    val projectDir: String = "",
+    /** Ordner fuer Exporte (leer = System-Desktop) */
+    val exportDir: String = "",
+    /** Ordner fuer ONNX-Modelle + Python-Skripte (leer = ~/Documents/AMSEL/models/) */
+    val modelDir: String = "",
+    /** Setup-Assistent wurde abgeschlossen */
+    val setupComplete: Boolean = false
 )
+
+/** Gibt den aufgeloesten Modell-Ordner zurueck (Setting oder Default). */
+fun AppSettings.resolvedModelDir(): File {
+    return if (modelDir.isNotBlank()) File(modelDir)
+    else File(System.getProperty("user.home"), "Documents/AMSEL/models")
+}
+
+/** Gibt den aufgeloesten Audio-Import-Ordner zurueck (Setting oder Default). */
+fun AppSettings.resolvedAudioImportDir(): File {
+    return if (audioImportDir.isNotBlank()) File(audioImportDir)
+    else File(System.getProperty("user.home"), "Documents/AMSEL/audio")
+}
+
+/** Gibt den aufgeloesten Projekt-Ordner zurueck, oder null (= neben Audio-Datei). */
+fun AppSettings.resolvedProjectDir(): File? {
+    return if (projectDir.isNotBlank()) File(projectDir) else null
+}
+
+/** Gibt den aufgeloesten Export-Ordner zurueck, oder null (= System-Standard). */
+fun AppSettings.resolvedExportDir(): File? {
+    return if (exportDir.isNotBlank()) File(exportDir) else null
+}
 
 object SettingsStore {
 

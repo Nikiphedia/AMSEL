@@ -1,5 +1,7 @@
 package ch.etasystems.amsel.core.classifier
 
+import ch.etasystems.amsel.data.SettingsStore
+import ch.etasystems.amsel.data.resolvedModelDir
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -79,8 +81,7 @@ object BirdNetBridge {
     }
 
     private fun getModelsDir(): File {
-        val userHome = System.getProperty("user.home")
-        return File(userHome, "Documents/AMSEL/models")
+        return SettingsStore.load().resolvedModelDir().also { it.mkdirs() }
     }
 
     private fun getScriptFile(): File {

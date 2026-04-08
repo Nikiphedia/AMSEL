@@ -30,6 +30,9 @@ jcodec = { module = "org.jcodec:jcodec", version = "0.2.5" }
 # ONNX Runtime (fuer zukuenftige EfficientNet-basierte Vergleiche)
 onnxruntime = { module = "com.microsoft.onnxruntime:onnxruntime", version = "1.19.0" }
 
+# PDF-Export (U4)
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version = "3.0.4" }
+
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

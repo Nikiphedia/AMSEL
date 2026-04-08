@@ -14,7 +14,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import ch.etasystems.amsel.data.DownloadableModel
+import ch.etasystems.amsel.data.ModelDownloader
 import ch.etasystems.amsel.data.ModelEntry
+import kotlinx.coroutines.launch
 import java.io.File
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -26,7 +29,10 @@ fun ModelManagerDialog(
     onSelectModel: (String) -> Unit,
     onAddModel: (File, File?) -> Unit,
     onRemoveModel: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    knownModels: List<DownloadableModel> = emptyList(),
+    modelsDir: File? = null,
+    onDownloadModel: ((DownloadableModel) -> Unit)? = null
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -137,6 +143,99 @@ fun ModelManagerDialog(
 
                     TextButton(onClick = onDismiss) {
                         Text("Schliessen")
+                    }
+                }
+
+                // === Verfuegbare Downloads ===
+                if (knownModels.isNotEmpty() && modelsDir != null) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                    Text(
+                        "Verfuegbare Modelle",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    val scope = rememberCoroutineScope()
+                    var downloadingId by remember { mutableStateOf<String?>(null) }
+                    var downloadProgress by remember { mutableStateOf(0f) }
+                    var downloadError by remember { mutableStateOf<String?>(null) }
+
+                    for (known in knownModels) {
+                        val installed = File(modelsDir, known.expectedFilename).exists()
+                        val isDownloading = downloadingId == known.id
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(known.name, style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium)
+                                Text(known.description, style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            }
+                            when {
+                                installed -> {
+                                    Text("Installiert", style = MaterialTheme.typography.labelSmall,
+                                        color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                                }
+                                isDownloading -> {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        LinearProgressIndicator(
+                                            progress = { downloadProgress },
+                                            modifier = Modifier.width(80.dp)
+                                        )
+                                        Text("${(downloadProgress * 100).toInt()}%",
+                                            style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                else -> {
+                                    Button(
+                                        onClick = {
+                                            if (known.downloadUrl.isBlank()) {
+                                                downloadError = "Download-URL nicht verfuegbar"
+                                                return@Button
+                                            }
+                                            downloadingId = known.id
+                                            downloadProgress = 0f
+                                            downloadError = null
+                                            scope.launch {
+                                                val target = File(modelsDir, known.expectedFilename)
+                                                val success = ModelDownloader.download(
+                                                    url = known.downloadUrl,
+                                                    targetFile = target,
+                                                    onProgress = { p ->
+                                                        downloadProgress = if (p.totalBytes > 0)
+                                                            p.bytesDownloaded.toFloat() / p.totalBytes
+                                                        else 0f
+                                                        if (p.error != null) downloadError = p.error
+                                                    }
+                                                )
+                                                downloadingId = null
+                                                if (!success && downloadError == null) {
+                                                    downloadError = "Download fehlgeschlagen"
+                                                }
+                                            }
+                                        },
+                                        enabled = downloadingId == null && known.downloadUrl.isNotBlank(),
+                                        contentPadding = PaddingValues(horizontal = 12.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text("Download", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Fehler-Anzeige
+                    if (downloadError != null) {
+                        Text(
+                            downloadError!!,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
                 }
             }

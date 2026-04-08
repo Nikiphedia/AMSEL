@@ -4,6 +4,9 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ch.etasystems.amsel.core.audio.AudioResampler
+import ch.etasystems.amsel.data.SettingsStore
+import ch.etasystems.amsel.data.resolvedModelDir
+import ch.etasystems.amsel.core.audio.SilenceDetector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -27,6 +30,13 @@ import java.nio.FloatBuffer
  * Standard-Modellpfad: ~/Documents/AMSEL/models/birdnet_v3.onnx
  * Labels: ~/Documents/AMSEL/models/birdnet_v3_labels.csv (Semikolon-CSV)
  */
+/** Statistik eines classify()-Aufrufs (Chunk-Zaehler). */
+data class ClassifyStats(
+    val totalChunks: Int,
+    val skippedChunks: Int,
+    val classifiedChunks: Int
+)
+
 class OnnxBirdNetV3(
     modelPath: String? = null,
     labelsPath: String? = null
@@ -41,8 +51,7 @@ class OnnxBirdNetV3(
 
         /** Standard-Modellverzeichnis */
         private fun defaultModelsDir(): File {
-            val userHome = System.getProperty("user.home")
-            return File(userHome, "Documents/AMSEL/models")
+            return SettingsStore.load().resolvedModelDir().also { it.mkdirs() }
         }
 
         /** Sucht das V3-Modell im Standard-Verzeichnis */
@@ -80,6 +89,10 @@ class OnnxBirdNetV3(
     override val speciesCount: Int
         get() = scientificNames.size
 
+    /** Statistik des letzten classify()-Aufrufs (Chunk-Zaehler fuer PerformanceLog). */
+    var lastClassifyStats: ClassifyStats? = null
+        private set
+
     init {
         modelFile = if (modelPath != null) File(modelPath) else (findModel() ?: File(defaultModelsDir(), "birdnet_v3.onnx"))
         labelsFile = if (labelsPath != null) File(labelsPath) else (findLabels() ?: File(defaultModelsDir(), "birdnet_v3_labels.csv"))
@@ -112,19 +125,46 @@ class OnnxBirdNetV3(
                 samples
             }
 
-            // 2. In Chunks aufteilen
+            // 2. Chunk-Ranges berechnen (keine Kopien)
             val chunkSamples = (TARGET_SAMPLE_RATE * chunkDurationSec).toInt()
             val hopSamples = if (overlap > 0f) {
                 (chunkSamples - (TARGET_SAMPLE_RATE * overlap).toInt()).coerceAtLeast(1)
             } else {
                 chunkSamples
             }
-            val chunks = splitIntoChunks(resampled, chunkSamples, hopSamples)
+            val chunkRanges = splitIntoChunkRanges(resampled.size, chunkSamples, hopSamples)
 
-            // 3. Parallel klassifizieren (je 1 Chunk pro Coroutine)
+            // 2b. Stille-Detektion: Chunks unter Schwelle ueberspringen
+            var skippedChunks = 0
+            val activeRanges = chunkRanges.mapIndexedNotNull { index, range ->
+                if (SilenceDetector.isSilent(resampled, range.first, range.last - range.first + 1)) {
+                    skippedChunks++
+                    null
+                } else {
+                    IndexedValue(index, range)
+                }
+            }
+
+            lastClassifyStats = ClassifyStats(
+                totalChunks = chunkRanges.size,
+                skippedChunks = skippedChunks,
+                classifiedChunks = chunkRanges.size - skippedChunks
+            )
+
+            if (skippedChunks > 0) {
+                logger.info("Stille-Skip: {} von {} Chunks uebersprungen ({} %)",
+                    skippedChunks, chunkRanges.size, (skippedChunks * 100 / chunkRanges.size))
+            }
+
+            // 3. Parallel klassifizieren (nur aktive Chunks)
+            // Jede Coroutine kopiert ihren Chunk lokal — vermeidet shared-buffer Konflikte
             val allResults = coroutineScope {
-                chunks.mapIndexed { index, chunk ->
+                activeRanges.map { (index, range) ->
                     async(Dispatchers.Default) {
+                        val chunk = FloatArray(chunkSamples)
+                        val copyLen = range.last - range.first + 1
+                        System.arraycopy(resampled, range.first, chunk, 0, copyLen)
+                        // Rest bleibt 0 (Zero-Padding falls letzter Chunk kuerzer)
                         val startTimeSec = index * hopSamples.toFloat() / TARGET_SAMPLE_RATE
                         classifyChunk(session, chunk, startTimeSec, chunkDurationSec, minConfidence)
                     }
@@ -231,28 +271,26 @@ class OnnxBirdNetV3(
     }
 
     /**
-     * Audio in Chunks aufteilen mit Zero-Padding fuer den letzten Chunk.
+     * Audio in Chunk-Ranges aufteilen. Gibt Paare von (offset, length) zurueck
+     * statt kopierte Arrays — die Daten werden direkt aus dem Quell-Array gelesen.
      */
-    private fun splitIntoChunks(
-        samples: FloatArray,
+    private fun splitIntoChunkRanges(
+        totalSamples: Int,
         chunkSamples: Int,
         hopSamples: Int
-    ): List<FloatArray> {
-        if (samples.isEmpty()) return emptyList()
+    ): List<IntRange> {
+        if (totalSamples <= 0) return emptyList()
 
-        val chunks = mutableListOf<FloatArray>()
+        val ranges = mutableListOf<IntRange>()
         var offset = 0
 
-        while (offset < samples.size) {
-            val chunk = FloatArray(chunkSamples)
-            val copyLen = minOf(chunkSamples, samples.size - offset)
-            System.arraycopy(samples, offset, chunk, 0, copyLen)
-            // Rest bleibt 0 (Zero-Padding)
-            chunks.add(chunk)
+        while (offset < totalSamples) {
+            val end = minOf(offset + chunkSamples, totalSamples)
+            ranges.add(offset until end)
             offset += hopSamples
         }
 
-        return chunks
+        return ranges
     }
 
     /**

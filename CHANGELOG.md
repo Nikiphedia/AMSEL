@@ -2,6 +2,69 @@
 
 Alle relevanten Änderungen an AMSEL werden in dieser Datei dokumentiert.
 
+## [0.0.6] — 2026-04-04
+
+### Neue Features
+- **Setup-Assistent** — Erster-Start-Dialog mit 4 konfigurierbaren Ordnern (Audio-Import, Projekte, Exporte, Modelle)
+- **Modell-Download** — ONNX-Modelle direkt aus der App herunterladen (ModelDownloader + ModelManagerDialog)
+- **Chunk-Verifizierung** — BirdNET-Ergebnisse bestaetigen/ablehnen mit Gruppen-Zaehler und Status-Icons
+- **Export-Warnung** — Warndialog bei unverifizierten Chunks vor PDF/CSV-Export; abgelehnte Chunks werden ausgefiltert
+- **Multi-Format Audio-Export** — WAV nativ, FLAC/M4A/MP3 via ffmpeg (neuer AudioExporter)
+- **Arten-CSV Export** — BirdNET-Ergebnisse als Semikolon-CSV mit Zeitstempel und Konfidenz
+- **Globale Tastenkuerzel** — 15 Shortcuts: Space (Play/Pause), Escape (Stop), Pfeiltasten (Navigation), +/- (Zoom), Del (Annotation loeschen), F2 (Umbenennen), F5 (BirdNET Scan)
+- **Kontextmenues** — Annotations-Kontextmenue erweitert, neues Canvas-Kontextmenue (Annotation erstellen, Zoom, Playback), Ergebnispanel-Kontextmenue (Sonogramm zeigen, Art uebernehmen, XC-Suche)
+- **Multi-Select Annotationen** — Checkbox-Auswahl, Alle auswaehlen (Ctrl+A), Bulk-Loeschen, Bulk-Report
+- **PDF-Report Export** — A4-Layout mit Header, Zusammenfassung, Detektionstabelle mit Seitenumbruch (PDFBox 3.0.4)
+- **CSV-Report Export** — Semikolon-getrennt, UTF-8 mit BOM, 10 Spalten (Nr, Art, Wissenschaftlich, Start, Ende, Dauer, Freq, Konfidenz, Quelle)
+- **ReferenceEditor Audio-Export** — Markierten Bereich als WAV/FLAC/M4A exportieren, optional mit Filter
+- **ReferenceEditor BirdNET** — Artenerkennung direkt im Referenz-Editor mit Ergebnisliste und CSV-Export
+- **M4A/M4P Import** — iTunes-geschuetzte und ungeschuetzte M4A-Dateien in allen Dialogen
+
+### Verbesserungen
+- **Konfigurierbare Ordner** — Audio-Import, Projekte, Exporte, Modelle einzeln waehlbar (Settings + Setup)
+- **Modell-Pfade dynamisch** — 6 Core-Dateien lesen Modell-Ordner aus Settings statt hardcodiert ~/Documents/AMSEL/models/
+- **Scrollbare Referenz-Vorschlaege** — Artgruppen mit sichtbarem vertikalem Scrollbalken, Varianten horizontal als LazyRow
+- **CandidatePanel** — Bestaetigen/Ablehnen/Reaktivieren Buttons mit Farbcodierung
+- **AnnotationPanel** — Verifiziert-Icon (gruenes Haekchen), Abgelehnt (ausgegraut alpha 0.35), Gruppen-Zaehler "3/5"
+- **Bemerkungsfeld** — Freitext-Notiz pro Annotation (z.B. bei Fehlbestimmung), gespeichert bei Focus-Verlust
+- **Doppelklick-Edit** — Doppelklick auf Kandidat oeffnet Inline-Editor zum manuellen Aendern der Art
+- **Unabhaengiges Verify/Reject** — Bestaetigung sperrt nicht Ablehnen/Aendern, beide Aktionen immer verfuegbar
+- **SonogramGallery Grid** — Adaptives Grid (LazyVerticalGrid) statt horizontaler Reihe, vertikaler Scrollbalken
+- **Artensuche mit Autovervollstaendigung** — Doppelklick auf Kandidat oeffnet Textfeld mit Dropdown-Vorschlaegen (SpeciesRegistry.searchSpecies)
+- **Fenster-Settings persistent** — Position, Groesse, Sidebar-Breite, Gallery-Hoehe werden bei Beenden gespeichert und beim Start wiederhergestellt
+- **Gallery-Splitter repariert** — Inline-Drag statt defektem HorizontalSplitter, Hoehe 80-500dp einstellbar
+- **Settings UI Redesign** — Neue SectionCard/ExpandableSection Komponenten, Tabs Allgemein/Analyse/Export/Datenbank komplett ueberarbeitet mit Preset-Karten (Voegel/Fledermaeuse)
+- **Stille-Erkennung** — RMS-basiert (-50 dBFS), stille Chunks werden bei ONNX-Inferenz uebersprungen
+- **FFT-Parallelisierung** — MelSpectrogram.compute() als suspend, parallele Batch-Verarbeitung (ein Batch pro CPU-Kern), ~2x Speedup auf Dual-Core
+- **Filter-Pipeline Fusion** — In-place Operationen fuer Volume Fader, Normalize, Limiter (7 Array-Kopien → 1)
+- **Buffer Pooling** — splitIntoChunkRanges() statt splitIntoChunks(), bedingte clone() nur bei aktiven Filtern, Bulk-ByteBuffer-Read in PcmCacheFile
+- **Benchmark-Infrastruktur** — PerformanceLog mit measure()/summary(), ClassifyStats fuer Chunk-Statistik (total/skipped/classified)
+- **ExportManager refaktoriert** — Delegiert an AudioExporter, unterstuetzt 4 Formate statt 2
+
+### Behobene Fehler
+- Export-Dialog triggerte PNG-Export bei unbekanntem Format (jetzt korrekt geroutet)
+- Referenz-Sonogramme erschienen nicht nach BirdNET Full-Scan (fehlender searchSimilar-Aufruf)
+- Notes-Feld feuerte State-Update bei jedem Tastendruck (jetzt nur bei Focus-Verlust)
+- JOptionPane Export-Warnung blockierte falschen Thread (jetzt auf AWT EDT)
+- ModelDownloader folgte keinen Cross-Domain Redirects (manuelles Redirect-Handling)
+- Download-URL zeigte auf falsches Modell (TFLite statt ONNX, jetzt Platzhalter)
+- CompareScreen wurde waehrend SetupDialog im Hintergrund initialisiert (jetzt im else-Block)
+- isEditingLabel/editText State wurde bei Annotations-Wechsel nicht zurueckgesetzt (remember-Key)
+- WAV-Writer Integer-Overflow bei >2GB Audio (Long-Guard mit Exception)
+- CSV-Export nutzte System-Locale statt Punkt fuer Floats (Locale.US)
+- ReportExporter Parameter-Shadowing entfernt (filteredConfig)
+- isExporting in ReferenceEditor wurde bei Fehler nicht zurueckgesetzt (finally-Block)
+- Export-Ordner Fallback nutzte nicht den konfigurierten Settings-Pfad
+- Label-Parsing Bug: Artnamen ohne Underscore wurden nicht erkannt → keine Referenz-Sonogramme
+- Post-Scan searchSimilar Timing-Bug: StateFlow noch nicht propagiert wenn Referenz-Suche startet
+- Gallery-Splitter Drag funktionierte nicht (Pointer-Capture-Bug in HorizontalSplitter)
+- Fensterposition/-groesse ging bei Neustart verloren
+- Sidebar/Gallery-Groesse wurde bei Drag nicht persistent gespeichert
+
+### Abhaengigkeiten
+- NEU: Apache PDFBox 3.0.4 (PDF-Report)
+- ffmpeg im PATH fuer FLAC/M4A/MP3 Export (optional, WAV funktioniert immer)
+
 ## [0.0.5] — 2026-03-31
 
 ### Neue Features

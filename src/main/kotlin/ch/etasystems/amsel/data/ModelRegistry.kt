@@ -22,6 +22,45 @@ data class ModelsConfig(
     val models: List<ModelEntry> = emptyList()
 )
 
+/**
+ * Ein bekanntes Modell das heruntergeladen werden kann.
+ */
+data class DownloadableModel(
+    val id: String,
+    val name: String,
+    val description: String,
+    val downloadUrl: String,
+    val labelsUrl: String? = null,
+    val expectedFilename: String,
+    val labelsFilename: String? = null,
+    val expectedSizeMB: Long,
+    val type: String
+)
+
+/** Bekannte Modelle die heruntergeladen werden koennen. */
+val KNOWN_MODELS = listOf(
+    DownloadableModel(
+        id = "birdnet_v3",
+        name = "BirdNET V3.0 (ONNX)",
+        description = "11560 Arten, 32kHz, ~50 MB",
+        downloadUrl = "",  // TODO: Korrekte ONNX-V3-URL eintragen (Modell manuell kopieren)
+        labelsUrl = null,
+        expectedFilename = "birdnet_v3.onnx",
+        labelsFilename = "birdnet_v3_labels.csv",
+        expectedSizeMB = 50,
+        type = "birdnet_v3"
+    ),
+    DownloadableModel(
+        id = "efficientnet_embedding",
+        name = "EfficientNet Embedding (ONNX)",
+        description = "Audio-Embeddings fuer Aehnlichkeitssuche — manuell kopieren (kein Download verfuegbar)",
+        downloadUrl = "",
+        expectedFilename = "efficientnet_embedding.onnx",
+        expectedSizeMB = 25,
+        type = "embedding"
+    )
+)
+
 class ModelRegistry(
     private val modelsDir: File = defaultModelsDir()
 ) {
@@ -36,8 +75,7 @@ class ModelRegistry(
 
     companion object {
         private fun defaultModelsDir(): File {
-            val userHome = System.getProperty("user.home")
-            return File(userHome, "Documents/AMSEL/models")
+            return SettingsStore.load().resolvedModelDir().also { it.mkdirs() }
         }
     }
 
@@ -146,6 +184,11 @@ class ModelRegistry(
             activeModel = if (config.activeModel == filename) "birdnet_v3.onnx" else config.activeModel
         )
         save(updated)
+    }
+
+    /** Prueft ob ein bekanntes Modell bereits im models-Ordner liegt. */
+    fun isModelInstalled(model: DownloadableModel): Boolean {
+        return File(modelsDir, model.expectedFilename).exists()
     }
 
     fun isModelAvailable(filename: String): Boolean {

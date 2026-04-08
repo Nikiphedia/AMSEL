@@ -4,6 +4,7 @@ import ch.etasystems.amsel.core.annotation.Annotation
 import ch.etasystems.amsel.core.annotation.MatchResult
 import ch.etasystems.amsel.core.annotation.SpeciesCandidate
 import ch.etasystems.amsel.core.audio.AudioSegment
+import ch.etasystems.amsel.core.audio.PerformanceLog
 import ch.etasystems.amsel.core.audio.PcmCacheFile
 import ch.etasystems.amsel.core.classifier.BirdNetBridge
 import ch.etasystems.amsel.core.classifier.ClassifierResult
@@ -167,22 +168,40 @@ class ClassificationManager(
                 // Art aus BirdNET-Label extrahieren ("Fringilla coelebs_Common Chaffinch (96%)")
                 if (speciesName.isBlank() && ann != null) {
                     val label = ann.label
+                    logger.debug("[searchSimilar] activeAnnotation: id={}, label='{}'", ann.id, label)
                     val isGeneric = label.startsWith("Markierung") || label.startsWith("Zoom") ||
                         label.startsWith("Singvogel") || label.startsWith("Grossvogel") ||
                         label.startsWith("Insekt") || label.startsWith("Fledermaus")
-                    if (!isGeneric && label.contains("_")) {
-                        val sciName = label.substringBefore("_").trim()
-                        val enName = label.substringAfter("_", "")
-                            .replace(Regex("\\s*\\(\\d+%\\)"), "").trim()
-                        speciesName = sciName.ifBlank { enName }
+                    if (!isGeneric) {
+                        if (label.contains("_")) {
+                            // Format mit Common Name: "Fringilla coelebs_Common Chaffinch (96%)"
+                            val sciName = label.substringBefore("_").trim()
+                            val enName = label.substringAfter("_", "")
+                                .replace(Regex("\\s*\\(\\d+%\\)"), "").trim()
+                            speciesName = sciName.ifBlank { enName }
+                        } else {
+                            // Nur wissenschaftlicher Name: "Turdus philomelos (40%)"
+                            val cleaned = label.replace(Regex("\\s*\\(\\d+%\\)\\s*$"), "").trim()
+                            if (cleaned.contains(" ")) {
+                                speciesName = cleaned
+                            }
+                        }
                     }
                 }
 
-                // Falls keine Art aus Label: Quick BirdNET auf den Bereich
+                logger.debug("[searchSimilar] extracted speciesName: '{}'", speciesName)
+
+                // Falls keine Art aus Label: Quick BirdNET nur auf Annotation-Region
                 if (speciesName.isBlank() && (onnxClassifier.isAvailable() || BirdNetBridge.isAvailable())) {
                     onStatusUpdate("BirdNET identifiziert Art...", null)
-                    val segment = audioData.audioSegment()
+                    val fullSegment = audioData.audioSegment()
                     val settings = SettingsStore.load()
+                    // Nur den Bereich der aktiven Annotation analysieren, nicht das gesamte Audio
+                    val segment = if (ann != null && fullSegment != null) {
+                        fullSegment.subRangeSec(ann.startTimeSec, ann.endTimeSec)
+                    } else {
+                        fullSegment
+                    }
                     if (segment != null) {
                         val results = try {
                             if (onnxClassifier.isAvailable()) {
@@ -230,6 +249,8 @@ class ClassificationManager(
                 // 2. Referenzbibliothek nach Sonogrammen dieser Art durchsuchen (exakt + fuzzy)
                 val qualitySettings = SettingsStore.load()
                 val regionSetId = qualitySettings.activeRegionSet
+                val rawRefCount = referenceLibrary.getRecordingsForSpecies(sciName).size
+                logger.debug("[searchSimilar] referenceLibrary raw results for '{}': {}", sciName, rawRefCount)
                 var refRecordings = referenceLibrary.getRecordingsForSpecies(sciName)
                     .filter { rec ->
                         // Artenset-Filter: nur Referenzen von Arten im aktiven Set anzeigen
@@ -489,7 +510,7 @@ class ClassificationManager(
                     ""
                 )
 
-                // Zoom auf erste Detektion
+                // Zoom auf erste Detektion + Referenz-Suche ausloesen
                 if (newAnnotations.isNotEmpty()) {
                     val first = newAnnotations.first()
                     val margin = (first.endTimeSec - first.startTimeSec) * 0.5f
@@ -497,6 +518,15 @@ class ClassificationManager(
                         (first.startTimeSec - margin).coerceAtLeast(0f),
                         (first.endTimeSec + margin).coerceAtMost(totalDurationSec)
                     )
+                    // Referenz-Suche mit explizitem Artnamen (nicht von aktiver Annotation abhaengig)
+                    val firstSpecies = first.label
+                        .replace(Regex("\\s*\\(\\d+%\\)\\s*$"), "")
+                        .substringBefore("_").trim()
+                    if (firstSpecies.contains(" ")) {
+                        searchSimilar(firstSpecies)
+                    } else {
+                        searchSimilar()
+                    }
                 }
 
                 onDirtyChanged()
@@ -518,6 +548,8 @@ class ClassificationManager(
         startSec: Float,
         endSec: Float
     ): List<ClassifierResult> {
+        val startNano = System.nanoTime()
+
         val pcmCache = audioData.pcmCache()
         val audioSeg = if (pcmCache != null) {
             pcmCache.readRange(startSec, endSec)
@@ -527,11 +559,18 @@ class ClassificationManager(
         }
 
         val sr = audioSeg.sampleRate
-        var samples = audioSeg.samples.clone()
+        // Nur klonen wenn in-place Modifikation noetig
+        val needsVolumeEnvelope = audioData.volumeEnvelopeActive() && audioData.volumeEnvelope().isNotEmpty()
+        val needsFilter = useFiltered
+        var samples = if (needsVolumeEnvelope || needsFilter) {
+            audioSeg.samples.clone()
+        } else {
+            audioSeg.samples  // Keine Kopie noetig
+        }
 
         // Volume Envelope anwenden
         val volumeEnvelope = audioData.volumeEnvelope()
-        if (audioData.volumeEnvelopeActive() && volumeEnvelope.isNotEmpty()) {
+        if (needsVolumeEnvelope) {
             for (i in samples.indices) {
                 val timeSec = startSec + i.toFloat() / sr
                 samples[i] *= gainDbToLinear(volumeEnvelope.gainAtTime(timeSec))
@@ -574,6 +613,17 @@ class ClassificationManager(
                 emptyList()
             }
         }
+
+        val elapsedMs = (System.nanoTime() - startNano) / 1_000_000.0
+        val audioDurationSec = endSec - startSec
+        val stats = onnxClassifier.lastClassifyStats
+        PerformanceLog.summary(
+            totalMs = elapsedMs,
+            audioDurationSec = audioDurationSec,
+            totalChunks = stats?.totalChunks ?: -1,
+            skippedChunks = stats?.skippedChunks ?: -1,
+            classifiedChunks = stats?.classifiedChunks ?: -1
+        )
 
         // Zeitstempel auf absolute Position verschieben
         return rawResults.map { r ->
@@ -693,6 +743,13 @@ class ClassificationManager(
         annotationManager.updateAnnotationLabel(annotationId, newLabel)
         onDirtyChanged()
         // Referenz-Sonogramme fuer die neue Art laden
+        searchSimilar(candidate.scientificName)
+    }
+
+    /** Verifiziert einen Kandidaten UND laedt passende Referenz-Sonogramme. */
+    fun verifyCandidateAndSearch(annotationId: String, candidate: SpeciesCandidate) {
+        annotationManager.verifyCandidateInAnnotation(annotationId, candidate.species)
+        onDirtyChanged()
         searchSimilar(candidate.scientificName)
     }
 

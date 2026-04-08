@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -50,6 +51,14 @@ fun AnnotationPanel(
     onZoomToEvent: ((Annotation) -> Unit)? = null,
     speciesLanguage: SpeciesTranslations.Language = SpeciesTranslations.Language.DE,
     showScientificNames: Boolean = true,
+    // Multi-Select (U3)
+    selectedAnnotationIds: Set<String> = emptySet(),
+    onToggleSelection: (String) -> Unit = {},
+    onSelectAll: () -> Unit = {},
+    onClearSelection: () -> Unit = {},
+    onDeleteSelected: () -> Unit = {},
+    onExportReport: () -> Unit = {},
+    onShiftClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Gruppen aufbauen: BirdNET-Detektionen nach Art, manuelle unter "Manuelle Markierungen"
@@ -96,6 +105,39 @@ fun AnnotationPanel(
                 }
             }
 
+            // Bulk-Toolbar (U3): nur sichtbar wenn Annotationen selektiert
+            if (selectedAnnotationIds.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "${selectedAnnotationIds.size} ausgewaehlt",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Row {
+                            IconButton(onClick = onSelectAll, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.SelectAll, "Alle", modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(onClick = onDeleteSelected, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Delete, "Loeschen", modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(onClick = onExportReport, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Description, "Report", modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(onClick = onClearSelection, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Close, "Abbrechen", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
             if (annotations.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -137,14 +179,23 @@ fun AnnotationPanel(
                                     annotation = annotation,
                                     isActive = annotation.id == activeAnnotationId,
                                     isEditing = annotation.id == editingLabelId,
-                                    onClick = {
-                                        onSelect(annotation.id)
-                                        onZoomToEvent?.invoke(annotation)
+                                    isSelected = annotation.id in selectedAnnotationIds,
+                                    onClick = { isCtrl, isShift ->
+                                        when {
+                                            isCtrl -> onToggleSelection(annotation.id)
+                                            isShift -> onShiftClick(annotation.id)
+                                            else -> {
+                                                onClearSelection()
+                                                onSelect(annotation.id)
+                                                onZoomToEvent?.invoke(annotation)
+                                            }
+                                        }
                                     },
                                     onDelete = { onDelete(annotation.id) },
                                     onUpdateLabel = { label -> onUpdateLabel(annotation.id, label) },
                                     onStartEdit = { onStartEdit(annotation.id) },
-                                    onStopEdit = onStopEdit
+                                    onStopEdit = onStopEdit,
+                                    onToggleSelection = { onToggleSelection(annotation.id) }
                                 )
                             }
                         }
@@ -232,6 +283,23 @@ private fun GroupHeader(
                     )
                 }
 
+                // Verifizierungs-Status
+                val verifiedCount = group.events.count { it.verified }
+                val totalCount = group.events.size
+                if (verifiedCount > 0) {
+                    Text(
+                        "$verifiedCount/$totalCount",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF4CAF50)
+                    )
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = Color(0xFF4CAF50)
+                    )
+                }
+
                 // Auf-/Zuklappen
                 Icon(
                     if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -277,11 +345,13 @@ private fun AnnotationItem(
     annotation: Annotation,
     isActive: Boolean,
     isEditing: Boolean,
-    onClick: () -> Unit,
+    isSelected: Boolean = false,
+    onClick: (isCtrl: Boolean, isShift: Boolean) -> Unit,
     onDelete: () -> Unit,
     onUpdateLabel: (String) -> Unit,
     onStartEdit: () -> Unit,
-    onStopEdit: () -> Unit
+    onStopEdit: () -> Unit,
+    onToggleSelection: () -> Unit = {}
 ) {
     val color = Color(ANNOTATION_COLORS[annotation.colorIndex % ANNOTATION_COLORS.size])
     val bgColor = if (isActive) {
@@ -294,10 +364,11 @@ private fun AnnotationItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 16.dp)  // Eingerueckt unter Gruppen-Header
+            .alpha(if (annotation.rejected) 0.35f else 1f)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onDoubleTap = { onStartEdit() },
-                    onTap = { onClick() }
+                    onTap = { onClick(false, false) }
                 )
             },
         colors = CardDefaults.cardColors(containerColor = bgColor),
@@ -310,6 +381,13 @@ private fun AnnotationItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Checkbox (U3)
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggleSelection() },
+                modifier = Modifier.size(20.dp)
+            )
+
             // Farbstrich
             Box(
                 modifier = Modifier
@@ -341,6 +419,25 @@ private fun AnnotationItem(
                         else if (conf > 0.3f) Color(0xFFFFA000)
                         else Color(0xFFE53935)
                     )
+                }
+                // Verifiziert-Icon
+                if (annotation.verified) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Verifiziert",
+                            modifier = Modifier.size(12.dp),
+                            tint = Color(0xFF4CAF50)
+                        )
+                        Text(
+                            "verifiziert",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
                 }
                 // Label anzeigen (Name der Markierung)
                 if (isEditing) {

@@ -5,6 +5,8 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ch.etasystems.amsel.core.audio.AudioResampler
 import ch.etasystems.amsel.core.similarity.MfccExtractor
+import ch.etasystems.amsel.data.SettingsStore
+import ch.etasystems.amsel.data.resolvedModelDir
 import org.jtransforms.fft.DoubleFFT_1D
 import java.io.File
 import java.nio.FloatBuffer
@@ -53,8 +55,7 @@ class EmbeddingExtractor(
 
     init {
         val basePath = modelPath ?: run {
-            val userHome = System.getProperty("user.home")
-            val modelsDir = File(userHome, "Documents/AMSEL/models")
+            val modelsDir = SettingsStore.load().resolvedModelDir().also { it.mkdirs() }
             val found = listOf("birdnet_v3.onnx", "birdnet.onnx")
                 .map { File(modelsDir, it) }.firstOrNull { it.exists() }
                 ?: modelsDir.listFiles()?.firstOrNull { it.extension == "onnx" }

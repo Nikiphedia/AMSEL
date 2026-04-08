@@ -95,7 +95,7 @@ object ReferenceGenerator {
      * Generiert ein Referenz-Sonogramm aus einer Audio-Datei.
      * @return Metadaten oder null bei Fehler
      */
-    fun generate(
+    suspend fun generate(
         audioFile: File,
         outputFile: File,
         config: RefConfig = RefConfig()
@@ -113,7 +113,7 @@ object ReferenceGenerator {
      * Generiert Referenz direkt aus AudioSegment.
      * @return true bei Erfolg
      */
-    fun generateFromSegment(
+    suspend fun generateFromSegment(
         segment: AudioSegment,
         outputFile: File,
         config: RefConfig = RefConfig()
@@ -399,7 +399,7 @@ object ReferenceGenerator {
     // Event-basierter Clip-Selector (fuer automatische Auswahl)
     // ═════════════════════════════════════════════════════════════
 
-    fun selectBestClip(
+    suspend fun selectBestClip(
         audioFile: File,
         config: RefConfig = RefConfig()
     ): Pair<Float, Float> {
@@ -407,7 +407,7 @@ object ReferenceGenerator {
         return selectBestClipFromSegment(segment, config)
     }
 
-    fun selectBestClipFromSegment(
+    suspend fun selectBestClipFromSegment(
         segment: AudioSegment,
         config: RefConfig = RefConfig()
     ): Pair<Float, Float> {

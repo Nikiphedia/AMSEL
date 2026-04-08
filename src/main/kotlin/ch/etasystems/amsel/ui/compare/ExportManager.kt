@@ -3,6 +3,8 @@ package ch.etasystems.amsel.ui.compare
 import ch.etasystems.amsel.core.audio.AudioDecoder
 import ch.etasystems.amsel.core.audio.AudioSegment
 import ch.etasystems.amsel.core.audio.FilteredAudio
+import ch.etasystems.amsel.core.export.AudioExporter
+import ch.etasystems.amsel.core.export.AudioExportFormat
 import ch.etasystems.amsel.core.export.ImageExporter
 import ch.etasystems.amsel.core.filter.FilterPipeline
 import ch.etasystems.amsel.core.model.gainAtTime
@@ -164,7 +166,7 @@ class ExportManager(
      * Exportiert den aktuellen Bereich als WAV- oder MP3-Datei.
      * Wendet Filter + Volume Envelope an.
      *
-     * @param format "wav" oder "mp3" (MP3 via ffmpeg)
+     * @param format "wav", "flac", "m4a" oder "mp3" (FLAC/M4A/MP3 via ffmpeg)
      * @param timeStretch Zeitdehnung (1 = original, 10 = 10x langsamer fuer Fledermaus)
      */
     fun exportAudio(outputFile: File, state: CompareUiState, format: String = "wav", timeStretch: Int = 1) {
@@ -201,11 +203,9 @@ class ExportManager(
                     val endIdx = (exportEnd * sampleRate).toInt().coerceIn(startIdx, state.audioSegment.samples.size)
                     subSamples = state.audioSegment.samples.copyOfRange(startIdx, endIdx)
                 } else if (state.audioFile != null) {
-                    val decoded = AudioDecoder.decode(state.audioFile)
+                    val decoded = AudioDecoder.decodeRange(state.audioFile, exportStart, exportEnd)
                     sampleRate = decoded.sampleRate
-                    val startIdx = (exportStart * sampleRate).toInt().coerceIn(0, decoded.samples.size)
-                    val endIdx = (exportEnd * sampleRate).toInt().coerceIn(startIdx, decoded.samples.size)
-                    subSamples = decoded.samples.copyOfRange(startIdx, endIdx)
+                    subSamples = decoded.samples
                 } else {
                     onLocalStateUpdate(false, null, "Export: Kein Audio")
                     return@launch
@@ -236,25 +236,13 @@ class ExportManager(
                     exportSamples = subSamples
                 }
 
-                // WAV schreiben
-                writeWav(outputFile, exportSamples, exportSampleRate)
-
-                // MP3: WAV via ffmpeg konvertieren
-                if (format == "mp3") {
-                    val wavTemp = File(outputFile.absolutePath + ".tmp.wav")
-                    outputFile.renameTo(wavTemp)
-                    try {
-                        val bitrate = if (exportSampleRate > 48000) "320k" else "192k"
-                        val proc = ProcessBuilder("ffmpeg", "-y", "-i", wavTemp.absolutePath,
-                            "-b:a", bitrate, "-q:a", "2", outputFile.absolutePath)
-                            .redirectErrorStream(true).start()
-                        proc.inputStream.readBytes()
-                        val exitCode = proc.waitFor()
-                        if (exitCode != 0) throw RuntimeException("ffmpeg Fehler (Exit $exitCode)")
-                    } finally {
-                        wavTemp.delete()
-                    }
+                val audioFormat = when (format) {
+                    "mp3"  -> AudioExportFormat.MP3
+                    "flac" -> AudioExportFormat.FLAC
+                    "m4a"  -> AudioExportFormat.M4A
+                    else   -> AudioExportFormat.WAV
                 }
+                AudioExporter.export(outputFile, exportSamples, exportSampleRate, audioFormat)
 
                 val durationSec = exportSamples.size.toFloat() / exportSampleRate
                 val stretchInfo = if (timeStretch > 1) " (${timeStretch}x Zeitdehnung)" else ""
@@ -267,48 +255,4 @@ class ExportManager(
         }
     }
 
-    /** Schreibt Float-Samples als 16-Bit PCM WAV. */
-    private fun writeWav(file: File, samples: FloatArray, sampleRate: Int) {
-        val numSamples = samples.size
-        val bitsPerSample = 16
-        val bytesPerSample = bitsPerSample / 8
-        val dataSize = numSamples * bytesPerSample
-        val fileSize = 36 + dataSize
-
-        java.io.DataOutputStream(java.io.BufferedOutputStream(java.io.FileOutputStream(file))).use { out ->
-            // RIFF Header
-            out.writeBytes("RIFF")
-            out.writeIntLE(fileSize)
-            out.writeBytes("WAVE")
-            // fmt Chunk
-            out.writeBytes("fmt ")
-            out.writeIntLE(16)
-            out.writeShortLE(1)         // PCM
-            out.writeShortLE(1)         // Mono
-            out.writeIntLE(sampleRate)
-            out.writeIntLE(sampleRate * bytesPerSample)
-            out.writeShortLE(bytesPerSample)
-            out.writeShortLE(bitsPerSample)
-            // data Chunk
-            out.writeBytes("data")
-            out.writeIntLE(dataSize)
-            for (sample in samples) {
-                val clamped = sample.coerceIn(-1f, 1f)
-                val pcm = (clamped * 32767f).toInt().toShort()
-                out.writeShortLE(pcm.toInt())
-            }
-        }
-    }
-
-    private fun java.io.DataOutputStream.writeIntLE(value: Int) {
-        write(value and 0xFF)
-        write((value shr 8) and 0xFF)
-        write((value shr 16) and 0xFF)
-        write((value shr 24) and 0xFF)
-    }
-
-    private fun java.io.DataOutputStream.writeShortLE(value: Int) {
-        write(value and 0xFF)
-        write((value shr 8) and 0xFF)
-    }
 }

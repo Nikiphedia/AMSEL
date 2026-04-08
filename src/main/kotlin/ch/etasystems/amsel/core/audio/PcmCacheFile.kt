@@ -130,10 +130,7 @@ class PcmCacheFile private constructor(
             file.seek(HEADER_SIZE + startSample * 4)
             val bytes = ByteArray(count * 4)
             file.readFully(bytes)
-            val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            for (i in 0 until count) {
-                samples[i] = buf.getFloat()
-            }
+            ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(samples)
         }
 
         return AudioSegment(samples, sampleRate)

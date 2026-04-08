@@ -24,10 +24,19 @@ data class Annotation(
     // Farbe (Index in Palette)
     val colorIndex: Int = 0,
     // BirdNET Top-N Kandidaten fuer diesen Chunk (Alternative Artbestimmungen)
-    val candidates: List<SpeciesCandidate> = emptyList()
+    val candidates: List<SpeciesCandidate> = emptyList(),
+    // Freitext-Bemerkung (z.B. bei Fehlbestimmung: "BirdNET sagt Kohlmeise, ist aber Blaumeise")
+    val notes: String = ""
 ) {
     val durationSec: Float get() = endTimeSec - startTimeSec
     val freqRangeHz: Float get() = highFreqHz - lowFreqHz
+
+    /** Mindestens ein Kandidat wurde verifiziert */
+    val verified: Boolean get() = candidates.any { it.verified }
+    /** Alle Kandidaten wurden abgelehnt (oder keine vorhanden und Chunk manuell abgelehnt) */
+    val rejected: Boolean get() = candidates.isNotEmpty() && candidates.all { it.rejected }
+    /** Chunk wurde noch nicht vollstaendig bearbeitet */
+    val isPending: Boolean get() = !verified && !rejected
 }
 
 /**
@@ -38,7 +47,13 @@ data class Annotation(
 data class SpeciesCandidate(
     val species: String,           // Voll-Label: "Parus_major_Great Tit"
     val scientificName: String,    // "Parus major"
-    val confidence: Float          // 0.0 - 1.0
+    val confidence: Float,         // 0.0 - 1.0
+    val verified: Boolean = false,
+    val rejected: Boolean = false,
+    /** Wer hat verifiziert/abgelehnt (Operator-Name aus Settings) */
+    val verifiedBy: String = "",
+    /** Wann verifiziert/abgelehnt (Epoch-Millis, 0 = nicht gesetzt) */
+    val verifiedAt: Long = 0L
 )
 
 /**

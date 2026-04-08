@@ -22,23 +22,24 @@ object FilterPipeline {
      *   Wird als allererster Schritt angewendet (vor Bandpass).
      */
     fun apply(data: SpectrogramData, config: FilterConfig, volumeGainsLog10: FloatArray? = null): SpectrogramData {
-        var result = data
+        // Eine einzige Arbeitskopie — Punkt-Operationen arbeiten in-place darauf
+        val workMatrix = data.matrix.copyOf()
+        var result = data.copy(matrix = workMatrix)
 
-        // 0. Volume Fader: Lautstaerke-Kurve als erstes in der Kette
+        // 0. Volume Fader: in-place Addition auf workMatrix
         if (volumeGainsLog10 != null) {
-            val shifted = FloatArray(result.matrix.size)
             val nFrames = result.nFrames
             for (mel in 0 until result.nMels) {
                 val baseIdx = mel * nFrames
                 for (frame in 0 until nFrames) {
                     val gain = if (frame < volumeGainsLog10.size) volumeGainsLog10[frame] else 0f
-                    shifted[baseIdx + frame] = result.matrix[baseIdx + frame] + gain
+                    workMatrix[baseIdx + frame] += gain
                 }
             }
-            result = result.copy(matrix = shifted)
         }
 
         // 1. Bandpass: zuerst irrelevante Frequenzen entfernen
+        //    BandpassFilter.apply() erzeugt neues Array → result/workMatrix-Referenz aktualisieren
         if (config.bandpass) {
             result = BandpassFilter.apply(
                 result,
@@ -47,19 +48,25 @@ object FilterPipeline {
             )
         }
 
-        // 2. Limiter: Pegel begrenzen (nach Bandpass, vor Normalisierung)
-        if (config.limiter) {
-            result = Limiter.apply(result, thresholdDb = config.limiterThresholdDb)
+        // 2. Limiter: in-place Clamping auf result.matrix
+        if (config.limiter && config.limiterThresholdDb < 0f && result.nFrames > 0) {
+            val m = result.matrix
+            val ceiling = result.maxValue + config.limiterThresholdDb / 10f
+            for (i in m.indices) {
+                if (m[i] > ceiling) m[i] = ceiling
+            }
         }
 
-        // 3. Normalisierung: Pegel anheben auf -2dBFS
+        // 3. Normalisierung: in-place Addition auf result.matrix
         if (config.normalize && config.normalizeGainLog10 != 0f) {
             val gain = config.normalizeGainLog10
-            val shifted = FloatArray(result.matrix.size) { i -> result.matrix[i] + gain }
-            result = result.copy(matrix = shifted)
+            val m = result.matrix
+            for (i in m.indices) {
+                m[i] += gain
+            }
         }
 
-        // 4. Spectral Gating: manueller Threshold relativ zum Peak
+        // 4. Spectral Gating: Nachbar-Operation → erzeugt neues Array
         if (config.spectralGating) {
             result = SpectralGating.applyManualThreshold(
                 result,
@@ -68,7 +75,7 @@ object FilterPipeline {
             )
         }
 
-        // 5. Noise-Filter: globaler Dynamik-Threshold
+        // 5. Noise-Filter: Nachbar-Operation → erzeugt neues Array
         if (config.noiseFilter) {
             result = NoiseFilter.apply(result, thresholdPercent = config.noiseFilterPercent)
         } else if (config.spectralSubtraction) {
@@ -79,7 +86,7 @@ object FilterPipeline {
             ).apply(result)
         }
 
-        // 6. Expander/Gate: leise Bereiche dämpfen
+        // 6. Expander/Gate: Nachbar-Operation → erzeugt neues Array
         if (config.expanderGate) {
             result = ExpanderGate.apply(
                 result,
@@ -95,7 +102,7 @@ object FilterPipeline {
             )
         }
 
-        // 7. Median: Glättung als letzter Schritt
+        // 7. Median: Nachbar-Operation → erzeugt neues Array
         if (config.medianFilter) {
             result = MedianFilter.apply(result, kernelSize = config.medianKernelSize)
         }

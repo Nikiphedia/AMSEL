@@ -3,6 +3,8 @@ package ch.etasystems.amsel.core.similarity
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ch.etasystems.amsel.data.SettingsStore
+import ch.etasystems.amsel.data.resolvedModelDir
 import java.io.File
 import java.nio.FloatBuffer
 import kotlin.math.log10
@@ -34,8 +36,7 @@ object OnnxSimilarityMetric : SimilarityMetric {
     private const val MAX_SAMPLES = 5 * 48000
 
     private val modelDir: File by lazy {
-        val userHome = System.getProperty("user.home")
-        File(userHome, "Documents/AMSEL/models").also { it.mkdirs() }
+        SettingsStore.load().resolvedModelDir().also { it.mkdirs() }
     }
 
     private val modelFile: File get() {

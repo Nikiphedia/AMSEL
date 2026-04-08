@@ -47,7 +47,8 @@ class AnnotationManager(
         val selection: Rect? = null,
         val selectionMode: Boolean = false,
         val editMode: Boolean = false,
-        val selectedMatchResult: MatchResult? = null
+        val selectedMatchResult: MatchResult? = null,
+        val selectedAnnotationIds: Set<String> = emptySet()
     ) {
         val activeAnnotation: Annotation?
             get() = annotations.find { it.id == activeAnnotationId }
@@ -121,6 +122,32 @@ class AnnotationManager(
         }
         onStatusUpdate("Markierung erstellt — Label vergeben oder Vergleichen druecken")
         onStateChanged()
+        onDirtyChanged()
+    }
+
+    /**
+     * Erstellt eine Annotation an einer bestimmten Zeitposition mit gegebenen Frequenzgrenzen.
+     * Wird vom Canvas-Kontextmenue "Neue Annotation hier" aufgerufen.
+     */
+    fun createAnnotationAtRange(startSec: Float, endSec: Float, fMin: Float, fMax: Float) {
+        val autoLabel = "Markierung_${_state.value.annotations.size + 1}"
+        val annotation = Annotation(
+            label = autoLabel,
+            startTimeSec = startSec,
+            endTimeSec = endSec,
+            lowFreqHz = fMin,
+            highFreqHz = fMax,
+            colorIndex = allocateColor()
+        )
+        _state.update {
+            it.copy(
+                annotations = it.annotations + annotation,
+                activeAnnotationId = annotation.id,
+                selection = null,
+                selectionMode = false
+            )
+        }
+        onStatusUpdate("Markierung erstellt — Label vergeben oder Vergleichen druecken")
         onDirtyChanged()
     }
 
@@ -374,6 +401,202 @@ class AnnotationManager(
         val start = nextColor
         nextColor = (nextColor + count) % 8
         return start
+    }
+
+    // ====================================================================
+    // Multi-Select (U3)
+    // ====================================================================
+
+    /** Einzelne Annotation zur Multi-Selektion toggeln */
+    fun toggleMultiSelection(annotationId: String) {
+        _state.update { s ->
+            val newIds = if (annotationId in s.selectedAnnotationIds)
+                s.selectedAnnotationIds - annotationId
+            else
+                s.selectedAnnotationIds + annotationId
+            s.copy(selectedAnnotationIds = newIds)
+        }
+        onStateChanged()
+    }
+
+    /** Alle Annotationen selektieren */
+    fun selectAll() {
+        _state.update { s ->
+            s.copy(selectedAnnotationIds = s.annotations.map { it.id }.toSet())
+        }
+        onStateChanged()
+    }
+
+    /** Multi-Selektion aufheben */
+    fun clearMultiSelection() {
+        _state.update { it.copy(selectedAnnotationIds = emptySet()) }
+        onStateChanged()
+    }
+
+    /** Bereichs-Selektion: von der aktiven Annotation bis zur angeklickten */
+    fun selectRange(toAnnotationId: String) {
+        val anns = _state.value.annotations.sortedBy { it.startTimeSec }
+        val activeId = _state.value.activeAnnotationId ?: return
+        val fromIdx = anns.indexOfFirst { it.id == activeId }
+        val toIdx = anns.indexOfFirst { it.id == toAnnotationId }
+        if (fromIdx < 0 || toIdx < 0) return
+        val range = if (fromIdx <= toIdx) fromIdx..toIdx else toIdx..fromIdx
+        _state.update { s ->
+            s.copy(selectedAnnotationIds = s.selectedAnnotationIds + anns.slice(range).map { it.id })
+        }
+        onStateChanged()
+    }
+
+    /** Selektierte Annotationen als Liste zurueckgeben */
+    fun getSelectedAnnotations(): List<Annotation> {
+        val ids = _state.value.selectedAnnotationIds
+        return _state.value.annotations.filter { it.id in ids }
+    }
+
+    /** Bulk-Delete: Alle selektierten Annotationen loeschen (Batch-Update, CR-28) */
+    fun deleteSelected() {
+        val ids = _state.value.selectedAnnotationIds
+        if (ids.isEmpty()) return
+        _state.update { s ->
+            val newList = s.annotations.filter { it.id !in ids }
+            s.copy(
+                annotations = newList,
+                activeAnnotationId = if (s.activeAnnotationId in ids) newList.lastOrNull()?.id else s.activeAnnotationId,
+                selectedAnnotationIds = emptySet()
+            )
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    // ================================================================
+    // Verifizierung (Per-Kandidat)
+    // ================================================================
+
+    /** Verifiziert einen bestimmten Kandidaten innerhalb einer Annotation. */
+    fun verifyCandidateInAnnotation(annotationId: String, candidateSpecies: String) {
+        val operator = ch.etasystems.amsel.data.SettingsStore.load().operatorName
+        val now = System.currentTimeMillis()
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map { ann ->
+                if (ann.id == annotationId) {
+                    ann.copy(candidates = ann.candidates.map { c ->
+                        if (c.species == candidateSpecies) c.copy(
+                            verified = true, rejected = false,
+                            verifiedBy = operator, verifiedAt = now
+                        ) else c
+                    })
+                } else ann
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Lehnt einen bestimmten Kandidaten ab. */
+    fun rejectCandidateInAnnotation(annotationId: String, candidateSpecies: String) {
+        val operator = ch.etasystems.amsel.data.SettingsStore.load().operatorName
+        val now = System.currentTimeMillis()
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map { ann ->
+                if (ann.id == annotationId) {
+                    ann.copy(candidates = ann.candidates.map { c ->
+                        if (c.species == candidateSpecies) c.copy(
+                            rejected = true, verified = false,
+                            verifiedBy = operator, verifiedAt = now
+                        ) else c
+                    })
+                } else ann
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Setzt den Status eines Kandidaten zurueck (weder verifiziert noch abgelehnt). */
+    fun resetCandidateInAnnotation(annotationId: String, candidateSpecies: String) {
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map { ann ->
+                if (ann.id == annotationId) {
+                    ann.copy(candidates = ann.candidates.map { c ->
+                        if (c.species == candidateSpecies) c.copy(
+                            verified = false, rejected = false,
+                            verifiedBy = "", verifiedAt = 0L
+                        ) else c
+                    })
+                } else ann
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Verifiziert die aktuell aktive Art (Label) der Annotation (CR-33: Fallback auf Top-Kandidat). */
+    fun verifyAnnotation(annotationId: String) {
+        val ann = _state.value.annotations.find { it.id == annotationId } ?: return
+        // Zuerst versuchen: Kandidat der zum Label passt
+        val currentSpecies = ann.label.replace(Regex("\\s*\\(\\d+%\\)\\s*$"), "").trim()
+        val matchingCandidate = ann.candidates.find { it.species == currentSpecies }
+        if (matchingCandidate != null) {
+            verifyCandidateInAnnotation(annotationId, matchingCandidate.species)
+        } else {
+            // Fallback: Top-Kandidat (hoechste Konfidenz) verifizieren
+            val topCandidate = ann.candidates.maxByOrNull { it.confidence }
+            if (topCandidate != null) {
+                verifyCandidateInAnnotation(annotationId, topCandidate.species)
+            }
+        }
+    }
+
+    /** Lehnt die gesamte Annotation ab (alle Kandidaten). */
+    fun rejectAnnotation(annotationId: String) {
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map { ann ->
+                if (ann.id == annotationId) {
+                    ann.copy(candidates = ann.candidates.map { c -> c.copy(rejected = true, verified = false) })
+                } else ann
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Aktualisiert die Bemerkung einer Annotation. */
+    fun updateAnnotationNotes(annotationId: String, notes: String) {
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map {
+                if (it.id == annotationId) it.copy(notes = notes) else it
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Setzt Ablehnung zurueck (alle Kandidaten). */
+    fun unrejectAnnotation(annotationId: String) {
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map { ann ->
+                if (ann.id == annotationId) {
+                    ann.copy(candidates = ann.candidates.map { c -> c.copy(rejected = false) })
+                } else ann
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Verifiziert alle aktuell selektierten Annotationen. */
+    fun verifySelected() {
+        val ids = _state.value.selectedAnnotationIds
+        if (ids.isEmpty()) return
+        ids.forEach { verifyAnnotation(it) }
+    }
+
+    /** Lehnt alle aktuell selektierten Annotationen ab. */
+    fun rejectSelected() {
+        val ids = _state.value.selectedAnnotationIds
+        if (ids.isEmpty()) return
+        ids.forEach { rejectAnnotation(it) }
     }
 
     // ====================================================================

@@ -24,7 +24,7 @@ object FilteredAudio {
      * @param endSec Endzeit (für Teilbereich)
      * @return Neue Samples mit angewendeten Filtern
      */
-    fun apply(
+    suspend fun apply(
         segment: AudioSegment,
         config: FilterConfig,
         maxFreqHz: Float = 16000f,

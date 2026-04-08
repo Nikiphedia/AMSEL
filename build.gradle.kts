@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "ch.etasystems.amsel"
-version = "0.0.5"
+version = "0.0.6"
 
 dependencies {
     // Compose Desktop
@@ -41,6 +41,9 @@ dependencies {
     // ONNX Runtime (EfficientNet Embedding)
     implementation(libs.onnxruntime)
 
+    // PDF-Export (U4)
+    implementation(libs.pdfbox)
+
     // Logging
     implementation(libs.slf4j.simple)
 }
@@ -52,7 +55,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "AMSEL"
-            packageVersion = "0.0.5"
+            packageVersion = "0.0.6"
             description = "Sonogramm-Vergleichstool für Vögel und Fledermäuse"
             vendor = "ETA Systems"
 

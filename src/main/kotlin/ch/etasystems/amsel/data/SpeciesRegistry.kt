@@ -242,6 +242,33 @@ object SpeciesRegistry {
             ?: fallback
     }
 
+    /**
+     * Sucht Arten nach Teilstring (case-insensitive) in allen verfuegbaren Namen.
+     * Durchsucht: wissenschaftlicher Name, deutscher Name, englischer Name.
+     * @param query Suchtext (min. 2 Zeichen)
+     * @param locale Sprache fuer Anzeigenamen ("de", "en", "scientific")
+     * @param maxResults Maximale Anzahl Ergebnisse
+     * @return Liste von Paaren (scientificName, displayName)
+     */
+    fun searchSpecies(query: String, locale: String = "de", maxResults: Int = 10): List<Pair<String, String>> {
+        if (query.length < 2) return emptyList()
+        val q = query.lowercase()
+        return speciesMap.values
+            .filter { info ->
+                val sciName = info.scientificName.lowercase()
+                val sciSpaced = sciName.replace('_', ' ')
+                val displayName = getDisplayName(info.scientificName, locale).lowercase()
+                val enName = getDisplayName(info.scientificName, "en").lowercase()
+                sciName.contains(q) || sciSpaced.contains(q) || displayName.contains(q) || enName.contains(q)
+            }
+            .take(maxResults)
+            .map { info ->
+                val display = getDisplayName(info.scientificName, locale)
+                val sciFormatted = info.scientificName.replace('_', ' ')
+                Pair(info.scientificName, if (display != sciFormatted) "$display ($sciFormatted)" else display)
+            }
+    }
+
     // ================================================================
     // IUCN
     // ================================================================

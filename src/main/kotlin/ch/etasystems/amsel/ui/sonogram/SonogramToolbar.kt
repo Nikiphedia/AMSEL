@@ -71,6 +71,11 @@ fun SonogramToolbar(
     onBypassBearbeitung: () -> Unit = {},
     onBypassAnsicht: () -> Unit = {},
     onBypassVolume: () -> Unit = {},
+    // Report (U4)
+    onExportReport: () -> Unit = {},
+    // Arten-CSV (AP-4)
+    onExportSpeciesCsv: () -> Unit = {},
+    speciesCsvEnabled: Boolean = false,
     // Projekt
     onLoadProject: () -> Unit = {},
     onSaveProject: () -> Unit = {},
@@ -406,6 +411,21 @@ fun SonogramToolbar(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
+            // Report (U4)
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                tooltip = { PlainTooltip { Text("Report exportieren (PDF + CSV)") } },
+                state = rememberTooltipState()
+            ) {
+                IconButton(onClick = onExportReport, enabled = hasAudio && annotationCount > 0) {
+                    Icon(
+                        Icons.Default.Description,
+                        contentDescription = "Report exportieren",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             // Export
             IconButton(onClick = onExport, enabled = hasAudio) {
                 Icon(
@@ -414,6 +434,21 @@ fun SonogramToolbar(
                     tint = if (hasAudio) MaterialTheme.colorScheme.tertiary
                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                 )
+            }
+
+            // Arten-CSV Export (AP-4)
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                tooltip = { PlainTooltip { Text("Arten-CSV exportieren") } },
+                state = rememberTooltipState()
+            ) {
+                IconButton(onClick = onExportSpeciesCsv, enabled = speciesCsvEnabled) {
+                    Icon(
+                        Icons.Default.TableChart,
+                        contentDescription = "Arten-CSV exportieren",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             // Referenz-Editor
