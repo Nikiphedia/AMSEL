@@ -83,9 +83,6 @@ fun CompareScreen(
     /** 0 = kein Panel fokussiert, 1 = Annotations, 2 = Kandidaten, 3 = Files/Slices */
     var activePanelIndex by remember { mutableIntStateOf(0) }
 
-    /** CapsLock-Status: true = Referenz-Modus aktiv */
-    var isCapsLockActive by remember { mutableStateOf(false) }
-
     /** Space-gehalten State fuer Space+Klick im Sonogramm (AP-52) */
     var isSpaceHeld by remember { mutableStateOf(false) }
     var spaceClickUsed by remember { mutableStateOf(false) }
@@ -263,10 +260,8 @@ fun CompareScreen(
                 // CapsLock-Erkennung: Toggle bei CapsLock-Taste (KeyUp = kein Repeat-Problem)
                 if (event.key == Key.CapsLock) {
                     if (event.type == KeyEventType.KeyUp) {
-                        isCapsLockActive = !isCapsLockActive
-                        viewModel.switchPlaybackMode(
-                            if (isCapsLockActive) PlaybackMode.REFERENCE else PlaybackMode.MAIN
-                        )
+                        val neuerModus = if (uiState.playbackMode == PlaybackMode.REFERENCE) PlaybackMode.MAIN else PlaybackMode.REFERENCE
+                        viewModel.switchPlaybackMode(neuerModus)
                     }
                     return@onPreviewKeyEvent true
                 }
@@ -319,7 +314,7 @@ fun CompareScreen(
                 }
 
                 // CapsLock ON: Pfeiltasten links/rechts = Referenz-Navigation (ohne abspielen)
-                if (isCapsLockActive && event.type == KeyEventType.KeyDown && !event.isCtrlPressed && !isEditing) {
+                if (uiState.playbackMode == PlaybackMode.REFERENCE && event.type == KeyEventType.KeyDown && !event.isCtrlPressed && !isEditing) {
                     when (event.key) {
                         Key.DirectionRight -> {
                             viewModel.selectNextReference()
@@ -381,7 +376,7 @@ fun CompareScreen(
                             spaceClickUsed = false
                             true
                         } else if (!isEditing) {
-                            if (isCapsLockActive) {
+                            if (uiState.playbackMode == PlaybackMode.REFERENCE) {
                                 // CapsLock ON: Play/Pause aktuelle Referenz
                                 if (uiState.isPlaying) {
                                     viewModel.stopPlayback()
@@ -1258,7 +1253,7 @@ fun CompareScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
-                                if (isCapsLockActive) Modifier.border(
+                                if (uiState.playbackMode == PlaybackMode.REFERENCE) Modifier.border(
                                     width = 2.dp,
                                     color = MaterialTheme.colorScheme.primary,
                                     shape = MaterialTheme.shapes.small
