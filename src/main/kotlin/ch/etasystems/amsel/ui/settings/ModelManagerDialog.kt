@@ -58,11 +58,13 @@ fun ModelManagerDialog(
                 ) {
                     for (model in models) {
                         val isActive = model.filename == activeModel
-                        Surface(
-                            shape = MaterialTheme.shapes.medium,
-                            color = if (isActive) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
+                        ElevatedCard(
+                            onClick = { onSelectModel(model.filename) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),

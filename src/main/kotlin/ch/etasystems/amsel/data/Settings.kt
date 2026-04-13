@@ -171,6 +171,10 @@ data class AppSettings(
     val eventPrerollSec: Float = 10f,
     /** Event-Klick: Nachlauf in Sekunden (wie viel nach dem Event angezeigt wird) */
     val eventPostrollSec: Float = 20f,
+    /** Solo-Modus: Vorlauf in Sekunden */
+    val soloPrerollSec: Float = 5f,
+    /** Solo-Modus: Nachlauf in Sekunden */
+    val soloPostrollSec: Float = 5f,
     /** Sprache fuer Art-Namen: EN (Englisch), DE (Deutsch), SCIENTIFIC (Latein) */
     val speciesLanguage: String = "DE",
     /** Wissenschaftliche Namen IMMER anzeigen (default: true — wissenschaftlicher Standard) */
@@ -197,10 +201,10 @@ data class AppSettings(
     val windowX: Int = -1,
     /** UI: Fenster Y-Position (-1 = System-Standard) */
     val windowY: Int = -1,
-    /** Chunk-Laenge fuer grosse Dateien in Minuten (Standard 10) */
-    val chunkLengthMin: Float = 10f,
-    /** Chunk-Ueberlappung in Sekunden (Standard 5) */
-    val chunkOverlapSec: Float = 5f,
+    /** Slice-Laenge fuer grosse Dateien in Minuten (Standard 10) */
+    val sliceLengthMin: Float = 10f,
+    /** Slice-Ueberlappung in Sekunden (Standard 5) */
+    val sliceOverlapSec: Float = 5f,
     /** Zuletzt geoeffnetes Projekt (Pfad zur .amsel.json, leer = keins) */
     val lastProjectPath: String = "",
     /** Aktives ONNX-Modell (Dateiname im models/-Ordner) */
@@ -215,6 +219,8 @@ data class AppSettings(
     val audioImportDir: String = "",
     /** Ordner fuer Projekt-Dateien (leer = neben Audio-Datei, bisheriges Verhalten) */
     val projectDir: String = "",
+    /** Standard-Sortierung fuer Multi-Audio-Reports */
+    val reportSortOrder: ReportSortOrder = ReportSortOrder.CHRONOLOGICAL,
     /** Ordner fuer Exporte (leer = System-Desktop) */
     val exportDir: String = "",
     /** Ordner fuer ONNX-Modelle + Python-Skripte (leer = ~/Documents/AMSEL/models/) */

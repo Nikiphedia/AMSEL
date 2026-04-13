@@ -10,6 +10,8 @@ import java.util.UUID
 @Serializable
 data class Annotation(
     val id: String = UUID.randomUUID().toString(),
+    /** ID der Audio-Datei zu der diese Annotation gehoert (leer = Legacy/Single-File) */
+    val audioFileId: String = "",
     val label: String = "",
     // Herkunft: true = BirdNET-Erkennung, false = manuell erstellt
     val isBirdNetDetection: Boolean = false,
@@ -23,7 +25,7 @@ data class Annotation(
     val matchResults: List<MatchResult> = emptyList(),
     // Farbe (Index in Palette)
     val colorIndex: Int = 0,
-    // BirdNET Top-N Kandidaten fuer diesen Chunk (Alternative Artbestimmungen)
+    // BirdNET Top-N Kandidaten fuer diesen Slice (Alternative Artbestimmungen)
     val candidates: List<SpeciesCandidate> = emptyList(),
     // Freitext-Bemerkung (z.B. bei Fehlbestimmung: "BirdNET sagt Kohlmeise, ist aber Blaumeise")
     val notes: String = ""
@@ -33,14 +35,16 @@ data class Annotation(
 
     /** Mindestens ein Kandidat wurde verifiziert */
     val verified: Boolean get() = candidates.any { it.verified }
-    /** Alle Kandidaten wurden abgelehnt (oder keine vorhanden und Chunk manuell abgelehnt) */
+    /** Alle Kandidaten wurden abgelehnt (oder keine vorhanden und Slice manuell abgelehnt) */
     val rejected: Boolean get() = candidates.isNotEmpty() && candidates.all { it.rejected }
-    /** Chunk wurde noch nicht vollstaendig bearbeitet */
+    /** Mindestens ein Kandidat ist als unklar markiert */
+    val hasUncertain: Boolean get() = candidates.any { it.uncertain }
+    /** Slice wurde noch nicht vollstaendig bearbeitet */
     val isPending: Boolean get() = !verified && !rejected
 }
 
 /**
- * BirdNET-Kandidat pro Chunk: eine moegliche Art-Erkennung mit Konfidenz.
+ * BirdNET-Kandidat pro Slice: eine moegliche Art-Erkennung mit Konfidenz.
  * Wird auf der Annotation gespeichert um Top-N Alternativ-Vorschlaege anzuzeigen.
  */
 @Serializable
@@ -50,10 +54,12 @@ data class SpeciesCandidate(
     val confidence: Float,         // 0.0 - 1.0
     val verified: Boolean = false,
     val rejected: Boolean = false,
+    val uncertain: Boolean = false, // Status "unklar" / "?"
     /** Wer hat verifiziert/abgelehnt (Operator-Name aus Settings) */
     val verifiedBy: String = "",
     /** Wann verifiziert/abgelehnt (Epoch-Millis, 0 = nicht gesetzt) */
-    val verifiedAt: Long = 0L
+    val verifiedAt: Long = 0L,
+    val isManual: Boolean = false   // Manuell hinzugefuegt (nicht von BirdNET)
 )
 
 /**

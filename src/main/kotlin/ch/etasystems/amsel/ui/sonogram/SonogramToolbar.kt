@@ -37,6 +37,8 @@ fun SonogramToolbar(
     onSync: () -> Unit = {},
     editMode: Boolean = false,
     onToggleEditMode: () -> Unit = {},
+    isSoloMode: Boolean = false,
+    onToggleSoloMode: () -> Unit = {},
     onExport: () -> Unit = {},
     exportBlackAndWhite: Boolean = false,
     onToggleExportBW: () -> Unit = {},
@@ -50,6 +52,8 @@ fun SonogramToolbar(
     isFullView: Boolean = false,
     onPlayPause: () -> Unit = {},
     onStop: () -> Unit = {},
+    isLooping: Boolean = false,
+    onToggleLoop: () -> Unit = {},
     onDetectEvents: () -> Unit = {},
     onNormalize: () -> Unit = {},
     onImportCompare: () -> Unit = {},
@@ -77,6 +81,8 @@ fun SonogramToolbar(
     onExportSpeciesCsv: () -> Unit = {},
     speciesCsvEnabled: Boolean = false,
     // Projekt
+    onNewProject: () -> Unit = {},
+    onOpenProject: () -> Unit = {},
     onLoadProject: () -> Unit = {},
     onSaveProject: () -> Unit = {},
     hasProject: Boolean = false,
@@ -117,16 +123,31 @@ fun SonogramToolbar(
                 }
             }
 
-            // Projekt laden
+            // Neues Projekt
             TooltipBox(
                 positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                tooltip = { PlainTooltip { Text("AMSEL-Projekt laden (.amsel.json)") } },
+                tooltip = { PlainTooltip { Text("Neues Projekt erstellen...") } },
                 state = rememberTooltipState()
             ) {
-                IconButton(onClick = onLoadProject) {
+                IconButton(onClick = onNewProject) {
                     Icon(
-                        Icons.Default.FileOpen,
-                        contentDescription = "Projekt laden",
+                        Icons.Default.CreateNewFolder,
+                        contentDescription = "Neues Projekt",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Projekt oeffnen
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                tooltip = { PlainTooltip { Text("Projekt oeffnen (.amsel.json)") } },
+                state = rememberTooltipState()
+            ) {
+                IconButton(onClick = onOpenProject) {
+                    Icon(
+                        Icons.Default.FolderOpen,
+                        contentDescription = "Projekt oeffnen",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -183,6 +204,15 @@ fun SonogramToolbar(
             }
             IconButton(onClick = onStop, enabled = isPlaying || isPaused) {
                 Icon(Icons.Default.Stop, contentDescription = "Stopp")
+            }
+
+            // Loop-Toggle (AP-29)
+            IconButton(onClick = onToggleLoop, enabled = hasAudio) {
+                Icon(
+                    Icons.Default.Autorenew,
+                    contentDescription = if (isLooping) "Loop aus" else "Loop ein",
+                    tint = if (isLooping) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             if (playbackPositionText.isNotEmpty()) {
@@ -393,23 +423,23 @@ fun SonogramToolbar(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Annotation-Count
-            if (annotationCount > 0) {
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                ) {
-                    Text(
-                        "$annotationCount Markierung${if (annotationCount != 1) "en" else ""}",
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.primary
+            // Solo-Modus: Annotation in voller Breite anzeigen
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                tooltip = { PlainTooltip { Text("Solo-Modus: Chunk in voller Breite (Tab = naechster)") } },
+                state = rememberTooltipState()
+            ) {
+                IconButton(onClick = onToggleSoloMode, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Default.CenterFocusStrong,
+                        contentDescription = "Solo-Modus",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isSoloMode) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
             }
+
+            Spacer(modifier = Modifier.weight(1f))
 
             // Report (U4)
             TooltipBox(

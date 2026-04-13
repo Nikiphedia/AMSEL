@@ -59,11 +59,48 @@ fun AnnotationPanel(
     onDeleteSelected: () -> Unit = {},
     onExportReport: () -> Unit = {},
     onShiftClick: (String) -> Unit = {},
+    // Solo-Modus: nur Annotations im sichtbaren Viewport anzeigen
+    isSoloMode: Boolean = false,
+    viewStartSec: Float = 0f,
+    viewEndSec: Float = 0f,
     modifier: Modifier = Modifier
 ) {
-    // Gruppen aufbauen: BirdNET-Detektionen nach Art, manuelle unter "Manuelle Markierungen"
-    val groups = remember(annotations) {
+    // Solo-Filter: nur Annotations anzeigen die den sichtbaren Viewport ueberlappen
+    val displayAnnotations = if (isSoloMode && viewEndSec > viewStartSec) {
+        annotations.filter { ann ->
+            ann.startTimeSec < viewEndSec && ann.endTimeSec > viewStartSec
+        }
+    } else {
         annotations
+    }
+
+    // Ueberlappende Annotations ermitteln
+    val overlappingIds = remember(displayAnnotations) {
+        val ids = mutableSetOf<String>()
+        val sorted = displayAnnotations.sortedBy { it.startTimeSec }
+        for (i in sorted.indices) {
+            for (j in i + 1 until sorted.size) {
+                if (sorted[j].startTimeSec < sorted[i].endTimeSec) {
+                    ids.add(sorted[i].id)
+                    ids.add(sorted[j].id)
+                } else {
+                    break
+                }
+            }
+        }
+        ids
+    }
+
+    // Sprach-Locale fuer Label-Uebersetzung
+    val locale = when (speciesLanguage) {
+        SpeciesTranslations.Language.DE -> "de"
+        SpeciesTranslations.Language.EN -> "en"
+        SpeciesTranslations.Language.SCIENTIFIC -> "scientific"
+    }
+
+    // Gruppen aufbauen: BirdNET-Detektionen nach Art, manuelle unter "Manuelle Markierungen"
+    val groups = remember(displayAnnotations) {
+        displayAnnotations
             .groupBy { if (it.isBirdNetDetection) extractSpeciesKey(it.label) else "Manuelle Markierungen" }
             .map { (speciesKey, events) ->
                 val maxConf = events.maxOfOrNull { extractConfidence(it.label) } ?: 0f
@@ -89,7 +126,7 @@ fun AnnotationPanel(
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                     Text(
-                        "${groups.size} Arten, ${annotations.size} Events",
+                        "${groups.size} Arten, ${displayAnnotations.size} Events",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -180,6 +217,8 @@ fun AnnotationPanel(
                                     isActive = annotation.id == activeAnnotationId,
                                     isEditing = annotation.id == editingLabelId,
                                     isSelected = annotation.id in selectedAnnotationIds,
+                                    isOverlapping = annotation.id in overlappingIds,
+                                    speciesLocale = locale,
                                     onClick = { isCtrl, isShift ->
                                         when {
                                             isCtrl -> onToggleSelection(annotation.id)
@@ -346,6 +385,8 @@ private fun AnnotationItem(
     isActive: Boolean,
     isEditing: Boolean,
     isSelected: Boolean = false,
+    isOverlapping: Boolean = false,
+    speciesLocale: String = "de",
     onClick: (isCtrl: Boolean, isShift: Boolean) -> Unit,
     onDelete: () -> Unit,
     onUpdateLabel: (String) -> Unit,
@@ -397,12 +438,22 @@ private fun AnnotationItem(
             )
 
             Column(modifier = Modifier.weight(1f)) {
-                // Zeitbereich
-                Text(
-                    "${formatTime(annotation.startTimeSec)} - ${formatTime(annotation.endTimeSec)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                // Zeitbereich + Ueberlappungs-Indikator
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${formatTime(annotation.startTimeSec)} - ${formatTime(annotation.endTimeSec)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (isOverlapping) {
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "\u26A0",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFFFA000)
+                        )
+                    }
+                }
                 // Frequenzbereich
                 Text(
                     "${"%.1f".format(annotation.lowFreqHz / 1000f)} - ${"%.1f".format(annotation.highFreqHz / 1000f)} kHz",
@@ -448,8 +499,20 @@ private fun AnnotationItem(
                         modifier = Modifier.fillMaxWidth()
                     )
                 } else {
+                    val labelText = if (annotation.label.isNotBlank()) {
+                        val sciName = annotation.candidates.firstOrNull()?.scientificName
+                        if (sciName != null && sciName.contains(" ")) {
+                            val translated = SpeciesRegistry.getDisplayName(sciName, speciesLocale)
+                            val conf = extractConfidence(annotation.label)
+                            if (conf > 0f) "$translated (${(conf * 100).toInt()}%)" else translated
+                        } else {
+                            annotation.label
+                        }
+                    } else {
+                        "Ohne Label"
+                    }
                     Text(
-                        annotation.label.ifEmpty { "Ohne Label" },
+                        labelText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         maxLines = 1,

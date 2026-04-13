@@ -1,6 +1,7 @@
 package ch.etasystems.amsel.core.export
 
 import ch.etasystems.amsel.core.annotation.Annotation
+import ch.etasystems.amsel.data.ReportSortOrder
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -18,68 +19,98 @@ import java.time.format.DateTimeFormatter
 object ReportExporter {
     private val logger = LoggerFactory.getLogger(ReportExporter::class.java)
 
+    /** Info ueber eine Audio-Datei fuer den Report. */
+    data class AudioFileInfo(
+        val fileId: String,
+        val fileName: String,
+        val durationSec: Float,
+        val recordingDate: String = "",
+        val recordingTime: String = ""
+    )
+
     data class ReportConfig(
         val title: String = "AMSEL Analysebericht",
-        val audioFileName: String = "",
+        val audioFiles: List<AudioFileInfo> = emptyList(),
         val operatorName: String = "",
         val deviceName: String = "",
         val locationName: String = "",
-        val audioDurationSec: Float = 0f,
-        val annotations: List<Annotation> = emptyList()
+        val totalDurationSec: Float = 0f,
+        val annotations: List<Annotation> = emptyList(),
+        val sortOrder: ReportSortOrder = ReportSortOrder.CHRONOLOGICAL
     )
 
     /**
      * Exportiert als CSV (Semikolon-getrennt, UTF-8 mit BOM).
      */
     fun exportCsv(file: File, config: ReportConfig) {
-        val filteredConfig = config.copy(annotations = config.annotations.filter { !it.rejected })
+        val filteredAnnotations = config.annotations.filter { !it.rejected }
+        val fileInfoMap = config.audioFiles.associateBy { it.fileId }
+
+        val sorted = sortAnnotations(filteredAnnotations, fileInfoMap, config.sortOrder)
+
         val bom = "\uFEFF"
-        val header = "Nr;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung"
+        val header = "Nr;Datei;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung"
 
-        val lines = filteredConfig.annotations
-            .sortedBy { it.startTimeSec }
-            .mapIndexed { idx, ann ->
-                val bestCandidate = ann.candidates.maxByOrNull { it.confidence }
-                val confidence = bestCandidate?.confidence?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: ""
-                val source = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
+        val lines = sorted.mapIndexed { idx, ann ->
+            val fileInfo = fileInfoMap[ann.audioFileId]
+            val fileName = fileInfo?.fileName ?: ""
+            val bestCandidate = ann.candidates.maxByOrNull { it.confidence }
+            val confidence = bestCandidate?.confidence?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: ""
+            val source = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
 
-                // Verifizierungsstatus
-                val verifiedCandidate = ann.candidates.find { it.verified }
-                val rejectedAll = ann.candidates.isNotEmpty() && ann.candidates.all { it.rejected }
-                val status = when {
-                    verifiedCandidate != null -> "verifiziert"
-                    rejectedAll -> "abgelehnt"
-                    else -> "offen"
-                }
-                val verifiedBy = verifiedCandidate?.verifiedBy ?: ""
-                val verifiedAt = if (verifiedCandidate != null && verifiedCandidate.verifiedAt > 0) {
-                    java.time.Instant.ofEpochMilli(verifiedCandidate.verifiedAt)
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-                } else ""
-                // Bemerkung (Semikolons escapen)
-                val notes = ann.notes.replace(";", ",").replace("\n", " ")
-
-                listOf(
-                    idx + 1,
-                    ann.label,
-                    bestCandidate?.scientificName ?: "",
-                    String.format(java.util.Locale.US, "%.2f", ann.startTimeSec),
-                    String.format(java.util.Locale.US, "%.2f", ann.endTimeSec),
-                    String.format(java.util.Locale.US, "%.2f", ann.durationSec),
-                    String.format(java.util.Locale.US, "%.0f", ann.lowFreqHz),
-                    String.format(java.util.Locale.US, "%.0f", ann.highFreqHz),
-                    confidence,
-                    source,
-                    status,
-                    verifiedBy,
-                    verifiedAt,
-                    notes
-                ).joinToString(";")
+            val verifiedCandidate = ann.candidates.find { it.verified }
+            val rejectedAll = ann.candidates.isNotEmpty() && ann.candidates.all { it.rejected }
+            val hasUncertain = ann.candidates.any { it.uncertain }
+            val verifiedCount = ann.candidates.count { it.verified }
+            val status = when {
+                verifiedCount > 1 -> "verifiziert (${verifiedCount} Arten)"
+                verifiedCandidate != null -> "verifiziert"
+                rejectedAll -> "abgelehnt"
+                hasUncertain -> "unklar"
+                else -> "offen"
             }
+            val verifiedBy = verifiedCandidate?.verifiedBy ?: ""
+            val verifiedAt = if (verifiedCandidate != null && verifiedCandidate.verifiedAt > 0) {
+                java.time.Instant.ofEpochMilli(verifiedCandidate.verifiedAt)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+            } else ""
+            val notes = ann.notes.replace(";", ",").replace("\n", " ")
+
+            listOf(
+                idx + 1, fileName, ann.label,
+                bestCandidate?.scientificName ?: "",
+                String.format(java.util.Locale.US, "%.2f", ann.startTimeSec),
+                String.format(java.util.Locale.US, "%.2f", ann.endTimeSec),
+                String.format(java.util.Locale.US, "%.2f", ann.durationSec),
+                String.format(java.util.Locale.US, "%.0f", ann.lowFreqHz),
+                String.format(java.util.Locale.US, "%.0f", ann.highFreqHz),
+                confidence, source, status, verifiedBy, verifiedAt, notes
+            ).joinToString(";")
+        }
 
         file.writeText(bom + header + "\n" + lines.joinToString("\n"), Charsets.UTF_8)
         logger.info("CSV exportiert: {} ({} Eintraege)", file.absolutePath, lines.size)
+    }
+
+    private fun sortAnnotations(
+        annotations: List<Annotation>,
+        fileInfoMap: Map<String, AudioFileInfo>,
+        sortOrder: ReportSortOrder
+    ): List<Annotation> = when (sortOrder) {
+        ReportSortOrder.CHRONOLOGICAL -> annotations.sortedWith(
+            compareBy<Annotation> { fileInfoMap[it.audioFileId]?.recordingDate ?: "" }
+                .thenBy { fileInfoMap[it.audioFileId]?.recordingTime ?: "" }
+                .thenBy { it.startTimeSec }
+        )
+        ReportSortOrder.ALPHABETICAL -> annotations.sortedWith(
+            compareBy<Annotation> { it.label }
+                .thenBy { it.startTimeSec }
+        )
+        ReportSortOrder.SYSTEMATIC -> annotations.sortedWith(
+            compareBy<Annotation> { it.label }
+                .thenBy { it.startTimeSec }
+        )  // TODO: Taxonomische Reihenfolge aus SpeciesRegistry (Fallback: alphabetisch)
     }
 
     /**
@@ -91,7 +122,9 @@ object ReportExporter {
      * - Tabelle: Alle Annotationen sortiert nach Zeit
      */
     fun exportPdf(file: File, config: ReportConfig) {
-        val filteredConfig = config.copy(annotations = config.annotations.filter { !it.rejected })
+        val filteredAnnotations = config.annotations.filter { !it.rejected }
+        val fileInfoMap = config.audioFiles.associateBy { it.fileId }
+        val sortedAnns = sortAnnotations(filteredAnnotations, fileInfoMap, config.sortOrder)
         val doc = PDDocument()
 
         try {
@@ -115,20 +148,26 @@ object ReportExporter {
             content.setFont(fontBold, headerSize)
             content.beginText()
             content.newLineAtOffset(margin, yPos)
-            content.showText(filteredConfig.title)
+            content.showText(config.title)
             content.endText()
             yPos -= lineHeight * 2
 
             content.setFont(fontRegular, fontSize)
             val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-            val headerLines = listOfNotNull(
-                "Datum: $now",
-                if (filteredConfig.audioFileName.isNotBlank()) "Datei: ${filteredConfig.audioFileName}" else null,
-                if (filteredConfig.operatorName.isNotBlank()) "Bearbeiter: ${filteredConfig.operatorName}" else null,
-                if (filteredConfig.deviceName.isNotBlank()) "Geraet: ${filteredConfig.deviceName}" else null,
-                if (filteredConfig.locationName.isNotBlank()) "Standort: ${filteredConfig.locationName}" else null,
-                if (filteredConfig.audioDurationSec > 0) "Dauer: ${"%.1f".format(filteredConfig.audioDurationSec / 60f)} min" else null
-            )
+            val headerLines = mutableListOf("Datum: $now")
+            if (config.audioFiles.isNotEmpty()) {
+                val fileList = config.audioFiles.joinToString(", ") { af ->
+                    "${af.fileName} (${formatDuration(af.durationSec)})"
+                }
+                headerLines.add("Dateien: $fileList")
+            }
+            if (config.totalDurationSec > 0) {
+                headerLines.add("Gesamtdauer: ${"%.1f".format(config.totalDurationSec / 60f)} min")
+            }
+            if (config.operatorName.isNotBlank()) headerLines.add("Bearbeiter: ${config.operatorName}")
+            if (config.deviceName.isNotBlank()) headerLines.add("Geraet: ${config.deviceName}")
+            if (config.locationName.isNotBlank()) headerLines.add("Standort: ${config.locationName}")
+
             for (line in headerLines) {
                 content.beginText()
                 content.newLineAtOffset(margin, yPos)
@@ -139,7 +178,6 @@ object ReportExporter {
             yPos -= lineHeight
 
             // === Zusammenfassung ===
-            val sortedAnns = filteredConfig.annotations.sortedBy { it.startTimeSec }
             val speciesList = sortedAnns
                 .map { it.label }
                 .filter { it.isNotBlank() }
@@ -178,8 +216,8 @@ object ReportExporter {
             yPos -= lineHeight * 1.5f
 
             // Tabellen-Header (Landscape A4 = 842pt breit, 50pt Margin = 742pt nutzbar)
-            val colWidths = floatArrayOf(25f, 120f, 60f, 60f, 50f, 50f, 50f, 55f, 70f, 70f, 132f)
-            val colHeaders = arrayOf("Nr", "Art", "Start", "Ende", "Dauer", "Konf.", "Quelle", "Status", "Verif. von", "Verif. am", "Bemerkung")
+            val colWidths = floatArrayOf(25f, 80f, 110f, 55f, 55f, 45f, 45f, 50f, 55f, 60f, 60f, 102f)
+            val colHeaders = arrayOf("Nr", "Datei", "Art", "Start", "Ende", "Dauer", "Konf.", "Quelle", "Status", "Verif. von", "Verif. am", "Bemerkung")
 
             content.setFont(fontBold, fontSize)
             var xPos = margin
@@ -210,15 +248,21 @@ object ReportExporter {
                     content.setFont(fontRegular, fontSize)
                 }
 
+                val fileInfo = fileInfoMap[ann.audioFileId]
+                val shortFileName = (fileInfo?.fileName ?: "").take(15)
                 val bestCandidate = ann.candidates.maxByOrNull { it.confidence }
                 val conf = bestCandidate?.confidence?.let { "%.0f%%".format(it * 100) } ?: ""
                 val source = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
 
                 val verifiedCandidate = ann.candidates.find { it.verified }
                 val rejectedAll = ann.candidates.isNotEmpty() && ann.candidates.all { it.rejected }
+                val hasUncertain = ann.candidates.any { it.uncertain }
+                val verifiedCount = ann.candidates.count { it.verified }
                 val status = when {
+                    verifiedCount > 1 -> "verifiziert (${verifiedCount} Arten)"
                     verifiedCandidate != null -> "verifiziert"
                     rejectedAll -> "abgelehnt"
+                    hasUncertain -> "unklar"
                     else -> "offen"
                 }
                 val verifiedBy = verifiedCandidate?.verifiedBy ?: ""
@@ -231,7 +275,8 @@ object ReportExporter {
 
                 val colValues = arrayOf(
                     "${idx + 1}",
-                    ann.label.take(20),
+                    shortFileName,
+                    ann.label.take(18),
                     "%.1f".format(ann.startTimeSec),
                     "%.1f".format(ann.endTimeSec),
                     "%.1f".format(ann.durationSec),
@@ -259,7 +304,7 @@ object ReportExporter {
             content.setFont(fontRegular, 7f)
             content.beginText()
             content.newLineAtOffset(margin, margin / 2)
-            content.showText("Erstellt mit AMSEL v0.0.6 — $now")
+            content.showText("Erstellt mit AMSEL v0.0.7 — $now")
             content.endText()
 
             content.close()
@@ -268,5 +313,11 @@ object ReportExporter {
         } finally {
             doc.close()
         }
+    }
+
+    private fun formatDuration(sec: Float): String {
+        val m = (sec / 60).toInt()
+        val s = (sec % 60).toInt()
+        return "${m}:${s.toString().padStart(2, '0')}"
     }
 }

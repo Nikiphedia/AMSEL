@@ -47,12 +47,14 @@ fun CandidatePanel(
     onVerifyCandidate: (SpeciesCandidate) -> Unit = {},
     onRejectCandidate: (SpeciesCandidate) -> Unit = {},
     onResetCandidate: (SpeciesCandidate) -> Unit = {},
+    onUncertainCandidate: (SpeciesCandidate) -> Unit = {},
+    onAddCandidate: (scientificName: String, displayLabel: String) -> Unit = { _, _ -> },
     onUpdateNotes: (String) -> Unit = {},
     onUpdateLabel: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val candidates = annotation.candidates
-    if (candidates.isEmpty()) return
+    // candidates.isEmpty() ist OK — der "Art hinzufuegen" Button muss trotzdem sichtbar sein
 
     // Aktuelle Art aus dem Label extrahieren (zum Hervorheben)
     val currentSpecies = annotation.label.replace(Regex("\\s*\\(\\d+%\\)\\s*$"), "").trim()
@@ -63,18 +65,36 @@ fun CandidatePanel(
         tonalElevation = 1.dp
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
+            // State fuer "Art hinzufuegen"
+            var isAddingSpecies by remember(annotation.id) { mutableStateOf(false) }
+
             // Header
-            Text(
-                "Kandidaten",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                "${formatTimeShort(annotation.startTimeSec)} \u2013 ${formatTimeShort(annotation.endTimeSec)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "Kandidaten",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "${formatTimeShort(annotation.startTimeSec)} \u2013 ${formatTimeShort(annotation.endTimeSec)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+                TextButton(
+                    onClick = { isAddingSpecies = true },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text("Art hinzufuegen", style = MaterialTheme.typography.labelSmall)
+                }
+            }
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -86,31 +106,118 @@ fun CandidatePanel(
                 else -> "de"
             }
 
+            // Inline-Editor fuer "Art hinzufuegen"
+            if (isAddingSpecies) {
+                Spacer(Modifier.height(4.dp))
+                var addText by remember { mutableStateOf("") }
+                var addSuggestions by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = addText,
+                        onValueChange = { newText ->
+                            addText = newText
+                            addSuggestions = if (newText.length >= 2) {
+                                SpeciesRegistry.searchSpecies(newText, locale, maxResults = 5)
+                            } else emptyList()
+                        },
+                        label = { Text("Art suchen") },
+                        modifier = Modifier.fillMaxWidth()
+                            .onKeyEvent { event ->
+                                when {
+                                    event.type == KeyEventType.KeyUp && event.key == Key.Escape -> {
+                                        isAddingSpecies = false
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            },
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        singleLine = true
+                    )
+
+                    // Vorschlagsliste
+                    if (addSuggestions.isNotEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            tonalElevation = 4.dp,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Column {
+                                addSuggestions.forEach { (sciName, displayName) ->
+                                    Text(
+                                        "$displayName ($sciName)",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                onAddCandidate(sciName, displayName)
+                                                isAddingSpecies = false
+                                                addText = ""
+                                                addSuggestions = emptyList()
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Abbrechen
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        IconButton(
+                            onClick = { isAddingSpecies = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, null, Modifier.size(14.dp))
+                        }
+                    }
+                }
+            }
+
             // Manuelles Label-Editing (Doppelklick auf Kandidat)
             var isEditingLabel by remember(annotation.id) { mutableStateOf(false) }
             var editText by remember(annotation.id) { mutableStateOf(annotation.label) }
 
             // Kandidatenliste (scrollbar, max ~200dp)
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                items(candidates) { candidate ->
-                    val isCurrentSpecies = candidate.species == currentSpecies
-                    CandidateRow(
-                        candidate = candidate,
-                        isSelected = isCurrentSpecies,
-                        locale = locale,
-                        onAdopt = { onAdoptCandidate(candidate) },
-                        onDoubleClick = {
-                            editText = candidate.species
-                            isEditingLabel = true
-                        },
-                        onVerify = { onVerifyCandidate(candidate) },
-                        onReject = { onRejectCandidate(candidate) },
-                        onReset = { onResetCandidate(candidate) }
-                    )
+            if (candidates.isNotEmpty()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(candidates) { candidate ->
+                        val isCurrentSpecies = candidate.species == currentSpecies
+                        CandidateRow(
+                            candidate = candidate,
+                            isSelected = isCurrentSpecies,
+                            locale = locale,
+                            onAdopt = { onAdoptCandidate(candidate) },
+                            onDoubleClick = {
+                                editText = candidate.species
+                                isEditingLabel = true
+                            },
+                            onVerify = { onVerifyCandidate(candidate) },
+                            onReject = { onRejectCandidate(candidate) },
+                            onReset = { onResetCandidate(candidate) },
+                            onUncertain = { onUncertainCandidate(candidate) }
+                        )
+                    }
                 }
+            }
+
+            if (candidates.isEmpty() && !isAddingSpecies) {
+                Text(
+                    "Keine Kandidaten — Art manuell hinzufuegen",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
             }
 
             // Inline-Label-Editor mit Artensuche
@@ -223,7 +330,8 @@ private fun CandidateRow(
     onDoubleClick: () -> Unit = {},
     onVerify: () -> Unit = {},
     onReject: () -> Unit = {},
-    onReset: () -> Unit = {}
+    onReset: () -> Unit = {},
+    onUncertain: () -> Unit = {}
 ) {
     val sciName = candidate.scientificName
     val displayName = SpeciesRegistry.getDisplayName(sciName, locale)
@@ -247,7 +355,7 @@ private fun CandidateRow(
             .clip(RoundedCornerShape(4.dp))
             .background(bgColor)
             .alpha(if (candidate.rejected) 0.4f else 1f)
-            .pointerInput(Unit) {
+            .pointerInput(isSelected) {
                 detectTapGestures(
                     onTap = { if (!isSelected) onAdopt() },
                     onDoubleTap = { onDoubleClick() }
@@ -303,9 +411,21 @@ private fun CandidateRow(
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
                     }
                 }
+                candidate.uncertain -> {
+                    Text("?", style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold, color = Color(0xFFFFA000))
+                    IconButton(onClick = onReset, modifier = Modifier.size(18.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, null, Modifier.size(10.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                    }
+                }
                 else -> {
                     IconButton(onClick = onVerify, modifier = Modifier.size(18.dp)) {
                         Icon(Icons.Default.Check, null, Modifier.size(12.dp), tint = Color(0xFF4CAF50))
+                    }
+                    IconButton(onClick = onUncertain, modifier = Modifier.size(18.dp)) {
+                        Text("?", style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold, color = Color(0xFFFFA000))
                     }
                     IconButton(onClick = onReject, modifier = Modifier.size(18.dp)) {
                         Icon(Icons.Default.Close, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.error)

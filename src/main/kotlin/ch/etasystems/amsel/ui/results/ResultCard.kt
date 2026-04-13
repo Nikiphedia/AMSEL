@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import ch.etasystems.amsel.core.annotation.MatchResult
+import ch.etasystems.amsel.data.SpeciesRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -25,6 +26,7 @@ fun ResultCard(
     result: MatchResult,
     onClick: () -> Unit,
     onPlayAudio: ((MatchResult) -> Unit)? = null,
+    speciesLocale: String = "de",
     modifier: Modifier = Modifier
 ) {
     var bitmap by remember(result.sonogramUrl) { mutableStateOf<ImageBitmap?>(null) }
@@ -123,7 +125,7 @@ fun ResultCard(
             // Info
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
-                    result.species,
+                    SpeciesRegistry.getDisplayName(result.scientificName, speciesLocale),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1
                 )

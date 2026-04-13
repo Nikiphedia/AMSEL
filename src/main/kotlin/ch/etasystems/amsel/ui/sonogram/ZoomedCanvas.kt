@@ -87,6 +87,9 @@ fun ZoomedCanvas(
     editMode: Boolean = false,
     onAnnotationBoundsChanged: ((id: String, startTimeSec: Float?, endTimeSec: Float?, lowFreqHz: Float?, highFreqHz: Float?) -> Unit)? = null,
     normReferenceMaxDb: Float = 0f,
+    // Space+Klick: Play ab Position (AP-52)
+    isSpaceHeld: Boolean = false,
+    onClickToSeek: ((timeSec: Float) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Mel-Bitmap: gecacht, nur bei Daten-/Palette-Aenderung neu (NICHT bei Log/Lin Toggle)
@@ -311,6 +314,19 @@ fun ZoomedCanvas(
                         editDragAnnotationId = null
                     }
                 )
+            }
+            // Space+Klick: Play ab Klickposition (AP-52)
+            .pointerInput(isSpaceHeld, onClickToSeek) {
+                if (!isSpaceHeld || onClickToSeek == null) return@pointerInput
+                detectTapGestures { offset ->
+                    val plotWidth = size.width - axisLeft
+                    val duration = viewEndSec - viewStartSec
+                    if (plotWidth > 0 && duration > 0) {
+                        val clickTimeSec = viewStartSec + ((offset.x - axisLeft) / plotWidth) * duration
+                        val clampedTime = clickTimeSec.coerceIn(viewStartSec, viewEndSec)
+                        onClickToSeek?.invoke(clampedTime)
+                    }
+                }
             }
             .pointerInput(selectionMode, editMode, volumeEditMode) {
                 if (!selectionMode || editMode || volumeEditMode) return@pointerInput

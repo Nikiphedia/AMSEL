@@ -50,8 +50,9 @@ data class ClassificationAudioProvider(
     val annotations: () -> List<Annotation>,
     val activeAnnotation: () -> Annotation?,
     val activeAnnotationId: () -> String?,
-    val chunkManager: () -> ch.etasystems.amsel.core.audio.ChunkManager?,
-    val audioSampleRate: () -> Int
+    val sliceManager: () -> ch.etasystems.amsel.core.audio.SliceManager?,
+    val audioSampleRate: () -> Int,
+    val activeAudioFileId: () -> String = { "" }
 )
 
 /**
@@ -85,6 +86,17 @@ class ClassificationManager(
 
     /** ONNX-first Classifier (BirdNET V3.0) — Fallback auf Python-Bridge */
     private val onnxClassifier = OnnxBirdNetV3()
+
+    /** Laeuft gerade ein Hintergrund-Scan? */
+    private val _isBackgroundScanning = MutableStateFlow(false)
+    val isBackgroundScanning: StateFlow<Boolean> = _isBackgroundScanning.asStateFlow()
+
+    /** Laufende Anzahl erkannter Events (fuer Live-Zaehler) */
+    private val _scanDetectionCount = MutableStateFlow(0)
+    val scanDetectionCount: StateFlow<Int> = _scanDetectionCount.asStateFlow()
+
+    /** Job des aktuellen Scans (fuer Abbruch bei Neustart) */
+    private var backgroundScanJob: Job? = null
 
     data class State(
         val isSearching: Boolean = false,
@@ -335,7 +347,7 @@ class ClassificationManager(
 
     /**
      * Sendet Audio an BirdNET und erstellt Annotationen.
-     * Bei ChunkManager: chunk-weise Verarbeitung mit Overlap-Deduplizierung.
+     * Bei SliceManager: slice-weise Verarbeitung mit Overlap-Deduplizierung.
      * Bei aktiver Annotation: nur diesen Bereich analysieren.
      */
     fun fullScanBirdNet() = scanBirdNetInternal(regionAnnotationId = null)
@@ -360,6 +372,11 @@ class ClassificationManager(
             return
         }
 
+        // Laufenden Hintergrund-Scan abbrechen
+        backgroundScanJob?.cancel()
+        backgroundScanJob = null
+        _isBackgroundScanning.value = false
+
         // Scan-Bereich bestimmen
         val annotations = audioData.annotations()
         val totalDurationSec = audioData.totalDurationSec()
@@ -383,10 +400,10 @@ class ClassificationManager(
             scanEnd = activeAnn?.endTimeSec
         }
 
-        val cm = audioData.chunkManager()
-        logger.debug("[FullScan] Start: file={}, chunks={}, duration={}s", audioFile?.name, cm?.chunkCount, totalDurationSec)
+        val sm = audioData.sliceManager()
+        logger.debug("[FullScan] Start: file={}, slices={}, duration={}s", audioFile?.name, sm?.sliceCount, totalDurationSec)
 
-        scope.launch {
+        backgroundScanJob = scope.launch {
             onProcessingChanged(true)
             onStatusUpdate("BirdNET analysiert...", null)
 
@@ -397,23 +414,96 @@ class ClassificationManager(
 
                 val allResults = mutableListOf<ClassifierResult>()
 
-                if (cm != null && !cm.isSingleChunk && scanStart == null) {
-                    // Chunk-basierte Verarbeitung
-                    for (chunk in cm.chunks) {
-                        onStatusUpdate(
-                            "BirdNET: ${chunk.displayLabel()} (${chunk.index + 1}/${cm.chunkCount})",
-                            "Chunk ${chunk.index + 1}/${cm.chunkCount}..."
-                        )
-                        logger.debug("[FullScan] Chunk {}: {}-{}s", chunk.index, chunk.startSec, chunk.endSec)
+                if (sm != null && !sm.isSingleSlice && scanStart == null) {
+                    // ============================================================
+                    // Zwei-Phasen Viewport-First Scan
+                    // ============================================================
 
-                        val chunkResults = analyzeAudioRange(
-                            settings, useFiltered, filterConfig,
-                            chunk.startSec, chunk.endSec
+                    // Viewport-Position ermitteln
+                    val viewStart = audioData.viewStartSec()
+                    val viewEnd = audioData.viewEndSec()
+
+                    // Phase 1: Slice finden der den Viewport enthaelt
+                    val viewportSliceIndex = sm.slices.indexOfFirst { slice ->
+                        slice.startSec < viewEnd && slice.endSec > viewStart
+                    }
+                    val priorityIndex = if (viewportSliceIndex >= 0) viewportSliceIndex else 0
+
+                    // Phase 1: Priority-Slice zuerst scannen
+                    val prioritySlice = sm.slices[priorityIndex]
+                    onStatusUpdate(
+                        "BirdNET: ${prioritySlice.displayLabel()} (Viewport)...",
+                        "Viewport-Slice..."
+                    )
+                    _scanDetectionCount.value = 0
+                    logger.debug("[FullScan] Phase 1: Viewport-Slice {} ({}-{}s)", priorityIndex, prioritySlice.startSec, prioritySlice.endSec)
+
+                    val priorityResults = analyzeAudioRange(
+                        settings, useFiltered, filterConfig,
+                        prioritySlice.startSec, prioritySlice.endSec
+                    )
+                    allResults.addAll(priorityResults)
+                    _scanDetectionCount.value = priorityResults.size
+
+                    // Phase 1: Sofort Ergebnisse anzeigen + UI freigeben
+                    if (priorityResults.isNotEmpty()) {
+                        val tempAnnotations = createAnnotationsFromResultsQuick(priorityResults, allResults)
+                        annotationManager.mergeAnnotations(
+                            keep = { ann -> !ann.isBirdNetDetection },
+                            newAnnotations = tempAnnotations,
+                            activeId = tempAnnotations.firstOrNull()?.id
                         )
-                        allResults.addAll(chunkResults)
+                        // Zoom auf erste Detektion
+                        val first = tempAnnotations.first()
+                        val margin = (first.endTimeSec - first.startTimeSec) * 0.5f
+                        onZoomToRange(
+                            (first.startTimeSec - margin).coerceAtLeast(0f),
+                            (first.endTimeSec + margin).coerceAtMost(totalDurationSec)
+                        )
+                    }
+                    onProcessingChanged(false)  // UI FREIGEBEN nach Phase 1
+                    _isBackgroundScanning.value = true
+                    logger.debug("[FullScan] Phase 1 fertig: {} Detektionen, UI freigegeben", priorityResults.size)
+
+                    // Phase 2: Restliche Slices im Hintergrund
+                    val remainingSlices = sm.slices.filterIndexed { idx, _ -> idx != priorityIndex }
+                    for ((i, slice) in remainingSlices.withIndex()) {
+                        // Coroutine-Cancellation pruefen
+                        ensureActive()
+
+                        onStatusUpdate(
+                            "BirdNET (Hintergrund): ${_scanDetectionCount.value} Events, ${slice.displayLabel()} (${i + 1}/${remainingSlices.size})",
+                            null
+                        )
+                        logger.debug("[FullScan] Phase 2: Slice {}: {}-{}s", slice.index, slice.startSec, slice.endSec)
+
+                        val sliceResults = analyzeAudioRange(
+                            settings, useFiltered, filterConfig,
+                            slice.startSec, slice.endSec
+                        )
+                        allResults.addAll(sliceResults)
+                        _scanDetectionCount.value = allResults.size
+
+                        // Progressive Merge: Nach jedem Slice Annotations aktualisieren
+                        if (sliceResults.isNotEmpty()) {
+                            val dedupSoFar = deduplicateOverlapDetections(allResults, sm.overlapSec)
+                            val filteredSoFar = applyRegionFilter(dedupSoFar, settings)
+                            val candidateMap = buildCandidateMap(dedupSoFar)
+                            val (progressiveAnnotations, _, _) = createAnnotationsFromResults(
+                                filteredSoFar, candidateMap
+                            )
+                            annotationManager.mergeAnnotations(
+                                keep = { ann -> !ann.isBirdNetDetection },
+                                newAnnotations = progressiveAnnotations,
+                                activeId = null  // Aktive Annotation nicht aendern
+                            )
+                        }
                     }
 
-                    val deduplicated = deduplicateOverlapDetections(allResults, cm.overlapSec)
+                    _isBackgroundScanning.value = false
+
+                    // Finale Deduplizierung
+                    val deduplicated = deduplicateOverlapDetections(allResults, sm.overlapSec)
                     logger.debug("[FullScan] Dedupliziert: {} → {}", allResults.size, deduplicated.size)
                     allResults.clear()
                     allResults.addAll(deduplicated)
@@ -440,20 +530,10 @@ class ClassificationManager(
                 }
 
                 // Post-Filter: Artenset auf BirdNET-Ergebnisse anwenden
-                val regionSetId = settings.activeRegionSet
-                val filteredResults = if (regionSetId == "all") {
-                    allResults
-                } else {
-                    allResults.filter { result ->
-                        val sciName = result.scientificName.ifBlank {
-                            result.species.substringBefore("_").trim()
-                        }
-                        RegionSetRegistry.isSpeciesInSet(regionSetId, sciName)
-                    }
-                }
+                val filteredResults = applyRegionFilter(allResults, settings)
 
                 logger.debug("[FullScan] Post-Filter ({}): {} → {} Detektionen",
-                    regionSetId, allResults.size, filteredResults.size)
+                    settings.activeRegionSet, allResults.size, filteredResults.size)
 
                 if (filteredResults.isEmpty() && allResults.isNotEmpty()) {
                     onProcessingChanged(false)
@@ -464,23 +544,11 @@ class ClassificationManager(
                     return@launch
                 }
 
-                // Kandidatenliste pro Chunk aufbauen (Top-10 nach Konfidenz, ALLE Arten inkl. ausserhalb Set)
-                val chunkCandidatesMap = allResults
-                    .groupBy { Pair(it.startTime, it.endTime) }
-                    .mapValues { (_, results) ->
-                        results.sortedByDescending { it.confidence }
-                            .take(10)
-                            .map { r ->
-                                SpeciesCandidate(
-                                    species = r.species,
-                                    scientificName = r.scientificName,
-                                    confidence = r.confidence
-                                )
-                            }
-                    }
+                // Kandidatenliste pro Slice aufbauen (Top-10 nach Konfidenz, ALLE Arten inkl. ausserhalb Set)
+                val sliceCandidatesMap = buildCandidateMap(allResults)
 
                 // Ergebnisse zu Annotationen konvertieren (nur gefilterte Arten)
-                val (newAnnotations, speciesColorMap, speciesCounts) = createAnnotationsFromResults(filteredResults, chunkCandidatesMap)
+                val (newAnnotations, speciesColorMap, speciesCounts) = createAnnotationsFromResults(filteredResults, sliceCandidatesMap)
 
                 onAuditEntry(
                     "BirdNET Scan",
@@ -492,7 +560,7 @@ class ClassificationManager(
                         else "")
                 )
 
-                // Alte BirdNET-Detektionen im Scan-Bereich entfernen, neue hinzufuegen
+                // Finale Annotations mergen (ueberschreibt progressive Zwischenstaende)
                 annotationManager.mergeAnnotations(
                     keep = { ann ->
                         !ann.isBirdNetDetection || (scanStart != null && scanEnd != null &&
@@ -530,8 +598,12 @@ class ClassificationManager(
                 }
 
                 onDirtyChanged()
+            } catch (e: CancellationException) {
+                logger.debug("[FullScan] Scan abgebrochen (neuer Scan gestartet)")
+                _isBackgroundScanning.value = false
             } catch (e: Exception) {
                 logger.debug("[FullScan] EXCEPTION", e)
+                _isBackgroundScanning.value = false
                 onProcessingChanged(false)
                 onStatusUpdate("BirdNET Fehler: ${e.message}", "")
             }
@@ -675,7 +747,7 @@ class ClassificationManager(
      */
     private fun createAnnotationsFromResults(
         results: List<ClassifierResult>,
-        chunkCandidates: Map<Pair<Float, Float>, List<SpeciesCandidate>> = emptyMap()
+        sliceCandidates: Map<Pair<Float, Float>, List<SpeciesCandidate>> = emptyMap()
     ): Triple<List<Annotation>, Map<String, Int>, Map<String, Int>> {
         val speciesColorMap = mutableMapOf<String, Int>()
         var colorIdx = 0
@@ -705,12 +777,67 @@ class ClassificationManager(
                 lowFreqHz = lowHz,
                 highFreqHz = highHz,
                 colorIndex = color,
-                candidates = chunkCandidates[Pair(result.startTime, result.endTime)] ?: emptyList()
+                candidates = sliceCandidates[Pair(result.startTime, result.endTime)] ?: emptyList(),
+                audioFileId = audioData.activeAudioFileId()
             )
             newAnnotations.add(ann)
         }
 
         return Triple(newAnnotations, speciesColorMap, speciesCounts)
+    }
+
+    /**
+     * Post-Filter: Artenset auf BirdNET-Ergebnisse anwenden.
+     * Gibt ungefilterte Liste zurueck wenn regionSetId == "all".
+     */
+    private fun applyRegionFilter(
+        results: List<ClassifierResult>,
+        settings: AppSettings
+    ): List<ClassifierResult> {
+        val regionSetId = settings.activeRegionSet
+        if (regionSetId == "all") return results
+        return results.filter { result ->
+            val sciName = result.scientificName.ifBlank {
+                result.species.substringBefore("_").trim()
+            }
+            RegionSetRegistry.isSpeciesInSet(regionSetId, sciName)
+        }
+    }
+
+    /**
+     * Kandidatenliste pro Zeitslot aufbauen (Top-10 nach Konfidenz, ALLE Arten inkl. ausserhalb Set).
+     */
+    private fun buildCandidateMap(
+        results: List<ClassifierResult>
+    ): Map<Pair<Float, Float>, List<SpeciesCandidate>> {
+        return results
+            .groupBy { Pair(it.startTime, it.endTime) }
+            .mapValues { (_, sliceResults) ->
+                sliceResults.sortedByDescending { it.confidence }
+                    .take(10)
+                    .map { r ->
+                        SpeciesCandidate(
+                            species = r.species,
+                            scientificName = r.scientificName,
+                            confidence = r.confidence
+                        )
+                    }
+            }
+    }
+
+    /**
+     * Schnelle Annotation-Erstellung fuer Phase-1-Ergebnisse (Viewport-Slice).
+     * Nutzt die bestehende createAnnotationsFromResults() mit einer temporaeren Kandidaten-Map.
+     */
+    private fun createAnnotationsFromResultsQuick(
+        priorityResults: List<ClassifierResult>,
+        allResults: List<ClassifierResult>
+    ): List<Annotation> {
+        val candidateMap = buildCandidateMap(allResults)
+        val settings = SettingsStore.load()
+        val filtered = applyRegionFilter(priorityResults, settings)
+        val (annotations, _, _) = createAnnotationsFromResults(filtered, candidateMap)
+        return annotations
     }
 
     /** Frequenzbereich fuer eine Art schaetzen (grob nach Vogelgruppe) */
@@ -856,7 +983,8 @@ class ClassificationManager(
                         label = "Markierung_${audioData.annotations().size + 1}",
                         startTimeSec = viewStartSec, endTimeSec = viewEndSec,
                         lowFreqHz = data.fMin, highFreqHz = data.fMax,
-                        colorIndex = annotationManager.allocateColor()
+                        colorIndex = annotationManager.allocateColor(),
+                        audioFileId = audioData.activeAudioFileId()
                     )
                     annotationManager.addAnnotation(fallback)
                     onProcessingChanged(false)
@@ -892,7 +1020,8 @@ class ClassificationManager(
                         startTimeSec = startSec, endTimeSec = endSec,
                         lowFreqHz = lowHz.coerceAtLeast(data.fMin),
                         highFreqHz = highHz.coerceAtMost(data.fMax),
-                        colorIndex = (startColor + index) % 8
+                        colorIndex = (startColor + index) % 8,
+                        audioFileId = audioData.activeAudioFileId()
                     )
                 }
 
@@ -975,6 +1104,10 @@ class ClassificationManager(
     }
 
     fun reset() {
+        backgroundScanJob?.cancel()
+        backgroundScanJob = null
+        _isBackgroundScanning.value = false
+        _scanDetectionCount.value = 0
         _state.update { State() }
         // hasApiKey aus Settings wiederherstellen
         val settings = SettingsStore.load()
@@ -985,6 +1118,7 @@ class ClassificationManager(
     }
 
     fun dispose() {
+        backgroundScanJob?.cancel()
         onnxClassifier.close()
         referenceDownloader.dispose()
         scope.cancel()

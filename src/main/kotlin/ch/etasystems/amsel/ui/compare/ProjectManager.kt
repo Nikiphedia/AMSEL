@@ -1,13 +1,9 @@
 package ch.etasystems.amsel.ui.compare
 
-import ch.etasystems.amsel.core.annotation.Annotation
-import ch.etasystems.amsel.core.filter.FilterConfig
 import ch.etasystems.amsel.core.model.AuditEntry
-import ch.etasystems.amsel.core.model.VolumePoint
 import ch.etasystems.amsel.data.AmselProject
 import ch.etasystems.amsel.data.AppSettings
 import ch.etasystems.amsel.data.AudioReference
-import ch.etasystems.amsel.data.FilterPreset
 import ch.etasystems.amsel.data.ProjectMetadata
 import ch.etasystems.amsel.data.ProjectStore
 import ch.etasystems.amsel.data.SettingsStore
@@ -31,6 +27,7 @@ class ProjectManager(
 
     data class State(
         val projectFile: File? = null,
+        val projectDir: File? = null,
         val projectDirty: Boolean = false,
         val auditLog: List<AuditEntry> = emptyList(),
         val lastExportFile: File? = null,
@@ -78,22 +75,69 @@ class ProjectManager(
                 operator = settings.operatorName,
                 device = settings.deviceName
             ),
-            audio = AudioReference(
+            audioFiles = listOf(AudioReference(
                 originalFileName = audioFile.name,
                 durationSec = durationSec,
                 sampleRate = sampleRate,
-                chunkLengthMin = settings.chunkLengthMin,
-                chunkOverlapSec = settings.chunkOverlapSec
-            )
+                sliceLengthMin = settings.sliceLengthMin,
+                sliceOverlapSec = settings.sliceOverlapSec
+            ))
         )
         try {
             ProjectStore.save(project, projectFile)
-            _state.update { it.copy(projectFile = projectFile, projectDirty = false) }
+            _state.update { it.copy(projectFile = projectFile, projectDir = projectFile.parentFile, projectDirty = false) }
             saveLastProjectPath(projectFile)
             addAuditEntry("Projekt erstellt", projectFile.name)
         } catch (e: Exception) {
             System.err.println("[ProjectManager] Projekt-Erstellung fehlgeschlagen: ${e.message}")
         }
+    }
+
+    /** Erstellt ein neues Projekt in einem dedizierten Ordner. */
+    fun createProject(projectDir: File, projectName: String, metadata: ProjectMetadata): File {
+        projectDir.mkdirs()
+        File(projectDir, "audio").mkdirs()
+        File(projectDir, "export").mkdirs()
+
+        val projectFile = File(projectDir, "$projectName.amsel.json")
+        val project = AmselProject(
+            version = 2,
+            metadata = metadata,
+            audioFiles = emptyList()
+        )
+        ProjectStore.save(project, projectFile)
+
+        _state.update { it.copy(
+            projectFile = projectFile,
+            projectDir = projectDir,
+            projectDirty = false,
+            auditLog = emptyList()
+        ) }
+        saveLastProjectPath(projectFile)
+        addAuditEntry("Projekt erstellt", projectFile.name)
+        return projectFile
+    }
+
+    /** Gibt den Audio-Unterordner des Projekts zurueck (oder null wenn kein Projekt). */
+    fun projectAudioDir(): File? {
+        val dir = _state.value.projectDir ?: return null
+        return File(dir, "audio").also { it.mkdirs() }
+    }
+
+    /** Gibt den Export-Unterordner des Projekts zurueck (oder null wenn kein Projekt). */
+    fun projectExportDir(): File? {
+        val dir = _state.value.projectDir ?: return null
+        return File(dir, "export").also { it.mkdirs() }
+    }
+
+    /** Kopiert eine Audio-Datei in den audio/ Unterordner des Projekts. */
+    fun copyAudioToProject(originalFile: File): File {
+        val audioDir = projectAudioDir() ?: return originalFile
+        val target = File(audioDir, originalFile.name)
+        if (!target.exists()) {
+            originalFile.copyTo(target, overwrite = false)
+        }
+        return target
     }
 
     // ====================================================================
@@ -117,6 +161,7 @@ class ProjectManager(
     fun setProjectLoaded(projectFile: File, auditLog: List<AuditEntry>) {
         _state.update { it.copy(
             projectFile = projectFile,
+            projectDir = projectFile.parentFile,
             projectDirty = false,
             auditLog = auditLog
         ) }
@@ -157,6 +202,25 @@ class ProjectManager(
     }
 
     // ====================================================================
+    // Audio-Metadaten
+    // ====================================================================
+
+    /** Aktualisiert die RecordingMetadata einer Audio-Datei im Projekt. */
+    fun updateAudioMetadata(fileId: String, metadata: ch.etasystems.amsel.data.RecordingMetadata) {
+        val pf = _state.value.projectFile ?: return
+        try {
+            val project = ProjectStore.load(pf)
+            val updatedFiles = project.audioFiles.map { ref ->
+                if (ref.id == fileId) ref.copy(recordingMeta = metadata) else ref
+            }
+            ProjectStore.save(project.copy(audioFiles = updatedFiles), pf)
+            markDirty()
+        } catch (e: Exception) {
+            System.err.println("[ProjectManager] Metadaten-Update fehlgeschlagen: ${e.message}")
+        }
+    }
+
+    // ====================================================================
     // Export-State
     // ====================================================================
 
@@ -189,55 +253,6 @@ class ProjectManager(
     }
 
     // ====================================================================
-    // State-Sammlung (Hilfsmethoden fuer ViewModel)
-    // ====================================================================
-
-    /**
-     * Baut ein AmselProject-Objekt aus den uebergebenen Manager-States.
-     * Das ViewModel liefert die State-Daten, ProjectManager serialisiert.
-     */
-    fun buildProject(
-        audioFile: File,
-        audioDurationSec: Float,
-        audioSampleRate: Int,
-        annotations: List<Annotation>,
-        volumeEnvelope: List<VolumePoint>,
-        volumeEnvelopeActive: Boolean,
-        filterConfig: FilterConfig,
-        displayDbRange: Float,
-        displayGamma: Float,
-        isNormalized: Boolean,
-        normGainDb: Float
-    ): AmselProject {
-        val settings = SettingsStore.load()
-        return AmselProject(
-            metadata = ProjectMetadata(
-                location = settings.locationName,
-                latitude = settings.locationLat,
-                longitude = settings.locationLon,
-                operator = settings.operatorName,
-                device = settings.deviceName
-            ),
-            audio = AudioReference(
-                originalFileName = audioFile.name,
-                durationSec = audioDurationSec,
-                sampleRate = audioSampleRate,
-                chunkLengthMin = settings.chunkLengthMin,
-                chunkOverlapSec = settings.chunkOverlapSec
-            ),
-            annotations = annotations,
-            volumeEnvelope = volumeEnvelope,
-            volumeEnvelopeActive = volumeEnvelopeActive,
-            filterPreset = if (filterConfig != FilterConfig()) FilterPreset.fromFilterConfig("project", filterConfig) else null,
-            auditLog = _state.value.auditLog,
-            displayDbRange = displayDbRange,
-            displayGamma = displayGamma,
-            isNormalized = isNormalized,
-            normGainDb = normGainDb
-        )
-    }
-
-    // ====================================================================
     // Lifecycle
     // ====================================================================
 
@@ -249,13 +264,14 @@ class ProjectManager(
 
     /** Setzt Projekt-Referenz zurueck fuer neuen Audio-Import (ohne Audit-Log zu loeschen). */
     fun resetForNewAudio() {
-        _state.update { it.copy(projectFile = null, projectDirty = false) }
+        _state.update { it.copy(projectFile = null, projectDir = null, projectDirty = false) }
     }
 
     /** Stellt State aus einem geladenen Projekt wieder her. */
     fun restoreFromProject(projectFile: File, auditLog: List<AuditEntry>) {
         _state.update { State(
             projectFile = projectFile,
+            projectDir = projectFile.parentFile,
             projectDirty = false,
             auditLog = auditLog
         ) }

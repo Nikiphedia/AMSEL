@@ -96,11 +96,13 @@ fun UnifiedSettingsDialog(
     var birdnetUseFiltered by remember { mutableStateOf(settings.birdnetUseFiltered) }
     var prerollStr by remember { mutableStateOf("%.0f".format(settings.eventPrerollSec)) }
     var postrollStr by remember { mutableStateOf("%.0f".format(settings.eventPostrollSec)) }
+    var soloPrerollStr by remember { mutableStateOf("%.0f".format(settings.soloPrerollSec)) }
+    var soloPostrollStr by remember { mutableStateOf("%.0f".format(settings.soloPostrollSec)) }
     var minDisplayStr by remember { mutableStateOf("%.0f".format(settings.minDisplayDurationSec)) }
     var minExportStr by remember { mutableStateOf("%.0f".format(settings.minExportDurationSec)) }
     var shortFileStartPct by remember { mutableFloatStateOf(settings.shortFileStartPct) }
-    var chunkLengthMin by remember { mutableFloatStateOf(settings.chunkLengthMin) }
-    var chunkOverlapSec by remember { mutableFloatStateOf(settings.chunkOverlapSec) }
+    var sliceLengthMin by remember { mutableFloatStateOf(settings.sliceLengthMin) }
+    var sliceOverlapSec by remember { mutableFloatStateOf(settings.sliceOverlapSec) }
     var onnxAvailable by remember { mutableStateOf(false) }
     var embeddingModelAvailable by remember { mutableStateOf(false) }
     var birdnetAvailable by remember { mutableStateOf(false) }
@@ -124,6 +126,7 @@ fun UnifiedSettingsDialog(
     }
 
     // ── Tab 3: Export ──
+    var reportSortOrder by remember { mutableStateOf(settings.reportSortOrder) }
     var freqMinKHz by remember { mutableStateOf(formatKHz(settings.exportFreqMinHz)) }
     var freqMaxKHz by remember { mutableStateOf(formatKHz(settings.exportFreqMaxHz)) }
     var freqStepKHz by remember { mutableStateOf(formatKHz(settings.exportFreqStepHz)) }
@@ -223,10 +226,6 @@ fun UnifiedSettingsDialog(
                         1 -> TabAnalyse(
                             selectedAlgorithm = selectedAlgorithm,
                             onAlgorithmChanged = { selectedAlgorithm = it },
-                            onnxAvailable = onnxAvailable,
-                            embeddingModelAvailable = embeddingModelAvailable,
-                            birdnetAvailable = birdnetAvailable,
-                            birdnetV3Available = birdnetV3Available,
                             confText = confText,
                             onConfChanged = { confText = it },
                             prerollStr = prerollStr,
@@ -241,10 +240,14 @@ fun UnifiedSettingsDialog(
                             onShortFileStartChanged = { shortFileStartPct = it },
                             birdnetUseFiltered = birdnetUseFiltered,
                             onBirdnetUseFilteredChanged = { birdnetUseFiltered = it },
-                            chunkLengthMin = chunkLengthMin,
-                            onChunkLengthChanged = { chunkLengthMin = it },
-                            chunkOverlapSec = chunkOverlapSec,
-                            onChunkOverlapChanged = { chunkOverlapSec = it },
+                            sliceLengthMin = sliceLengthMin,
+                            onSliceLengthChanged = { sliceLengthMin = it },
+                            sliceOverlapSec = sliceOverlapSec,
+                            onSliceOverlapChanged = { sliceOverlapSec = it },
+                            soloPrerollStr = soloPrerollStr,
+                            onSoloPrerollChanged = { soloPrerollStr = it },
+                            soloPostrollStr = soloPostrollStr,
+                            onSoloPostrollChanged = { soloPostrollStr = it },
                             onOpenModelManager = { showModelDialog = true }
                         )
                         2 -> TabExport(
@@ -261,7 +264,9 @@ fun UnifiedSettingsDialog(
                             cmPerHalfSec = cmPerHalfSec,
                             onCmPerHalfSecChanged = { cmPerHalfSec = it },
                             rowLengthCm = rowLengthCm,
-                            onRowLengthChanged = { rowLengthCm = it }
+                            onRowLengthChanged = { rowLengthCm = it },
+                            reportSortOrder = reportSortOrder,
+                            onReportSortOrderChanged = { reportSortOrder = it }
                         )
                         3 -> TabDatenbank(
                             referenceSpeciesCount = referenceSpeciesCount,
@@ -337,6 +342,8 @@ fun UnifiedSettingsDialog(
                         val lon = lonStr.toFloatOrNull() ?: settings.locationLon
                         val preroll = prerollStr.toFloatOrNull() ?: settings.eventPrerollSec
                         val postroll = postrollStr.toFloatOrNull() ?: settings.eventPostrollSec
+                        val soloPreroll = soloPrerollStr.toFloatOrNull() ?: settings.soloPrerollSec
+                        val soloPostroll = soloPostrollStr.toFloatOrNull() ?: settings.soloPostrollSec
                         val conf = confText.toFloatOrNull()?.coerceIn(0f, 1f) ?: settings.birdnetMinConf
 
                         val fMin = parseKHzToHz(freqMinKHz, settings.exportFreqMinHz)
@@ -367,12 +374,14 @@ fun UnifiedSettingsDialog(
                             birdnetUseFiltered = birdnetUseFiltered,
                             eventPrerollSec = preroll.coerceIn(0f, 60f),
                             eventPostrollSec = postroll.coerceIn(0f, 120f),
+                            soloPrerollSec = soloPreroll.coerceIn(0f, 60f),
+                            soloPostrollSec = soloPostroll.coerceIn(0f, 60f),
                             minDisplayDurationSec = minDisp.coerceIn(1f, 60f),
                             minExportDurationSec = minExp.coerceIn(1f, 60f),
                             shortFileStartPct = shortFileStartPct.coerceIn(0f, 1f),
-                            // Chunks
-                            chunkLengthMin = chunkLengthMin.coerceIn(1f, 30f),
-                            chunkOverlapSec = chunkOverlapSec.coerceIn(0f, 30f),
+                            // Slices
+                            sliceLengthMin = sliceLengthMin.coerceIn(1f, 30f),
+                            sliceOverlapSec = sliceOverlapSec.coerceIn(0f, 30f),
                             // Export
                             exportFreqMinHz = fMin.coerceIn(0, 200000),
                             exportFreqMaxHz = fMax.coerceIn(1000, 200000),
@@ -384,7 +393,9 @@ fun UnifiedSettingsDialog(
                             activeModelFilename = modelsConfig.activeModel,
                             // Qualitaetsfilter
                             referenceMinQualityDownload = refMinQualityDownload,
-                            referenceMinQualityDisplay = refMinQualityDisplay
+                            referenceMinQualityDisplay = refMinQualityDisplay,
+                            // Report-Sortierung
+                            reportSortOrder = reportSortOrder
                         )
                         SettingsStore.save(updated)
 

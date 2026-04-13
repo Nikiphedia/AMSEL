@@ -10,22 +10,20 @@ import java.awt.dnd.*
 import java.io.File
 
 /** Audio-Datei-Endungen die per Drag & Drop akzeptiert werden */
-private val AUDIO_EXTENSIONS = setOf("wav", "mp3", "flac", "ogg", "m4a", "aac")
+private val AUDIO_EXTENSIONS = setOf("wav", "mp3", "flac", "ogg", "m4a", "m4p", "aac")
 
 /**
  * Installiert AWT-Drag&Drop auf dem gesamten Fenster (rekursiv auf alle Kinder-Komponenten).
  *
  * @param awtWindow Das AWT-Window (aus LocalWindow.current / ComposeWindow)
- * @param hasAudio true wenn bereits eine Audio-Datei geladen ist (steuert ob Drop als Import oder Compare gilt)
- * @param onImportAudio Callback fuer erste Audio-Datei (Hauptdatei laden)
- * @param onImportCompare Callback fuer zweite Audio-Datei (Vergleichsdatei laden)
+ * @param onImportAudioFiles Callback fuer alle Audio-Dateien (Multi-File-Import)
+ * @param onImportCompare Callback fuer Vergleichsdatei (via Menue, nicht per Drop)
  * @param onImportImage Callback fuer Sonogramm-Bild (PNG/JPG)
  */
 @Composable
 internal fun DragDropHandler(
     awtWindow: Window?,
-    hasAudio: () -> Boolean,
-    onImportAudio: (File) -> Unit,
+    onImportAudioFiles: (List<File>) -> Unit,
     onImportCompare: (File) -> Unit,
     onImportImage: (File) -> Unit
 ) {
@@ -50,20 +48,27 @@ internal fun DragDropHandler(
                         if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                             val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
 
+                            val audioFiles = mutableListOf<File>()
+                            var imageFile: File? = null
+
                             for (file in files) {
                                 val ext = file.extension.lowercase()
-                                if (ext in AUDIO_EXTENSIONS) {
-                                    if (!hasAudio()) {
-                                        onImportAudio(file)
-                                    } else {
-                                        onImportCompare(file)
-                                    }
-                                    break
-                                } else if (ext in setOf("png", "jpg", "jpeg")) {
-                                    onImportImage(file)
-                                    break
+                                when {
+                                    ext in AUDIO_EXTENSIONS -> audioFiles.add(file)
+                                    ext in setOf("png", "jpg", "jpeg") -> imageFile = imageFile ?: file
                                 }
                             }
+
+                            // Audio-Dateien importieren (alle)
+                            if (audioFiles.isNotEmpty()) {
+                                onImportAudioFiles(audioFiles)
+                            }
+
+                            // Bild importieren (erstes gefundenes)
+                            if (imageFile != null) {
+                                onImportImage(imageFile)
+                            }
+
                             dtde.dropComplete(true)
                         } else {
                             dtde.dropComplete(false)

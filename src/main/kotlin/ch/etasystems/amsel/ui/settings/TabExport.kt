@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ch.etasystems.amsel.data.ReportSortOrder
 
 /** Export-Preset-Definition */
 private data class ExportPreset(
@@ -42,7 +43,10 @@ internal fun TabExport(
     cmPerHalfSec: String,
     onCmPerHalfSecChanged: (String) -> Unit,
     rowLengthCm: String,
-    onRowLengthChanged: (String) -> Unit
+    onRowLengthChanged: (String) -> Unit,
+    // Report-Sortierung
+    reportSortOrder: ReportSortOrder = ReportSortOrder.CHRONOLOGICAL,
+    onReportSortOrderChanged: (ReportSortOrder) -> Unit = {}
 ) {
     // === EXPORT-PRESETS (prominent, ganz oben) ===
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -180,6 +184,36 @@ internal fun TabExport(
             suffix = { Text("kHz") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    // === REPORT-SORTIERUNG (Card) ===
+    SectionCard(title = "Report") {
+        Text("Sortierung", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        val sortOptions = listOf(
+            "Zeitlich" to ReportSortOrder.CHRONOLOGICAL,
+            "Alphabetisch" to ReportSortOrder.ALPHABETICAL,
+            "Systematisch" to ReportSortOrder.SYSTEMATIC
+        )
+        sortOptions.forEach { (label, order) ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                RadioButton(
+                    selected = reportSortOrder == order,
+                    onClick = { onReportSortOrderChanged(order) }
+                )
+                Text(label, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Text(
+            "Bestimmt die Reihenfolge im CSV/PDF Report bei Projekten mit mehreren Audiofiles.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
     }
 }

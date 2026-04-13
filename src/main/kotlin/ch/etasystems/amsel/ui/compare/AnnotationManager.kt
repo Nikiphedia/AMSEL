@@ -38,7 +38,9 @@ class AnnotationManager(
     private val onStateChanged: () -> Unit = {},
     private val onDirtyChanged: () -> Unit = {},
     private val onZoomToRange: (startSec: Float, endSec: Float) -> Unit = { _, _ -> },
-    private val onStatusUpdate: (String) -> Unit = {}
+    private val onStatusUpdate: (String) -> Unit = {},
+    /** Liefert die ID der aktuell aktiven Audio-Datei (fuer neue Annotations). */
+    private val activeAudioFileId: () -> String = { "" }
 ) {
     data class State(
         val annotations: List<Annotation> = emptyList(),
@@ -104,6 +106,7 @@ class AnnotationManager(
 
         val autoLabel = "Markierung_${_state.value.annotations.size + 1}"
         val annotation = Annotation(
+            audioFileId = activeAudioFileId(),
             label = autoLabel,
             startTimeSec = startTime,
             endTimeSec = endTime,
@@ -132,6 +135,7 @@ class AnnotationManager(
     fun createAnnotationAtRange(startSec: Float, endSec: Float, fMin: Float, fMax: Float) {
         val autoLabel = "Markierung_${_state.value.annotations.size + 1}"
         val annotation = Annotation(
+            audioFileId = activeAudioFileId(),
             label = autoLabel,
             startTimeSec = startSec,
             endTimeSec = endSec,
@@ -290,6 +294,7 @@ class AnnotationManager(
 
         val autoLabel = "Markierung_${_state.value.annotations.size + 1}"
         val annotation = Annotation(
+            audioFileId = activeAudioFileId(),
             label = autoLabel,
             startTimeSec = startSec,
             endTimeSec = endSec,
@@ -520,10 +525,54 @@ class AnnotationManager(
                 if (ann.id == annotationId) {
                     ann.copy(candidates = ann.candidates.map { c ->
                         if (c.species == candidateSpecies) c.copy(
-                            verified = false, rejected = false,
+                            verified = false, rejected = false, uncertain = false,
                             verifiedBy = "", verifiedAt = 0L
                         ) else c
                     })
+                } else ann
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Markiert einen Kandidaten als unklar ("?"). */
+    fun uncertainCandidateInAnnotation(annotationId: String, candidateSpecies: String) {
+        val operator = ch.etasystems.amsel.data.SettingsStore.load().operatorName
+        val now = System.currentTimeMillis()
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map { ann ->
+                if (ann.id == annotationId) {
+                    ann.copy(candidates = ann.candidates.map { c ->
+                        if (c.species == candidateSpecies) c.copy(
+                            uncertain = true, verified = false, rejected = false,
+                            verifiedBy = operator, verifiedAt = now
+                        ) else c
+                    })
+                } else ann
+            })
+        }
+        onDirtyChanged()
+        onStateChanged()
+    }
+
+    /** Fuegt einen manuellen Kandidaten zur Annotation hinzu. */
+    fun addManualCandidate(annotationId: String, scientificName: String, displayLabel: String) {
+        val operator = ch.etasystems.amsel.data.SettingsStore.load().operatorName
+        val now = System.currentTimeMillis()
+        _state.update { s ->
+            s.copy(annotations = s.annotations.map { ann ->
+                if (ann.id == annotationId) {
+                    val newCandidate = ch.etasystems.amsel.core.annotation.SpeciesCandidate(
+                        species = displayLabel,
+                        scientificName = scientificName,
+                        confidence = 0f,
+                        verified = true,
+                        isManual = true,
+                        verifiedBy = operator,
+                        verifiedAt = now
+                    )
+                    ann.copy(candidates = ann.candidates + newCandidate)
                 } else ann
             })
         }
@@ -597,6 +646,28 @@ class AnnotationManager(
         val ids = _state.value.selectedAnnotationIds
         if (ids.isEmpty()) return
         ids.forEach { rejectAnnotation(it) }
+    }
+
+    // ====================================================================
+    // Multi-File Filterung
+    // ====================================================================
+
+    /** Gibt nur Annotations fuer die angegebene Audio-Datei zurueck. */
+    fun annotationsForFile(fileId: String): List<Annotation> {
+        return _state.value.annotations.filter { it.audioFileId == fileId || it.audioFileId.isEmpty() }
+    }
+
+    /** Gibt ALLE Annotations zurueck (ueber alle Dateien, fuer Export). */
+    fun allAnnotations(): List<Annotation> {
+        return _state.value.annotations
+    }
+
+    /** Entfernt alle Annotations einer bestimmten Audio-Datei. */
+    fun removeAnnotationsForFile(fileId: String) {
+        _state.update { s ->
+            s.copy(annotations = s.annotations.filter { it.audioFileId != fileId })
+        }
+        onStateChanged()
     }
 
     // ====================================================================

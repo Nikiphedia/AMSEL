@@ -33,6 +33,10 @@ class AudioPlayer {
 
     private var currentLine: SourceDataLine? = null
 
+    /** Generationszaehler: verhindert dass alte Coroutinen State/Position resetten */
+    @Volatile
+    private var playGeneration = 0L
+
     @Volatile
     private var positionOffsetSec: Float = 0f
 
@@ -73,6 +77,7 @@ class AudioPlayer {
 
         paused = false
         stopped = false
+        val myGeneration = ++playGeneration
         _state.value = PlaybackState.PLAYING
 
         playbackJob = scope.launch {
@@ -142,10 +147,13 @@ class AudioPlayer {
             } finally {
                 line?.stop()
                 line?.close()
-                currentLine = null
-                if (!stopped) {
-                    _state.value = PlaybackState.STOPPED
-                    _positionSec.value = 0f
+                // Nur resetten wenn keine neuere Playback-Coroutine gestartet wurde
+                if (myGeneration == playGeneration) {
+                    currentLine = null
+                    if (!stopped) {
+                        _state.value = PlaybackState.STOPPED
+                        _positionSec.value = 0f
+                    }
                 }
             }
         }
@@ -171,6 +179,28 @@ class AudioPlayer {
             PlaybackState.PLAYING -> pause()
             PlaybackState.PAUSED -> resume()
         }
+    }
+
+    /**
+     * Seek: Stoppt laufendes Playback und startet sofort neu, OHNE
+     * state=STOPPED oder position=0 zu emittieren. Dadurch kein UI-Flicker.
+     */
+    fun seekWithOffset(segment: AudioSegment, positionOffset: Float) {
+        // Altes Playback beenden ohne State/Position zu resetten
+        stopped = true
+        paused = false
+        playbackJob?.cancel()
+        playbackJob = null
+        currentLine?.stop()
+        currentLine?.close()
+        currentLine = null
+
+        // Position sofort auf Ziel setzen
+        positionOffsetSec = positionOffset
+        _positionSec.value = positionOffset
+
+        // Neues Playback starten (setzt state = PLAYING)
+        playInternal(segment, 0f, null)
     }
 
     fun stop() {

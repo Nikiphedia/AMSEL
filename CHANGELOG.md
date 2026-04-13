@@ -2,7 +2,52 @@
 
 Alle relevanten Änderungen an AMSEL werden in dieser Datei dokumentiert.
 
-## [0.0.6] — 2026-04-04
+## [0.0.7] — in Arbeit
+
+### Neue Features
+- **Loop-Wiedergabe** — Loop-Button in Toolbar (Autorenew-Icon, gruen wenn aktiv), loopt den aktuellen Viewport
+- **Seek mit S+Pfeiltasten** — S gehalten + Links/Rechts springt 5 Sekunden im Playback
+- **Space = Play/Pause** — Leertaste startet/pausiert Audio (mit Textfeld-Guard fuer Label-Editor)
+- **Multi-Audio-Projekte** — Ein Projekt kann mehrere Audio-Dateien enthalten
+- **Audiofiles-Panel** — Sidebar-Panel listet alle geladenen Audio-Dateien, wechselbar per Klick
+- **Undockbare Panels** — Kandidaten-Panel und Audiofiles-Panel als eigene Fenster abdockbar (+/X Buttons)
+- **Projekt-Ordner** — Projekte mit eigenem Ordner (audio/, export/), Dialog "Neues Projekt" und "Projekt oeffnen" in Toolbar
+- **Audio-Metadaten** — Datum, Uhrzeit und GPS (Pirol) pro Audio-Datei zuweisbar
+- **Drag & Drop Multi-File** — Mehrere Audio-Dateien gleichzeitig per Drag & Drop importieren
+- **Report-Sortierung** — CSV/PDF Reports sortierbar nach Zeit, Alphabet oder Systematik (Einstellungen)
+- **Multi-File Export** — CSV/PDF Reports aggregieren Annotations ueber alle Audio-Dateien mit Datei-Spalte
+
+- **Referenz-Priorisierung** — Referenzen mit Audio+Bild zuoberst, blaue Hervorhebung fuer lokal verfuegbare Audio-Referenzen
+- **CapsLock-Referenz-Engine** — CapsLock wechselt zwischen Haupt- und Referenz-Audio, Tastatur-Routing (Space, Pfeiltasten, Loop), farbiger Rahmen um Gallery
+- **Referenz-Playback-Pointer** — Bewegender Playback-Strich in der aktiv spielenden Referenz-Kachel
+- **Space+Klick** — Leertaste gehalten + Mausklick im Sonogramm startet Wiedergabe ab Klickposition
+- **Artennamen in Benutzersprache** — Alle Anzeigen (Gallery, ResultCard, AnnotationPanel) respektieren die Spracheinstellung
+- **Solo-Modus** — Chunk in voller Breite mit konfigurierbarem Vor-/Nachlauf, Tab/R+Tab Navigation, Artenliste filtert auf sichtbaren Viewport
+- **Kandidaten erweitert** — "?" (unklar) Status, mehrere Kandidaten gleichzeitig verifizierbar, "Art hinzufuegen" Button fuer manuelle Arterfassung
+- **CandidatePanel bei manuellen Markierungen** — Panel erscheint auch ohne BirdNET-Kandidaten, manuelle Arten hinzufuegbar
+- **BirdNET Viewport-First Scan** — Sichtbarer Bereich wird zuerst gescannt, UI sofort freigegeben, Rest im Hintergrund mit Live-Zaehler
+- **Ueberlappungs-Indikator** — Warnsymbol bei zeitlich ueberlappenden Chunks in der Artenliste
+- **Tastenkombinationen-Uebersicht** — TASTENKOMBINATIONEN.md mit allen Shortcuts
+
+### Verbesserungen
+- Modellauswahl vereinfacht: RadioButton-Liste entfernt, nur Preset-Kacheln + "Modelle verwalten" Dialog (Kachel-Layout)
+- Markierungen-Zaehler aus Toolbar ins AudiofilesPanel verschoben
+- Solo-Modus Vor-/Nachlauf separat konfigurierbar (unabhaengig von Event-Klick)
+
+### Behobene Fehler
+- AudioPlayer Race-Condition bei schnellem Play-Wechsel (playGeneration Counter)
+- Space aktivierte fokussierte Toolbar-Buttons statt Play/Pause (onPreviewKeyEvent Fix)
+- CapsLock-Erkennung robust gemacht (Key-Toggle + getLockingKeyState Fallback)
+- CandidatePanel pointerInput-Bug (veraltete Closures bei State-Aenderung)
+
+### Refactoring
+- Chunks → Slices umbenannt (UI + Code)
+- Datenmodell v2: Multi-Audio (`audioFiles` statt `audio`), `audioFileId` in Annotations
+- Projekt-Migration v1 → v2 mit automatischem Backup
+- PlaybackMode Enum (MAIN/REFERENCE) fuer expliziten Modus-Wechsel
+- BirdNET Scan-Logik: Helper-Methoden extrahiert (applyRegionFilter, buildCandidateMap)
+
+## [0.0.6] — 2026-04-08
 
 ### Neue Features
 - **Setup-Assistent** — Erster-Start-Dialog mit 4 konfigurierbaren Ordnern (Audio-Import, Projekte, Exporte, Modelle)

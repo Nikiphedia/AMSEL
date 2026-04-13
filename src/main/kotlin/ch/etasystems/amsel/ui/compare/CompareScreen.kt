@@ -21,13 +21,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import ch.etasystems.amsel.ui.annotation.AnnotationPanel
 import ch.etasystems.amsel.ui.annotation.CandidatePanel
-import ch.etasystems.amsel.ui.annotation.ChunkSelector
+import ch.etasystems.amsel.ui.annotation.AudiofilesPanel
 import ch.etasystems.amsel.ui.reference.ReferenceEditorScreen
 import ch.etasystems.amsel.ui.results.SonogramGallery
+import ch.etasystems.amsel.ui.settings.AudioMetadataDialog
+import ch.etasystems.amsel.ui.settings.NewProjectDialog
 import ch.etasystems.amsel.ui.settings.UnifiedSettingsDialog
 import ch.etasystems.amsel.core.spectrogram.Colormap
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Sync
+import ch.etasystems.amsel.ui.layout.UndockPanelState
+import ch.etasystems.amsel.ui.layout.UndockablePanel
 import ch.etasystems.amsel.ui.layout.VerticalSplitter
 import ch.etasystems.amsel.ui.sonogram.*
 import androidx.compose.ui.focus.FocusRequester
@@ -42,6 +46,7 @@ import ch.etasystems.amsel.core.export.SpeciesCsvExporter
 import ch.etasystems.amsel.core.classifier.ClassifierResult
 import ch.etasystems.amsel.data.resolvedExportDir
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -68,6 +73,21 @@ fun CompareScreen(
     var showReferenceEditor by remember { mutableStateOf(false) }
     var showUnifiedSettings by remember { mutableStateOf(false) }
     var showCompareDialog by remember { mutableStateOf(false) }
+    var showNewProjectDialog by remember { mutableStateOf(false) }
+    var pendingMetadataFileId by remember { mutableStateOf<String?>(null) }
+    var pendingMetadataFileName by remember { mutableStateOf("") }
+    val candidatePanelState = remember { UndockPanelState("Kandidaten", initialWidth = 400, initialHeight = 600) }
+    val audiofilesPanelState = remember { UndockPanelState("Audiofiles", initialWidth = 350, initialHeight = 400) }
+
+    /** 0 = kein Panel fokussiert, 1 = Annotations, 2 = Kandidaten, 3 = Files/Slices */
+    var activePanelIndex by remember { mutableIntStateOf(0) }
+
+    /** CapsLock-Status: true = Referenz-Modus aktiv */
+    var isCapsLockActive by remember { mutableStateOf(false) }
+
+    /** Space-gehalten State fuer Space+Klick im Sonogramm (AP-52) */
+    var isSpaceHeld by remember { mutableStateOf(false) }
+    var spaceClickUsed by remember { mutableStateOf(false) }
 
     // Volume-Gains werden jetzt in der FilterPipeline angewendet (Schritt 0),
     // nicht mehr separat in der Colormap.
@@ -76,6 +96,11 @@ fun CompareScreen(
     val savedSettings = remember { ch.etasystems.amsel.data.SettingsStore.load() }
     var sidebarWidth by remember { mutableStateOf(savedSettings.sidebarWidth) }
     var galleryHeight by remember { mutableStateOf(savedSettings.galleryHeight) }
+    val speciesLocale = when (savedSettings.speciesLanguage) {
+        "EN" -> "en"
+        "SCIENTIFIC" -> "scientific"
+        else -> "de"
+    }
 
     // Sidebar + Gallery Groesse persistent speichern (debounced)
     LaunchedEffect(sidebarWidth, galleryHeight) {
@@ -96,11 +121,37 @@ fun CompareScreen(
     // Drag & Drop via AWT DropTarget (ausgelagert nach DragDropHandler.kt)
     DragDropHandler(
         awtWindow = awtWindow,
-        hasAudio = { viewModel.uiState.value.overviewSpectrogramData != null },
-        onImportAudio = viewModel::importAudio,
+        onImportAudioFiles = { files ->
+            for (file in files) {
+                viewModel.importAudio(file)
+            }
+        },
         onImportCompare = viewModel::importCompareFile,
         onImportImage = viewModel::importSonogramImage
     )
+
+    // Metadaten-Dialog nach Audio-Import oeffnen
+    // Beobachte activeAudioFileId: wenn sich die ID aendert und ein Dateiname pending ist, Dialog zeigen
+    LaunchedEffect(uiState.activeAudioFileId) {
+        if (pendingMetadataFileName.isNotEmpty() && uiState.activeAudioFileId != null) {
+            pendingMetadataFileId = uiState.activeAudioFileId
+        }
+    }
+
+    if (pendingMetadataFileId != null) {
+        AudioMetadataDialog(
+            fileName = pendingMetadataFileName,
+            onDismiss = {
+                pendingMetadataFileId = null
+                pendingMetadataFileName = ""
+            },
+            onConfirm = { meta ->
+                viewModel.setAudioMetadata(pendingMetadataFileId!!, meta)
+                pendingMetadataFileId = null
+                pendingMetadataFileName = ""
+            }
+        )
+    }
 
     // Referenz-Editor (Fullscreen-Overlay)
     if (showReferenceEditor) {
@@ -146,7 +197,23 @@ fun CompareScreen(
         )
     }
 
+    if (showNewProjectDialog) {
+        NewProjectDialog(
+            settings = savedSettings,
+            onDismiss = { showNewProjectDialog = false },
+            onProjectCreated = { dir, name, meta ->
+                showNewProjectDialog = false
+                viewModel.createNewProject(dir, name, meta)
+            }
+        )
+    }
+
     val isBusy = uiState.isProcessing || uiState.isComputingZoom
+
+    // Gehaltene Modifier-Taste fuer Navigation (S = 5s Sprung)
+    // Kein mutableStateOf — Recomposition waere zu langsam zwischen S-KeyDown und Arrow-KeyDown
+    val heldSRef = remember { booleanArrayOf(false) }
+    val heldRRef = remember { booleanArrayOf(false) }
 
     // U1: Globale Tastaturkuerzel — Focus auf Root-Container
     val focusRequester = remember { FocusRequester() }
@@ -160,6 +227,151 @@ fun CompareScreen(
             .fillMaxSize()
             .focusRequester(focusRequester)
             .focusable()
+            .onPreviewKeyEvent { event ->
+                // CapsLock-Erkennung: Toggle bei CapsLock-Taste (KeyUp = kein Repeat-Problem)
+                if (event.key == Key.CapsLock) {
+                    if (event.type == KeyEventType.KeyUp) {
+                        isCapsLockActive = !isCapsLockActive
+                        viewModel.switchPlaybackMode(
+                            if (isCapsLockActive) PlaybackMode.REFERENCE else PlaybackMode.MAIN
+                        )
+                    }
+                    return@onPreviewKeyEvent true
+                }
+
+                val isEditing = uiState.editingLabelId != null
+
+                // Space gehalten tracken fuer Space+Klick (AP-52)
+                if (event.key == Key.Spacebar) {
+                    isSpaceHeld = event.type == KeyEventType.KeyDown
+                }
+
+                // S als Navigation-Modifier tracken (S + Pfeil = 5s Seek)
+                if (event.key == Key.S && !event.isCtrlPressed && !isEditing) {
+                    heldSRef[0] = event.type == KeyEventType.KeyDown
+                }
+
+                // R als Modifier fuer Solo-Modus tracken (R + Tab = vorheriger Chunk)
+                if (event.key == Key.R && !isEditing && uiState.isSoloMode) {
+                    heldRRef[0] = event.type == KeyEventType.KeyDown
+                }
+
+                // Solo-Modus: Tab = naechster Chunk, R gehalten + Tab = vorheriger Chunk
+                if (uiState.isSoloMode && event.type == KeyEventType.KeyDown && !isEditing) {
+                    when (event.key) {
+                        Key.Tab -> {
+                            if (heldRRef[0]) {
+                                viewModel.soloPreviousAnnotation()
+                            } else {
+                                viewModel.soloNextAnnotation()
+                            }
+                            return@onPreviewKeyEvent true
+                        }
+                        else -> {}
+                    }
+                }
+
+                // S + Pfeiltasten = 5s Seek im Playback (auf Preview-Ebene abfangen)
+                if (heldSRef[0] && event.type == KeyEventType.KeyDown && !event.isCtrlPressed) {
+                    when (event.key) {
+                        Key.DirectionRight -> {
+                            viewModel.seekPlayback(5f)
+                            return@onPreviewKeyEvent true
+                        }
+                        Key.DirectionLeft -> {
+                            viewModel.seekPlayback(-5f)
+                            return@onPreviewKeyEvent true
+                        }
+                        else -> {}
+                    }
+                }
+
+                // CapsLock ON: Pfeiltasten links/rechts = Referenz-Navigation (ohne abspielen)
+                if (isCapsLockActive && event.type == KeyEventType.KeyDown && !event.isCtrlPressed && !isEditing) {
+                    when (event.key) {
+                        Key.DirectionRight -> {
+                            viewModel.selectNextReference()
+                            return@onPreviewKeyEvent true
+                        }
+                        Key.DirectionLeft -> {
+                            viewModel.selectPreviousReference()
+                            return@onPreviewKeyEvent true
+                        }
+                        else -> {}
+                    }
+                }
+
+                // Panel-Fokus mit Zifferntasten (1/2/3)
+                if (event.type == KeyEventType.KeyDown && !isEditing && !event.isCtrlPressed) {
+                    when (event.key) {
+                        Key.One -> { activePanelIndex = if (activePanelIndex == 1) 0 else 1; return@onPreviewKeyEvent true }
+                        Key.Two -> { activePanelIndex = if (activePanelIndex == 2) 0 else 2; return@onPreviewKeyEvent true }
+                        Key.Three -> { activePanelIndex = if (activePanelIndex == 3) 0 else 3; return@onPreviewKeyEvent true }
+                        else -> {}
+                    }
+                }
+
+                // Panel-Navigation mit Pfeiltasten hoch/runter (onPreviewKeyEvent damit LazyColumn/TextField sie nicht konsumiert)
+                if (event.type == KeyEventType.KeyDown && !isEditing && !event.isCtrlPressed && activePanelIndex > 0) {
+                    when (event.key) {
+                        Key.DirectionUp -> {
+                            when (activePanelIndex) {
+                                1 -> viewModel.previousAnnotation()
+                                2 -> viewModel.previousCandidate()
+                                3 -> viewModel.navigateFilesPanelUp()
+                            }
+                            return@onPreviewKeyEvent true
+                        }
+                        Key.DirectionDown -> {
+                            when (activePanelIndex) {
+                                1 -> viewModel.nextAnnotation()
+                                2 -> viewModel.nextCandidate()
+                                3 -> viewModel.navigateFilesPanelDown()
+                            }
+                            return@onPreviewKeyEvent true
+                        }
+                        else -> {}
+                    }
+                }
+
+                // Escape setzt Panel-Fokus zurueck
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && activePanelIndex > 0) {
+                    activePanelIndex = 0
+                    return@onPreviewKeyEvent true
+                }
+
+                // Space = Play/Pause (AP-29), aber nur wenn kein Textfeld editiert wird
+                when {
+                    event.key == Key.Spacebar && event.type == KeyEventType.KeyUp -> {
+                        isSpaceHeld = false
+                        if (spaceClickUsed) {
+                            // Space+Klick wurde benutzt — kein Play/Pause (AP-52)
+                            spaceClickUsed = false
+                            true
+                        } else if (!isEditing) {
+                            if (isCapsLockActive) {
+                                // CapsLock ON: Play/Pause aktuelle Referenz
+                                if (uiState.isPlaying) {
+                                    viewModel.stopPlayback()
+                                } else {
+                                    val results = uiState.activeAnnotation?.matchResults ?: emptyList()
+                                    val idx = uiState.activeReferenceIndex
+                                    if (idx >= 0 && idx < results.size) {
+                                        viewModel.playReferenceAudio(results[idx])
+                                    } else if (results.isNotEmpty()) {
+                                        viewModel.playReferenceAudio(results[0])
+                                    }
+                                }
+                            } else {
+                                viewModel.togglePlayPause()
+                            }
+                            true
+                        } else false
+                    }
+                    event.key == Key.Spacebar -> !isEditing
+                    else -> false
+                }
+            }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 handleGlobalShortcut(event, viewModel, uiState)
@@ -187,6 +399,7 @@ fun CompareScreen(
                     if (ext in setOf("png", "jpg", "jpeg")) {
                         viewModel.importSonogramImage(file)
                     } else {
+                        pendingMetadataFileName = file.name
                         viewModel.importAudio(file)
                     }
                 }
@@ -199,6 +412,8 @@ fun CompareScreen(
             onSync = { viewModel.syncReferenceToEvent() },
             editMode = uiState.editMode,
             onToggleEditMode = { viewModel.toggleEditMode() },
+            isSoloMode = uiState.isSoloMode,
+            onToggleSoloMode = { viewModel.toggleSoloMode() },
             onExport = {
                 val ann = uiState.activeAnnotation
                 val bwSuffix = if (uiState.exportBlackAndWhite) "_sw" else ""
@@ -230,6 +445,8 @@ fun CompareScreen(
             isFullView = uiState.fullView,
             onPlayPause = viewModel::togglePlayPause,
             onStop = viewModel::stopPlayback,
+            isLooping = uiState.isLooping,
+            onToggleLoop = { viewModel.toggleLoop() },
             onDetectEvents = {
                 // BirdNET Full-Scan wenn verfuegbar, sonst lokale Event-Detection
                 if (ch.etasystems.amsel.core.classifier.BirdNetBridge.isAvailable()) {
@@ -266,6 +483,17 @@ fun CompareScreen(
             onBypassAnsicht = { viewModel.resetDisplaySettings() },
             onBypassVolume = { viewModel.toggleVolumeEnvelope() },
             // Projekt
+            onNewProject = { showNewProjectDialog = true },
+            onOpenProject = {
+                val chooser = javax.swing.JFileChooser(
+                    savedSettings.let { if (it.projectDir.isNotBlank()) File(it.projectDir) else null }
+                )
+                chooser.fileFilter = FileNameExtensionFilter("AMSEL Projekt (*.amsel.json)", "json")
+                chooser.dialogTitle = "Projekt oeffnen"
+                if (chooser.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                    viewModel.loadProject(chooser.selectedFile)
+                }
+            },
             onLoadProject = {
                 val chooser = javax.swing.JFileChooser().apply {
                     dialogTitle = "AMSEL-Projekt laden"
@@ -386,6 +614,10 @@ fun CompareScreen(
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             // Annotation-Seitenleiste mit draggable Breite (immer sichtbar, nicht im Full View)
             if (!uiState.fullView) {
+                // Fokus-Indikator links an der Seitenleiste
+                if (activePanelIndex > 0) {
+                    Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+                }
                 Column(modifier = Modifier.width(sidebarWidth.dp).fillMaxHeight()) {
                     AnnotationPanel(
                         annotations = uiState.annotations,
@@ -417,43 +649,91 @@ fun CompareScreen(
                         onDeleteSelected = viewModel::deleteSelectedAnnotations,
                         onExportReport = viewModel::exportReport,
                         onShiftClick = viewModel::selectRange,
-                        modifier = Modifier.weight(1f)
+                        isSoloMode = uiState.isSoloMode,
+                        viewStartSec = uiState.viewStartSec,
+                        viewEndSec = uiState.viewEndSec,
+                        modifier = if (activePanelIndex == 0 || activePanelIndex == 1)
+                            Modifier.weight(1f)
+                        else
+                            Modifier.heightIn(min = 60.dp, max = 120.dp)
                     )
-                    // Kandidatenliste fuer aktive BirdNET-Annotation
+                    // Kandidatenliste fuer aktive BirdNET-Annotation (undockbar)
                     val activeAnn = uiState.activeAnnotation
-                    if (activeAnn != null && activeAnn.candidates.isNotEmpty()) {
+                    if (activeAnn != null) {
                         HorizontalDivider()
-                        CandidatePanel(
-                            annotation = activeAnn,
-                            onAdoptCandidate = { candidate ->
-                                viewModel.adoptCandidate(activeAnn.id, candidate)
-                            },
-                            onVerifyCandidate = { candidate ->
-                                viewModel.verifyCandidateAndSearch(activeAnn.id, candidate)
-                            },
-                            onRejectCandidate = { candidate ->
-                                viewModel.rejectCandidateInAnnotation(activeAnn.id, candidate)
-                            },
-                            onResetCandidate = { candidate ->
-                                viewModel.resetCandidateInAnnotation(activeAnn.id, candidate)
-                            },
-                            onUpdateNotes = { notes -> viewModel.updateAnnotationNotes(activeAnn.id, notes) },
-                            onUpdateLabel = { label -> viewModel.updateAnnotationLabel(activeAnn.id, label) }
-                        )
+                        val candidateModifier = if (activePanelIndex == 2)
+                            Modifier.weight(1f)
+                        else
+                            Modifier
+                        Box(modifier = candidateModifier) {
+                            UndockablePanel(state = candidatePanelState) {
+                                CandidatePanel(
+                                    annotation = activeAnn,
+                                    onAdoptCandidate = { candidate ->
+                                        viewModel.adoptCandidate(activeAnn.id, candidate)
+                                    },
+                                    onVerifyCandidate = { candidate ->
+                                        viewModel.verifyCandidateAndSearch(activeAnn.id, candidate)
+                                    },
+                                    onRejectCandidate = { candidate ->
+                                        viewModel.rejectCandidateInAnnotation(activeAnn.id, candidate)
+                                    },
+                                    onResetCandidate = { candidate ->
+                                        viewModel.resetCandidateInAnnotation(activeAnn.id, candidate)
+                                    },
+                                    onUncertainCandidate = { candidate ->
+                                        viewModel.uncertainCandidateInAnnotation(activeAnn.id, candidate)
+                                    },
+                                    onAddCandidate = { sciName, displayLabel ->
+                                        viewModel.addManualCandidate(activeAnn.id, sciName, displayLabel)
+                                    },
+                                    onUpdateNotes = { notes -> viewModel.updateAnnotationNotes(activeAnn.id, notes) },
+                                    onUpdateLabel = { label -> viewModel.updateAnnotationLabel(activeAnn.id, label) }
+                                )
+                            }
+                        }
+                    } else if (candidatePanelState.isUndocked) {
+                        // Wenn abgedockt aber keine Annotation aktiv: Platzhalter zeigen
+                        HorizontalDivider()
+                        UndockablePanel(state = candidatePanelState) {
+                            Box(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Keine Annotation ausgewaehlt",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
                     }
 
-                    // Chunk-Auswahl (nur wenn ChunkManager aktiv)
-                    val cm = uiState.chunkManager
-                    if (cm != null) {
+                    // Audiofiles-Panel (sichtbar sobald Dateien geladen, mit integrierten Slices)
+                    if (uiState.loadedAudioFiles.isNotEmpty()) {
                         HorizontalDivider()
-                        ChunkSelector(
-                            chunks = cm.chunks,
-                            activeChunkIndex = uiState.activeChunkIndex,
-                            annotationCounts = cm.annotationCountsPerChunk(uiState.annotations),
-                            onSelectChunk = viewModel::selectChunk,
-                            onPreviousChunk = viewModel::previousChunk,
-                            onNextChunk = viewModel::nextChunk
-                        )
+                        val audiofilesModifier = if (activePanelIndex == 3)
+                            Modifier.weight(1f)
+                        else
+                            Modifier
+                        Box(modifier = audiofilesModifier) {
+                            UndockablePanel(state = audiofilesPanelState) {
+                                AudiofilesPanel(
+                                    loadedFiles = uiState.loadedAudioFiles,
+                                    activeFileId = uiState.activeAudioFileId,
+                                    activeSliceIndex = uiState.activeSliceIndex,
+                                    onSelectFile = { fileId -> viewModel.switchAudioFile(fileId) },
+                                    onSelectSlice = { index -> viewModel.selectSlice(index) },
+                                    onRemoveFile = { fileId -> viewModel.removeAudioFile(fileId) },
+                                    annotationCount = uiState.annotations.size,
+                                    onAddFile = {
+                                        val chooser = JFileChooser()
+                                        chooser.fileFilter = FileNameExtensionFilter("Audio", "wav", "mp3", "flac", "ogg", "m4a")
+                                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                            viewModel.importAudio(chooser.selectedFile)
+                                        }
+                                    },
+                                    isFocused = activePanelIndex == 3
+                                )
+                            }
+                        }
                     }
 
                     // Preset-Name + Dateiname + Status unten in der Seitenleiste
@@ -495,6 +775,23 @@ fun CompareScreen(
                                 color = Color(0xFF4CAF50),
                                 softWrap = true
                             )
+                        }
+                        // Live-Scan Indikator: dezenter Spinner + Event-Zaehler
+                        if (uiState.isBackgroundScanning) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    strokeWidth = 1.5.dp
+                                )
+                                Text(
+                                    "Scan: ${uiState.scanDetectionCount} Events",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
@@ -637,7 +934,13 @@ fun CompareScreen(
                             onAnnotationBoundsChanged = { id, s, e, lo, hi ->
                                 viewModel.updateAnnotationBounds(id, s, e, lo, hi)
                             },
-                            normReferenceMaxDb = uiState.normReferenceMaxDb
+                            normReferenceMaxDb = uiState.normReferenceMaxDb,
+                            // Space+Klick: Play ab Position (AP-52)
+                            isSpaceHeld = isSpaceHeld,
+                            onClickToSeek = { timeSec ->
+                                spaceClickUsed = true
+                                viewModel.seekToPositionAndPlay(timeSec)
+                            }
                         )
 
                         // U2a: Erweitertes Kontextmenu bei Rechtsklick auf Annotation
@@ -914,19 +1217,34 @@ fun CompareScreen(
                                 .background(if (splitterHovered) Color(0xFF4CAF50) else Color(0xFF333333))
                         )
                     }
-                    SonogramGallery(
-                        matchResults = activeResults,
-                        selectedResult = uiState.selectedMatchResult,
-                        onSelectResult = { result -> viewModel.selectMatchResult(result) },
-                        onPlayAudio = { result -> viewModel.playReferenceAudio(result) },
-                        onStopAudio = { viewModel.stopPlayback() },
-                        onClose = { viewModel.clearMatchResult() },
-                        isLoading = uiState.isSearching,
-                        isPlayingAudio = uiState.isPlaying,
-                        playingRecordingId = uiState.playingReferenceId,
-                        downloadingRecordingId = uiState.downloadingReferenceId,
-                        modifier = Modifier.fillMaxWidth().height(galleryHeight.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (isCapsLockActive) Modifier.border(
+                                    width = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = MaterialTheme.shapes.small
+                                ) else Modifier
+                            )
+                    ) {
+                        SonogramGallery(
+                            matchResults = activeResults,
+                            selectedResult = uiState.selectedMatchResult,
+                            onSelectResult = { result -> viewModel.selectMatchResult(result) },
+                            onPlayAudio = { result -> viewModel.playReferenceAudio(result) },
+                            onStopAudio = { viewModel.stopPlayback() },
+                            onClose = { viewModel.clearMatchResult() },
+                            isLoading = uiState.isSearching,
+                            isPlayingAudio = uiState.isPlaying,
+                            playingRecordingId = uiState.playingReferenceId,
+                            downloadingRecordingId = uiState.downloadingReferenceId,
+                            referencePlaybackPositionSec = if (uiState.playbackMode == PlaybackMode.REFERENCE) uiState.playbackPositionSec else 0f,
+                            referenceAudioDurationSec = uiState.referenceAudioDurationSec,
+                            speciesLocale = speciesLocale,
+                            modifier = Modifier.fillMaxWidth().height(galleryHeight.dp)
+                        )
+                    }
                 }
             }
         }
@@ -985,10 +1303,6 @@ private fun handleGlobalShortcut(
         ctrl && event.key == Key.Z -> { viewModel.undo(); true }
 
         // === Wiedergabe ===
-        event.key == Key.Spacebar -> {
-            viewModel.togglePlayPause()
-            true
-        }
         event.key == Key.Escape -> {
             when {
                 uiState.isPlaying -> { viewModel.stopPlayback(); true }
@@ -998,7 +1312,7 @@ private fun handleGlobalShortcut(
             }
         }
 
-        // === Navigation ===
+        // === Navigation (S + Pfeil wird in onPreviewKeyEvent behandelt) ===
         event.key == Key.DirectionLeft && !ctrl -> { viewModel.navigateLeft(); true }
         event.key == Key.DirectionRight && !ctrl -> { viewModel.navigateRight(); true }
         event.key == Key.DirectionLeft && ctrl -> { viewModel.previousAnnotation(); true }
@@ -1020,6 +1334,12 @@ private fun handleGlobalShortcut(
                 val annId = uiState.activeAnnotationId
                 if (annId != null) { viewModel.deleteAnnotation(annId); true } else false
             }
+        }
+
+        // === Loop-Toggle (L-Taste, AP-29 / AP-47: CapsLock = Referenz-Loop) ===
+        event.key == Key.L && !ctrl && uiState.editingLabelId == null -> {
+            if (uiState.playbackMode == PlaybackMode.REFERENCE) viewModel.toggleReferenceLoop() else viewModel.toggleLoop()
+            true
         }
 
         // === Analyse ===

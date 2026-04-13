@@ -23,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import ch.etasystems.amsel.core.annotation.MatchResult
+import ch.etasystems.amsel.data.SpeciesRegistry
 import ch.etasystems.amsel.ui.layout.HorizontalSplitter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -51,6 +53,9 @@ fun SonogramGallery(
     isPlayingAudio: Boolean = false,
     playingRecordingId: String = "",
     downloadingRecordingId: String = "",
+    referencePlaybackPositionSec: Float = 0f,
+    referenceAudioDurationSec: Float = 0f,
+    speciesLocale: String = "de",
     modifier: Modifier = Modifier
 ) {
     // Ziehbare Hoehe fuer das grosse Referenzbild (80-500dp)
@@ -63,6 +68,7 @@ fun SonogramGallery(
             ReferenceImageLarge(
                 result = selectedResult,
                 onClose = onClose,
+                speciesLocale = speciesLocale,
                 modifier = Modifier.fillMaxWidth().height(referenceHeight.dp)
             )
             HorizontalSplitter(
@@ -128,7 +134,11 @@ fun SonogramGallery(
                 // Vertikales Grid — passt sich der Fensterbreite an
                 val sortedResults = remember(matchResults) {
                     matchResults.sortedWith(compareBy(
-                        { if (it.sonogramUrl.isNotBlank()) 0 else 1 },
+                        { when {
+                            it.sonogramUrl.isNotBlank() && it.audioUrl.isNotBlank() -> 0  // Audio + Bild
+                            it.sonogramUrl.isNotBlank() -> 1                              // Nur Bild
+                            else -> 2                                                     // Weder noch
+                        }},
                         { -it.similarity }
                     ))
                 }
@@ -148,13 +158,18 @@ fun SonogramGallery(
                             ThumbnailCard(
                                 result = result,
                                 isSelected = selectedResult?.recordingId == result.recordingId,
+                                speciesLocale = speciesLocale,
                                 onClick = { onSelectResult(result) },
                                 onPlay = {
                                     if (isThisPlaying) onStopAudio()
                                     else onPlayAudio(result)
                                 },
                                 isPlaying = isThisPlaying,
-                                isDownloading = isThisDownloading
+                                isDownloading = isThisDownloading,
+                                hasLocalAudio = result.audioUrl.isNotBlank(),
+                                playbackProgress = if (playingRecordingId == result.recordingId && referenceAudioDurationSec > 0f)
+                                    (referencePlaybackPositionSec / referenceAudioDurationSec).coerceIn(0f, 1f)
+                                else 0f
                             )
                         }
                     }
@@ -176,6 +191,7 @@ fun SonogramGallery(
 private fun ReferenceImageLarge(
     result: MatchResult,
     onClose: () -> Unit,
+    speciesLocale: String = "de",
     modifier: Modifier = Modifier
 ) {
     var bitmap by remember(result.sonogramUrl) { mutableStateOf<ImageBitmap?>(null) }
@@ -222,8 +238,8 @@ private fun ReferenceImageLarge(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Wissenschaftlicher Name als Haupttitel (species kann leer sein bei lokalen Referenzen)
-                    val displayName = result.species.ifBlank { result.scientificName }
+                    // Artname in gewaehlter Sprache (Fallback-Kette in SpeciesRegistry)
+                    val displayName = SpeciesRegistry.getDisplayName(result.scientificName, speciesLocale)
                     Text(
                         displayName,
                         style = MaterialTheme.typography.titleSmall,
@@ -315,8 +331,11 @@ private fun ThumbnailCard(
     isSelected: Boolean,
     onClick: () -> Unit,
     onPlay: () -> Unit,
+    speciesLocale: String = "de",
     isPlaying: Boolean = false,
-    isDownloading: Boolean = false
+    isDownloading: Boolean = false,
+    hasLocalAudio: Boolean = false,
+    playbackProgress: Float = 0f
 ) {
     var bitmap by remember(result.sonogramUrl) { mutableStateOf<ImageBitmap?>(null) }
     var loadError by remember(result.sonogramUrl) { mutableStateOf(false) }
@@ -351,15 +370,23 @@ private fun ThumbnailCard(
     }
 
     // Thumbnail: 200 x 90dp
-    val borderColor = if (isSelected) Color(0xFFFFEB3B) else Color.Transparent
-    val borderWidth = if (isSelected) 2.dp else 0.dp
+    val borderColor = when {
+        isSelected -> Color(0xFFFFEB3B)           // Gelb: ausgewaehlt
+        hasLocalAudio -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)  // Blau: Audio vorhanden
+        else -> Color.Transparent
+    }
+    val borderWidth = when {
+        isSelected -> 2.dp
+        hasLocalAudio -> 1.5.dp
+        else -> 0.dp
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .height(110.dp)
             .then(
-                if (isSelected) Modifier.border(borderWidth, borderColor, MaterialTheme.shapes.medium)
+                if (borderWidth > 0.dp) Modifier.border(borderWidth, borderColor, MaterialTheme.shapes.medium)
                 else Modifier
             ),
         onClick = onClick,
@@ -429,6 +456,19 @@ private fun ThumbnailCard(
                     }
                 }
 
+                // Playback-Pointer (vertikaler Strich)
+                if (isPlaying && playbackProgress > 0f) {
+                    Canvas(modifier = Modifier.matchParentSize()) {
+                        val posX = size.width * playbackProgress
+                        drawLine(
+                            color = Color(0xFFFF4444),
+                            start = Offset(posX, 0f),
+                            end = Offset(posX, size.height),
+                            strokeWidth = 2f
+                        )
+                    }
+                }
+
                 // Play-Button Overlay (unten rechts)
                 if (bitmap != null && !isCorrupt) {
                     if (isDownloading) {
@@ -475,7 +515,7 @@ private fun ThumbnailCard(
 
             // Art-Name + Qualitaet
             Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) {
-                val displayName = result.species.ifBlank { result.scientificName }
+                val displayName = SpeciesRegistry.getDisplayName(result.scientificName, speciesLocale)
                 Text(
                     displayName,
                     style = MaterialTheme.typography.labelSmall,

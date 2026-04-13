@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
 
+enum class PlaybackMode { MAIN, REFERENCE }
+
 /**
  * Verwaltet Audio-Wiedergabe: Play/Pause/Stop, Positions-Tracking, Referenz-Audio.
  * Besitzt die AudioPlayer-Instanz und deren Lifecycle.
@@ -34,7 +36,12 @@ class PlaybackManager(
         val isPaused: Boolean = false,
         val playbackPositionSec: Float = 0f,
         val playingReferenceId: String = "",
-        val downloadingReferenceId: String = ""
+        val downloadingReferenceId: String = "",
+        val isLooping: Boolean = false,
+        val playbackMode: PlaybackMode = PlaybackMode.MAIN,
+        val isReferenceLooping: Boolean = false,
+        val activeReferenceIndex: Int = -1,
+        val referenceAudioDurationSec: Float = 0f
     )
 
     private val _state = MutableStateFlow(State())
@@ -48,6 +55,14 @@ class PlaybackManager(
     private var viewportChangedDuringPlayback = false
     /** Merkt sich den letzten isPlaying-Zustand fuer Transition-Detection */
     private var wasPlaying = false
+
+    /** Letzte Play-Parameter fuer Loop-Restart (AP-29) */
+    private var lastPlaySegment: AudioSegment? = null
+    private var lastPlayOffsetSec: Float = 0f
+
+    /** Referenz-Daten fuer Loop/Seek/Navigation (AP-46) */
+    private var lastReferenceSegment: AudioSegment? = null
+    private var currentReferenceResults: List<ch.etasystems.amsel.core.annotation.MatchResult> = emptyList()
 
     init {
         // AudioPlayer-State → PlaybackManager-State synchronisieren
@@ -67,10 +82,35 @@ class PlaybackManager(
                 onStateChanged()
 
                 // Transition: war am Spielen → jetzt gestoppt
-                // Wenn Viewport sich waehrend Playback verschoben hat → Spektrogramm nachberechnen
-                if (wasPlaying && !isNowPlaying && viewportChangedDuringPlayback) {
-                    viewportChangedDuringPlayback = false
-                    onPlaybackStopped(true)
+                // (seekWithOffset emittiert KEIN STOPPED, also feuert das nur bei echtem Stop)
+                if (wasPlaying && !isNowPlaying && !isNowPaused) {
+                    // Loop-Restart (AP-29) — nur fuer MAIN-Modus
+                    if (_state.value.isLooping && lastPlaySegment != null
+                        && _state.value.playbackMode == PlaybackMode.MAIN) {
+                        scope.launch {
+                            kotlinx.coroutines.delay(50)
+                            val seg = lastPlaySegment
+                            if (seg != null && _state.value.isLooping) {
+                                audioPlayer.playWithOffset(seg, lastPlayOffsetSec)
+                            }
+                        }
+                    }
+                    // Loop-Restart fuer Referenz-Audio (AP-46)
+                    if (_state.value.isReferenceLooping
+                        && _state.value.playbackMode == PlaybackMode.REFERENCE) {
+                        scope.launch {
+                            kotlinx.coroutines.delay(50)
+                            val seg = lastReferenceSegment
+                            if (seg != null && _state.value.isReferenceLooping) {
+                                audioPlayer.play(seg, 0f, null)
+                            }
+                        }
+                    }
+                    // Viewport-Follow Nachberechnung
+                    if (viewportChangedDuringPlayback) {
+                        viewportChangedDuringPlayback = false
+                        onPlaybackStopped(true)
+                    }
                 }
                 wasPlaying = isNowPlaying
             }
@@ -174,6 +214,9 @@ class PlaybackManager(
                 } else playSegment
 
                 onStatusUpdate("")
+                // Segment fuer Loop-Restart merken (AP-29)
+                lastPlaySegment = finalSegment
+                lastPlayOffsetSec = viewStartSec
                 audioPlayer.playWithOffset(finalSegment, viewStartSec)
 
             } catch (e: Exception) {
@@ -182,9 +225,78 @@ class PlaybackManager(
         }
     }
 
+    /**
+     * Playback-Position um deltaSec springen, Viewport bleibt (S + Pfeil, AP-29).
+     * Laedt Audio aus audioSegment (kleine Dateien) oder pcmCache (grosse Dateien).
+     */
+    fun seekPlayback(
+        deltaSec: Float,
+        audioSegment: AudioSegment?,
+        pcmCache: PcmCacheFile?,
+        totalDurationSec: Float
+    ) {
+        if (!_state.value.isPlaying && !_state.value.isPaused) return
+        if (audioSegment == null && pcmCache == null) return
+
+        val currentPos = _state.value.playbackPositionSec
+        val newPos = (currentPos + deltaSec).coerceIn(0f, totalDurationSec - 0.1f)
+
+        // Audio-Segment ab neuer Position bis Ende laden
+        val newSeg = if (audioSegment != null) {
+            audioSegment.subRangeSec(newPos, totalDurationSec)
+        } else {
+            pcmCache!!.readRange(newPos, totalDurationSec)
+        }
+
+        // seekWithOffset: kein STOPPED-Emission, kein position=0 → kein UI-Flicker
+        audioPlayer.seekWithOffset(newSeg, newPos)
+    }
+
+    /** Loop-Modus umschalten (AP-29). */
+    fun toggleLoop() {
+        _state.update { it.copy(isLooping = !it.isLooping) }
+    }
+
     /** Wiedergabe stoppen. */
     fun stopPlayback() {
         audioPlayer.stop()
+        // playbackMode bleibt erhalten — wird nur bei explizitem Modus-Wechsel geaendert
+    }
+
+    /** Wechselt den Playback-Modus. Stoppt laufendes Audio sofort. */
+    fun switchMode(mode: PlaybackMode) {
+        if (_state.value.isPlaying || _state.value.isPaused) {
+            audioPlayer.stop()
+        }
+        _state.update { it.copy(playbackMode = mode) }
+    }
+
+    /** Loop fuer Referenz-Audio ein/aus. */
+    fun toggleReferenceLoop() {
+        _state.update { it.copy(isReferenceLooping = !it.isReferenceLooping) }
+    }
+
+    /** Setzt die Liste der aktuellen Referenz-Ergebnisse fuer Navigation. */
+    fun setReferenceResults(results: List<ch.etasystems.amsel.core.annotation.MatchResult>) {
+        currentReferenceResults = results
+    }
+
+    /** Naechste Referenz in der Liste auswaehlen. Gibt den Index zurueck oder -1. */
+    fun nextReference(): Int {
+        if (currentReferenceResults.isEmpty()) return -1
+        val current = _state.value.activeReferenceIndex
+        val next = if (current < currentReferenceResults.size - 1) current + 1 else 0
+        _state.update { it.copy(activeReferenceIndex = next) }
+        return next
+    }
+
+    /** Vorherige Referenz in der Liste auswaehlen. Gibt den Index zurueck oder -1. */
+    fun previousReference(): Int {
+        if (currentReferenceResults.isEmpty()) return -1
+        val current = _state.value.activeReferenceIndex
+        val prev = if (current > 0) current - 1 else currentReferenceResults.size - 1
+        _state.update { it.copy(activeReferenceIndex = prev) }
+        return prev
     }
 
     /**
@@ -199,6 +311,7 @@ class PlaybackManager(
         // Wenn gleiche Referenz schon spielt → stoppen
         if (_state.value.playingReferenceId == result.recordingId && _state.value.isPlaying) {
             stopPlayback()
+            _state.update { it.copy(playbackMode = PlaybackMode.MAIN) }
             return
         }
 
@@ -229,7 +342,12 @@ class PlaybackManager(
             try {
                 val decoded = AudioDecoder.decode(audioFile)
                 val segment = AudioSegment(decoded.samples, decoded.sampleRate)
-                _state.update { it.copy(playingReferenceId = result.recordingId) }
+                lastReferenceSegment = segment
+                _state.update { it.copy(
+                    playingReferenceId = result.recordingId,
+                    playbackMode = PlaybackMode.REFERENCE,
+                    referenceAudioDurationSec = segment.durationSec
+                ) }
                 onStatusUpdate("Spiele: ${result.species} (${result.type})")
                 audioPlayer.play(segment, 0f, null)
             } catch (e: Exception) {
@@ -274,7 +392,11 @@ class PlaybackManager(
         audioPlayer.stop()
         viewportChangedDuringPlayback = false
         wasPlaying = false
-        _state.value = State()
+        lastPlaySegment = null
+        lastPlayOffsetSec = 0f
+        lastReferenceSegment = null
+        currentReferenceResults = emptyList()
+        _state.value = State()  // referenceAudioDurationSec wird durch Default 0f zurueckgesetzt
     }
 
     /** Ressourcen freigeben. */

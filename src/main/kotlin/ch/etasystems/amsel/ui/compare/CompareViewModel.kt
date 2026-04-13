@@ -11,7 +11,13 @@ import ch.etasystems.amsel.core.similarity.EmbeddingSimilarityMetric
 import ch.etasystems.amsel.core.similarity.OnnxSimilarityMetric
 import ch.etasystems.amsel.core.similarity.SimilarityEngine
 import ch.etasystems.amsel.core.similarity.SimilarityMetric
+import ch.etasystems.amsel.data.AmselProject
+import ch.etasystems.amsel.data.AudioReference
 import ch.etasystems.amsel.data.ComparisonAlgorithm
+import ch.etasystems.amsel.data.FilterPreset
+import ch.etasystems.amsel.data.ProjectMetadata
+import ch.etasystems.amsel.data.ProjectStore
+import ch.etasystems.amsel.data.RecordingMetadata
 import ch.etasystems.amsel.data.api.XenoCantoRecordingProvider
 import ch.etasystems.amsel.core.spectrogram.SpectrogramData
 import ch.etasystems.amsel.data.SettingsStore
@@ -60,6 +66,11 @@ data class CompareUiState(
     val isPlaying: Boolean = false,
     val isPaused: Boolean = false,
     val playbackPositionSec: Float = 0f,
+    val isLooping: Boolean = false,
+    val playbackMode: PlaybackMode = PlaybackMode.MAIN,
+    val isReferenceLooping: Boolean = false,
+    val activeReferenceIndex: Int = -1,
+    val referenceAudioDurationSec: Float = 0f,
 
     // Status
     val isProcessing: Boolean = false,
@@ -124,13 +135,25 @@ data class CompareUiState(
     // Audit-Trail: Protokolliert alle Verarbeitungsschritte fuer wissenschaftliche Reproduzierbarkeit
     val auditLog: List<AuditEntry> = emptyList(),
 
-    // Chunk-Verarbeitung
-    val chunkManager: ch.etasystems.amsel.core.audio.ChunkManager? = null,  // null = kein Chunking
-    val activeChunkIndex: Int = 0,
+    // Slice-Verarbeitung
+    val sliceManager: ch.etasystems.amsel.core.audio.SliceManager? = null,  // null = kein Slicing
+    val activeSliceIndex: Int = 0,
 
     // Projekt
     val projectFile: File? = null,
-    val projectDirty: Boolean = false
+    val projectDir: java.io.File? = null,
+    val projectDirty: Boolean = false,
+
+    // Multi-Audio
+    val loadedAudioFiles: Map<String, AudioManager.AudioFileState> = emptyMap(),
+    val activeAudioFileId: String? = null,
+
+    // Solo-Modus: Chunk in voller Breite mit Vor-/Nachlauf anzeigen
+    val isSoloMode: Boolean = false,
+
+    // Live-Scan: Hintergrund-Scan laeuft + laufende Event-Anzahl
+    val isBackgroundScanning: Boolean = false,
+    val scanDetectionCount: Int = 0
 ) {
     val activeAnnotation: Annotation?
         get() = annotations.find { it.id == activeAnnotationId }
@@ -155,7 +178,10 @@ data class LocalState(
     val isProcessing: Boolean = false,
     val statusText: String = "",
     val sidebarStatus: String = "",
-    val detectedMode: String = ""
+    val detectedMode: String = "",
+    val isSoloMode: Boolean = false,
+    val isBackgroundScanning: Boolean = false,
+    val scanDetectionCount: Int = 0
 )
 
 /**
@@ -176,7 +202,7 @@ class CompareViewModel {
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    // Manager: Audio (Import, Decoding, Chunking, Datei-Management)
+    // Manager: Audio (Import, Decoding, Slicing, Datei-Management)
     private val audioManager = AudioManager(
         onProgressUpdate = { msg -> _localState.update { it.copy(sidebarStatus = msg) } }
     )
@@ -236,7 +262,8 @@ class CompareViewModel {
         ),
         onDirtyChanged = { projectManager.markDirty() },
         onZoomToRange = { start, end -> spectrogramManager.zoomToRange(start, end) },
-        onStatusUpdate = { msg -> _localState.update { it.copy(statusText = msg) } }
+        onStatusUpdate = { msg -> _localState.update { it.copy(statusText = msg) } },
+        activeAudioFileId = { audioManager.state.value.activeFileId ?: "" }
     )
 
     // Manager: Klassifizierung (BirdNET, Similarity, Event-Detection, Download)
@@ -256,8 +283,9 @@ class CompareViewModel {
             annotations = { _uiState.value.annotations },
             activeAnnotation = { _uiState.value.activeAnnotation },
             activeAnnotationId = { _uiState.value.activeAnnotationId },
-            chunkManager = { _uiState.value.chunkManager },
-            audioSampleRate = { _uiState.value.audioSampleRate }
+            sliceManager = { _uiState.value.sliceManager },
+            audioSampleRate = { _uiState.value.audioSampleRate },
+            activeAudioFileId = { audioManager.state.value.activeFileId ?: "" }
         ),
         annotationManager = annotationManager,
         xenoCantoApi = xenoCantoApi,
@@ -356,18 +384,23 @@ class CompareViewModel {
                     audioDurationSec = audio.audioDurationSec,
                     audioSampleRate = audio.audioSampleRate,
                     audioOffsetSec = audio.audioOffsetSec,
-                    chunkManager = audio.chunkManager,
-                    activeChunkIndex = audio.activeChunkIndex,
+                    sliceManager = audio.sliceManager,
+                    activeSliceIndex = audio.activeSliceIndex,
                     // Volume (3 Felder)
                     volumeEnvelope = volume.volumeEnvelope,
                     volumeEnvelopeActive = volume.volumeEnvelopeActive,
                     selectedVolumeIndex = volume.selectedVolumeIndex,
-                    // Playback (5 Felder)
+                    // Playback (8 Felder)
                     isPlaying = playback.isPlaying,
                     isPaused = playback.isPaused,
                     playbackPositionSec = playback.playbackPositionSec,
+                    isLooping = playback.isLooping,
                     playingReferenceId = playback.playingReferenceId,
                     downloadingReferenceId = playback.downloadingReferenceId,
+                    playbackMode = playback.playbackMode,
+                    isReferenceLooping = playback.isReferenceLooping,
+                    activeReferenceIndex = playback.activeReferenceIndex,
+                    referenceAudioDurationSec = playback.referenceAudioDurationSec,
                     // Spektrogramm (21 Felder)
                     overviewSpectrogramData = spectro.overviewSpectrogramData,
                     originalOverviewData = spectro.originalOverviewData,
@@ -390,8 +423,10 @@ class CompareViewModel {
                     isNormalized = spectro.isNormalized,
                     normGainDb = spectro.normGainDb,
                     normReferenceMaxDb = spectro.normReferenceMaxDb,
-                    // Annotation (8 Felder)
-                    annotations = annotation.annotations,
+                    // Annotation (8 Felder) — nur Annotations der aktiven Audio-Datei anzeigen
+                    annotations = annotation.annotations.filter {
+                        it.audioFileId == (audio.activeFileId ?: "") || it.audioFileId.isEmpty()
+                    },
                     activeAnnotationId = annotation.activeAnnotationId,
                     editingLabelId = annotation.editingLabelId,
                     selectedAnnotationIds = annotation.selectedAnnotationIds,
@@ -408,19 +443,38 @@ class CompareViewModel {
                     downloadProgress = classification.downloadProgress,
                     referenceSpeciesCount = classification.referenceSpeciesCount,
                     referenceRecordingCount = classification.referenceRecordingCount,
-                    // Projekt (5 Felder)
+                    // Projekt (6 Felder)
                     projectFile = project.projectFile,
+                    projectDir = project.projectDir,
                     projectDirty = project.projectDirty,
                     auditLog = project.auditLog,
                     lastExportFile = project.lastExportFile,
                     exportBlackAndWhite = project.exportBlackAndWhite,
-                    // Lokal (4 Felder)
+                    // Multi-Audio (2 Felder)
+                    loadedAudioFiles = audio.loadedFiles,
+                    activeAudioFileId = audio.activeFileId,
+                    // Lokal (7 Felder)
                     isProcessing = local.isProcessing,
                     statusText = local.statusText,
                     sidebarStatus = local.sidebarStatus,
-                    detectedMode = local.detectedMode
+                    detectedMode = local.detectedMode,
+                    isSoloMode = local.isSoloMode,
+                    isBackgroundScanning = local.isBackgroundScanning,
+                    scanDetectionCount = local.scanDetectionCount
                 )
             }.collect { _uiState.value = it }
+        }
+
+        // Live-Scan Flows → LocalState (separate Flows, nicht in ClassificationManager.State)
+        scope.launch {
+            classificationManager.isBackgroundScanning.collect { scanning ->
+                _localState.update { it.copy(isBackgroundScanning = scanning) }
+            }
+        }
+        scope.launch {
+            classificationManager.scanDetectionCount.collect { count ->
+                _localState.update { it.copy(scanDetectionCount = count) }
+            }
         }
 
         // Side-Effect: Zoom-Aenderung invalidiert die Rubber-Band-Selektion (Pixel-Koordinaten veraltet)
@@ -502,16 +556,42 @@ class CompareViewModel {
         val proj = projectManager.state.value
         if (proj.projectFile == null || !proj.projectDirty) return
         val state = _uiState.value
-        val audioFile = state.audioFile ?: return
+        val loadedFiles = audioManager.state.value.loadedFiles
+        if (loadedFiles.isEmpty()) return
 
-        val project = projectManager.buildProject(
-            audioFile = audioFile,
-            audioDurationSec = state.audioDurationSec,
-            audioSampleRate = state.audioSampleRate,
-            annotations = state.annotations,
+        val settings = SettingsStore.load()
+        // Bestehende Metadaten aus Projektdatei laden, damit recordingMeta nicht verloren geht
+        val existingMeta = try {
+            proj.projectFile?.let { ProjectStore.load(it) }?.audioFiles
+                ?.associateBy { it.id } ?: emptyMap()
+        } catch (_: Exception) { emptyMap() }
+        val audioFileRefs = loadedFiles.map { (fileId, fileState) ->
+            AudioReference(
+                id = fileId,
+                originalFileName = fileState.audioFile.name,
+                durationSec = fileState.durationSec,
+                sampleRate = fileState.sampleRate,
+                sliceLengthMin = settings.sliceLengthMin,
+                sliceOverlapSec = settings.sliceOverlapSec,
+                recordingMeta = existingMeta[fileId]?.recordingMeta
+            )
+        }
+
+        val project = AmselProject(
+            version = 2,
+            metadata = ProjectMetadata(
+                location = settings.locationName,
+                latitude = settings.locationLat,
+                longitude = settings.locationLon,
+                operator = settings.operatorName,
+                device = settings.deviceName
+            ),
+            audioFiles = audioFileRefs,
+            annotations = annotationManager.state.value.annotations,  // ALLE Annotations (nicht gefiltert)
             volumeEnvelope = state.volumeEnvelope,
             volumeEnvelopeActive = state.volumeEnvelopeActive,
-            filterConfig = state.filterConfig,
+            filterPreset = if (state.filterConfig != FilterConfig()) FilterPreset.fromFilterConfig("project", state.filterConfig) else null,
+            auditLog = proj.auditLog,
             displayDbRange = state.displayDbRange,
             displayGamma = state.displayGamma,
             isNormalized = state.isNormalized,
@@ -535,27 +615,45 @@ class CompareViewModel {
         _localState.update { it.copy(statusText = "Projekt gespeichert: ${pf.name}") }
     }
 
+    /** Erstellt ein neues Projekt in einem dedizierten Ordner (Delegation an ProjectManager). */
+    fun createNewProject(projectDir: File, projectName: String, metadata: ProjectMetadata) {
+        projectManager.createProject(projectDir, projectName, metadata)
+    }
+
     /** Laedt ein AMSEL-Projekt aus einer .amsel.json Datei. */
     fun loadProject(projectFile: File) {
         scope.launch {
             try {
                 val project = projectManager.deserializeProject(projectFile) ?: return@launch
-                // Audio-Datei neben der Projektdatei suchen
-                val audioFile = File(projectFile.parentFile, project.audio.originalFileName)
-                if (!audioFile.exists()) {
-                    _localState.update { it.copy(statusText = "Audio nicht gefunden: ${project.audio.originalFileName}") }
+
+                // Alle Audio-Dateien laden
+                val audioRefs = project.audioFiles
+                if (audioRefs.isEmpty()) {
+                    _localState.update { it.copy(statusText = "Projekt hat keine Audio-Dateien") }
                     return@launch
                 }
 
-                // Audio importieren — direkt als suspend aufrufen, damit setInitialSpectrograms()
-                // garantiert VOR restoreFromProject() abgeschlossen ist (kein separater scope.launch)
                 playbackManager.stopPlayback()
-                importAudioSuspend(audioFile)
 
-                // Volume-State im Manager wiederherstellen
+                for ((index, audioRef) in audioRefs.withIndex()) {
+                    // Audio-Datei suchen: neben Projekt, dann in audio/ Unterordner
+                    val beside = File(projectFile.parentFile, audioRef.originalFileName)
+                    val inSubdir = File(projectFile.parentFile, "audio/${audioRef.originalFileName}")
+                    val resolved = when {
+                        beside.exists() -> beside
+                        inSubdir.exists() -> inSubdir
+                        else -> {
+                            System.err.println("[ViewModel] Audio nicht gefunden: ${audioRef.originalFileName}")
+                            continue
+                        }
+                    }
+                    importAudioSuspend(resolved)
+                }
+
+                // Volume wiederherstellen
                 volumeManager.restoreFromProject(project.volumeEnvelope, project.volumeEnvelopeActive)
 
-                // Spektrogramm-State im Manager wiederherstellen
+                // Filter/Display wiederherstellen
                 val restoredFilter = project.filterPreset?.toFilterConfig() ?: FilterConfig()
                 spectrogramManager.restoreFromProject(
                     filterConfig = restoredFilter,
@@ -565,10 +663,10 @@ class CompareViewModel {
                     normGainDb = project.normGainDb
                 )
 
-                // Annotations-State im Manager wiederherstellen
+                // Annotations wiederherstellen (mit audioFileId aus Projekt)
                 annotationManager.restoreFromProject(project.annotations)
 
-                // Projekt-State im ProjectManager wiederherstellen
+                // Projekt-State setzen
                 projectManager.setProjectLoaded(projectFile, project.auditLog)
             } catch (e: Exception) {
                 _localState.update { it.copy(statusText = "Projekt-Fehler: ${e.message}") }
@@ -577,25 +675,107 @@ class CompareViewModel {
     }
 
     // ====================================================================
-    // Chunk-Navigation
+    // Slice-Navigation
     // ====================================================================
 
-    /** Wechselt zum angegebenen Chunk und aktualisiert Viewport. */
-    fun selectChunk(chunkIndex: Int) {
-        val range = audioManager.selectChunk(chunkIndex) ?: return
+    /** Wechselt zum angegebenen Slice und aktualisiert Viewport. */
+    fun selectSlice(sliceIndex: Int) {
+        val range = audioManager.selectSlice(sliceIndex) ?: return
         spectrogramManager.updateViewRange(range.first, range.second)
     }
 
-    /** Naechster Chunk. */
-    fun nextChunk() {
-        val range = audioManager.nextChunk() ?: return
+    /** Naechster Slice. */
+    fun nextSlice() {
+        val range = audioManager.nextSlice() ?: return
         spectrogramManager.updateViewRange(range.first, range.second)
     }
 
-    /** Vorheriger Chunk. */
-    fun previousChunk() {
-        val range = audioManager.previousChunk() ?: return
+    /** Vorheriger Slice. */
+    fun previousSlice() {
+        val range = audioManager.previousSlice() ?: return
         spectrogramManager.updateViewRange(range.first, range.second)
+    }
+
+    // ====================================================================
+    // Multi-Audio Datei-Verwaltung
+    // ====================================================================
+
+    /** Wechselt zur angegebenen Audio-Datei und berechnet Spektrogramm neu. */
+    fun switchAudioFile(fileId: String) {
+        val fileState = audioManager.switchActiveFile(fileId) ?: return
+        playbackManager.stopPlayback()
+        scope.launch {
+            _localState.update { it.copy(isProcessing = true, sidebarStatus = "Wechsle Datei...") }
+            try {
+                val maxFreqHz = spectrogramManager.maxFreqHz
+                val segment = fileState.audioSegment
+                val pcmCache = fileState.pcmCache
+
+                if (segment != null) {
+                    val overview = ch.etasystems.amsel.core.spectrogram.ChunkedSpectrogram
+                        .computeOverview(segment, targetFrames = 4000, maxFreqHz = maxFreqHz)
+                    val end = fileState.sliceManager?.slices?.firstOrNull()?.endSec
+                        ?: fileState.durationSec.coerceAtMost(INITIAL_ZOOM_DURATION_SEC)
+                    val zoomedData = ch.etasystems.amsel.core.spectrogram.ChunkedSpectrogram
+                        .computeRegion(segment, 0f, end, maxFreqHz)
+                    spectrogramManager.setInitialSpectrograms(
+                        overviewData = overview.spectrogramData,
+                        zoomedData = zoomedData,
+                        totalDurationSec = fileState.durationSec,
+                        initialViewEnd = end
+                    )
+                } else if (pcmCache != null) {
+                    val overviewSeg = pcmCache.readRange(0f, fileState.durationSec)
+                    val overview = ch.etasystems.amsel.core.spectrogram.ChunkedSpectrogram
+                        .computeOverview(overviewSeg, targetFrames = 4000, maxFreqHz = maxFreqHz)
+                    val end = fileState.sliceManager?.slices?.firstOrNull()?.endSec
+                        ?: fileState.durationSec.coerceAtMost(INITIAL_ZOOM_DURATION_SEC)
+                    val zoomedSeg = pcmCache.readRange(0f, end)
+                    val spec = ch.etasystems.amsel.core.spectrogram.MelSpectrogram.auto(
+                        zoomedSeg.sampleRate, maxFreqHz
+                    )
+                    val zoomedData = spec.compute(zoomedSeg.samples)
+                    spectrogramManager.setInitialSpectrograms(
+                        overviewData = overview.spectrogramData,
+                        zoomedData = zoomedData,
+                        totalDurationSec = fileState.durationSec,
+                        initialViewEnd = end
+                    )
+                }
+
+                _localState.update {
+                    it.copy(
+                        isProcessing = false,
+                        statusText = "${fileState.audioFile.name} — ${fileState.durationSec.format(1)}s",
+                        sidebarStatus = ""
+                    )
+                }
+            } catch (e: Exception) {
+                _localState.update {
+                    it.copy(isProcessing = false, statusText = "Fehler: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /** Entfernt eine Audio-Datei aus dem Projekt. */
+    fun removeAudioFile(fileId: String) {
+        audioManager.removeFile(fileId)
+        // Falls noch Dateien uebrig: Spektrogramm der neuen aktiven Datei laden
+        val newActive = audioManager.state.value.activeFile
+        if (newActive != null) {
+            switchAudioFile(newActive.fileId)
+        }
+    }
+
+    /** Importiert mehrere Audio-Dateien sequenziell. */
+    fun importMultipleAudioFiles(files: List<File>) {
+        playbackManager.stopPlayback()
+        scope.launch {
+            for (file in files) {
+                importAudioSuspend(file)
+            }
+        }
     }
 
     // ====================================================================
@@ -679,19 +859,19 @@ class CompareViewModel {
 
         try {
             val settings = SettingsStore.load()
+            val isFirstFile = audioManager.isFirstFile()
 
-            // Audio-Import delegieren an AudioManager
             val result = audioManager.importAudio(
                 file = file,
                 maxFreqHz = spectrogramManager.maxFreqHz,
                 minDisplayDurationSec = settings.minDisplayDurationSec,
                 shortFileStartPct = settings.shortFileStartPct,
-                chunkLengthMin = settings.chunkLengthMin,
-                chunkOverlapSec = settings.chunkOverlapSec,
+                sliceLengthMin = settings.sliceLengthMin,
+                sliceOverlapSec = settings.sliceOverlapSec,
                 initialZoomDurationSec = INITIAL_ZOOM_DURATION_SEC
             )
 
-            // Spektrogramm-Daten im Manager setzen (resettet auch Filter/Display)
+            // Spektrogramm setzen (immer fuer die aktive Datei)
             spectrogramManager.setInitialSpectrograms(
                 overviewData = result.overviewSpectrogramData,
                 zoomedData = result.zoomedSpectrogramData,
@@ -699,12 +879,12 @@ class CompareViewModel {
                 initialViewEnd = result.initialViewEnd
             )
 
-            // Annotations zuruecksetzen
-            annotationManager.reset()
-            // Projekt-Referenz zuruecksetzen
-            projectManager.resetForNewAudio()
+            // Annotations nur bei ERSTER Datei zuruecksetzen
+            if (isFirstFile) {
+                annotationManager.reset()
+                projectManager.resetForNewAudio()
+            }
 
-            // Orchestrierung: lokale UI-Felder aktualisieren
             _localState.update {
                 it.copy(
                     isProcessing = false,
@@ -714,8 +894,7 @@ class CompareViewModel {
                 )
             }
 
-            // Lange Dateien: Projekt automatisch erstellen
-            if (result.hasChunks) {
+            if (result.hasSlices && isFirstFile) {
                 projectManager.autoCreateProject(file, result.duration, result.sampleRate, settings)
             }
         } catch (e: Exception) {
@@ -723,6 +902,17 @@ class CompareViewModel {
                 it.copy(isProcessing = false, statusText = "Fehler: ${e.message}")
             }
         }
+    }
+
+    // ====================================================================
+    // Audio-Metadaten
+    // ====================================================================
+
+    /** Setzt Aufnahme-Metadaten fuer eine Audio-Datei und speichert im Projekt. */
+    fun setAudioMetadata(fileId: String, metadata: RecordingMetadata) {
+        projectManager.updateAudioMetadata(fileId, metadata)
+        projectManager.markDirty()
+        autoSaveProject()
     }
 
     // ====================================================================
@@ -749,7 +939,30 @@ class CompareViewModel {
         playbackManager.stopPlayback()
     }
 
+    /** Startet Playback ab einer bestimmten Position (Space+Klick, AP-52). */
+    fun seekToPositionAndPlay(positionSec: Float) {
+        // Zuerst stoppen falls laeuft, dann ab neuer Position starten
+        playbackManager.stopPlayback()
+        val state = _uiState.value
+        playbackManager.togglePlayPause(
+            audioSegment = state.audioSegment,
+            pcmCache = state.pcmCache,
+            audioFile = state.audioFile,
+            filterConfig = state.filterConfig,
+            maxFreqHz = spectrogramManager.maxFreqHz,
+            viewStartSec = positionSec,
+            viewEndSec = state.viewEndSec,
+            volumeEnvelope = state.volumeEnvelope,
+            volumeEnvelopeActive = state.volumeEnvelopeActive,
+            totalDurationSec = state.totalDurationSec
+        )
+    }
+
+    fun toggleLoop() = playbackManager.toggleLoop()
+
     fun playReferenceAudio(result: ch.etasystems.amsel.core.annotation.MatchResult) {
+        val results = _uiState.value.activeAnnotation?.matchResults ?: emptyList()
+        playbackManager.setReferenceResults(results)
         playbackManager.playReferenceAudio(result, referenceLibrary, referenceDownloader)
     }
 
@@ -798,6 +1011,12 @@ class CompareViewModel {
 
     fun selectAnnotation(annotationId: String) {
         val annotation = annotationManager.selectAnnotation(annotationId)
+        // Solo-Modus: Viewport sofort auf die angeklickte Annotation zoomen
+        if (_localState.value.isSoloMode) {
+            // Direkt aus AnnotationManager lesen (nicht _uiState — der ist asynchron via combine())
+            val ann = annotationManager.state.value.annotations.find { it.id == annotationId }
+            if (ann != null) soloZoomToAnnotation(ann)
+        }
         // Orchestrierung: bei nicht-generischem Label automatisch Referenz-Sonogramme suchen
         if (annotation != null && annotation.matchResults.isEmpty()) {
             val label = annotation.label
@@ -810,6 +1029,52 @@ class CompareViewModel {
                 classificationManager.searchSimilar()
             }
         }
+    }
+
+    // ====================================================================
+    // Solo-Modus: Chunk in voller Breite mit Vor-/Nachlauf
+    // ====================================================================
+
+    fun toggleSoloMode() {
+        _localState.update { it.copy(isSoloMode = !it.isSoloMode) }
+    }
+
+    /** Solo: Zum naechsten Chunk springen und Viewport anpassen */
+    fun soloNextAnnotation() {
+        // Direkt aus AnnotationManager lesen (nicht _uiState — der ist asynchron via combine())
+        val amState = annotationManager.state.value
+        val anns = amState.annotations.sortedBy { it.startTimeSec }
+        if (anns.isEmpty()) return
+        val currentId = amState.activeAnnotationId
+        val currentIdx = anns.indexOfFirst { it.id == currentId }
+        val nextIdx = if (currentIdx < 0 || currentIdx >= anns.lastIndex) 0 else currentIdx + 1
+        val ann = anns[nextIdx]
+        selectAnnotation(ann.id)
+        soloZoomToAnnotation(ann)
+    }
+
+    /** Solo: Zum vorherigen Chunk springen und Viewport anpassen */
+    fun soloPreviousAnnotation() {
+        // Direkt aus AnnotationManager lesen (nicht _uiState — der ist asynchron via combine())
+        val amState = annotationManager.state.value
+        val anns = amState.annotations.sortedBy { it.startTimeSec }
+        if (anns.isEmpty()) return
+        val currentId = amState.activeAnnotationId
+        val currentIdx = anns.indexOfFirst { it.id == currentId }
+        val prevIdx = if (currentIdx > 0) currentIdx - 1 else anns.lastIndex
+        val ann = anns[prevIdx]
+        selectAnnotation(ann.id)
+        soloZoomToAnnotation(ann)
+    }
+
+    /** Solo: Viewport auf eine einzelne Annotation mit Vor-/Nachlauf zoomen */
+    private fun soloZoomToAnnotation(ann: ch.etasystems.amsel.core.annotation.Annotation) {
+        val settings = ch.etasystems.amsel.data.SettingsStore.load()
+        val preroll = settings.soloPrerollSec
+        val postroll = settings.soloPostrollSec
+        val start = (ann.startTimeSec - preroll).coerceAtLeast(0f)
+        val end = (ann.endTimeSec + postroll).coerceAtMost(_uiState.value.totalDurationSec)
+        spectrogramManager.zoomToRange(start, end)
     }
 
     fun zoomToEvent(annotationId: String) = annotationManager.zoomToEvent(annotationId)
@@ -878,6 +1143,12 @@ class CompareViewModel {
     fun resetCandidateInAnnotation(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =
         annotationManager.resetCandidateInAnnotation(annotationId, candidate.species)
 
+    fun uncertainCandidateInAnnotation(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =
+        annotationManager.uncertainCandidateInAnnotation(annotationId, candidate.species)
+
+    fun addManualCandidate(annotationId: String, scientificName: String, displayLabel: String) =
+        annotationManager.addManualCandidate(annotationId, scientificName, displayLabel)
+
     // ====================================================================
     // Export — delegiert an ExportManager
     // ====================================================================
@@ -892,25 +1163,37 @@ class CompareViewModel {
     fun exportReport() {
         scope.launch {
             val settings = ch.etasystems.amsel.data.SettingsStore.load()
-            val allAnnotations = annotationManager.getSelectedAnnotations().ifEmpty {
-                _uiState.value.annotations
+
+            // Audio-File-Infos zusammenstellen
+            val audioFileInfos = audioManager.state.value.loadedFiles.map { (id, fileState) ->
+                ch.etasystems.amsel.core.export.ReportExporter.AudioFileInfo(
+                    fileId = id,
+                    fileName = fileState.audioFile.name,
+                    durationSec = fileState.durationSec
+                )
             }
-            val annotations = allAnnotations.filter { !it.rejected }
-            if (annotations.isEmpty()) {
+            val totalDuration = audioFileInfos.sumOf { it.durationSec.toDouble() }.toFloat()
+
+            // Alle Annotations sammeln (nicht nur aktive Datei)
+            val allAnns = annotationManager.allAnnotations()
+            val selectedAnns = annotationManager.getSelectedAnnotations()
+            val reportAnnotations = (selectedAnns.ifEmpty { allAnns }).filter { !it.rejected }
+
+            if (reportAnnotations.isEmpty()) {
                 _localState.update { it.copy(statusText = "Keine Annotationen vorhanden") }
                 return@launch
             }
 
-            // Warnung bei unverifizierten Chunks
-            val unverifiedCount = annotations.count { !it.verified }
+            // Warnung bei unverifizierten Slices
+            val unverifiedCount = reportAnnotations.count { !it.verified }
             if (unverifiedCount > 0) {
-                val totalCount = annotations.size
+                val totalCount = reportAnnotations.size
                 val userConfirmed = withContext(Dispatchers.IO) {
                     var confirmed = false
                     javax.swing.SwingUtilities.invokeAndWait {
                         val result = javax.swing.JOptionPane.showConfirmDialog(
                             null,
-                            "$unverifiedCount von $totalCount Chunks nicht verifiziert.\nTrotzdem exportieren?",
+                            "$unverifiedCount von $totalCount Slices nicht verifiziert.\nTrotzdem exportieren?",
                             "Export-Warnung",
                             javax.swing.JOptionPane.YES_NO_OPTION,
                             javax.swing.JOptionPane.WARNING_MESSAGE
@@ -925,15 +1208,18 @@ class CompareViewModel {
             }
 
             val config = ch.etasystems.amsel.core.export.ReportExporter.ReportConfig(
-                audioFileName = audioManager.state.value.audioFile?.name ?: "",
+                audioFiles = audioFileInfos,
                 operatorName = settings.operatorName,
                 deviceName = settings.deviceName,
                 locationName = settings.locationName,
-                audioDurationSec = spectrogramManager.state.value.totalDurationSec,
-                annotations = annotations
+                totalDurationSec = totalDuration,
+                annotations = reportAnnotations,
+                sortOrder = settings.reportSortOrder
             )
 
-            val baseName = audioManager.state.value.audioFile?.nameWithoutExtension ?: "AMSEL_Report"
+            val baseName = projectManager.state.value.projectFile?.nameWithoutExtension
+                ?: audioManager.state.value.audioFile?.nameWithoutExtension
+                ?: "AMSEL_Report"
 
             // PDF Speichern-Dialog
             val pdfFile = showReportSaveDialog("PDF Report speichern", "$baseName.pdf", "pdf")
@@ -1098,6 +1384,54 @@ class CompareViewModel {
         spectrogramManager.zoomToRange(newEnd - range, newEnd)
     }
 
+    /** Playback-Position um deltaSec springen, Viewport bleibt (S + Pfeil, AP-29) */
+    fun seekPlayback(deltaSec: Float) {
+        val s = _uiState.value
+        playbackManager.seekPlayback(deltaSec, s.audioSegment, s.pcmCache, s.totalDurationSec)
+    }
+
+    /** Wechselt Playback-Modus (MAIN/REFERENCE). Stoppt laufendes Audio. */
+    fun switchPlaybackMode(mode: PlaybackMode) {
+        playbackManager.switchMode(mode)
+    }
+
+    /** Loop fuer Referenz-Audio ein/aus. */
+    fun toggleReferenceLoop() {
+        playbackManager.toggleReferenceLoop()
+    }
+
+    /** Naechste Referenz auswaehlen und abspielen. */
+    fun nextReference() {
+        val idx = playbackManager.nextReference()
+        if (idx >= 0) {
+            val results = _uiState.value.activeAnnotation?.matchResults ?: return
+            if (idx < results.size) {
+                playReferenceAudio(results[idx])
+            }
+        }
+    }
+
+    /** Vorherige Referenz auswaehlen und abspielen. */
+    fun previousReference() {
+        val idx = playbackManager.previousReference()
+        if (idx >= 0) {
+            val results = _uiState.value.activeAnnotation?.matchResults ?: return
+            if (idx < results.size) {
+                playReferenceAudio(results[idx])
+            }
+        }
+    }
+
+    /** Naechste Referenz auswaehlen OHNE abzuspielen (fuer Pfeiltasten-Navigation). */
+    fun selectNextReference() {
+        playbackManager.nextReference()
+    }
+
+    /** Vorherige Referenz auswaehlen OHNE abzuspielen (fuer Pfeiltasten-Navigation). */
+    fun selectPreviousReference() {
+        playbackManager.previousReference()
+    }
+
     /** Zur vorherigen Annotation springen (zeitlich sortiert, zyklisch) */
     fun previousAnnotation() {
         val anns = _uiState.value.annotations.sortedBy { it.startTimeSec }
@@ -1128,6 +1462,58 @@ class CompareViewModel {
             (ann.startTimeSec - settings.eventPrerollSec).coerceAtLeast(0f),
             ann.endTimeSec + settings.eventPostrollSec
         )
+    }
+
+    // ====================================================================
+    // Panel-Keyboard-Navigation
+    // ====================================================================
+
+    /** Naechster Kandidat in der Kandidatenliste — TODO: eigenes Feature (kein activeCandidate-State). */
+    fun nextCandidate() {
+        // Noop — es gibt keinen "activeCandidate"-State im CandidatePanel
+    }
+
+    /** Vorheriger Kandidat in der Kandidatenliste — TODO: eigenes Feature (kein activeCandidate-State). */
+    fun previousCandidate() {
+        // Noop — es gibt keinen "activeCandidate"-State im CandidatePanel
+    }
+
+    /** Navigiert im Files-Panel aufwaerts (vorheriger Slice oder vorherige Datei). */
+    fun navigateFilesPanelUp() {
+        val activeId = audioManager.state.value.activeFileId ?: return
+        val fileState = audioManager.state.value.loadedFiles[activeId] ?: return
+        val sm = fileState.sliceManager
+
+        if (sm != null && fileState.activeSliceIndex > 0) {
+            // Vorheriger Slice
+            selectSlice(fileState.activeSliceIndex - 1)
+        } else {
+            // Vorherige Datei
+            val fileIds = audioManager.state.value.loadedFiles.keys.toList()
+            val currentIdx = fileIds.indexOf(activeId)
+            if (currentIdx > 0) {
+                switchAudioFile(fileIds[currentIdx - 1])
+            }
+        }
+    }
+
+    /** Navigiert im Files-Panel abwaerts (naechster Slice oder naechste Datei). */
+    fun navigateFilesPanelDown() {
+        val activeId = audioManager.state.value.activeFileId ?: return
+        val fileState = audioManager.state.value.loadedFiles[activeId] ?: return
+        val sm = fileState.sliceManager
+
+        if (sm != null && fileState.activeSliceIndex < sm.sliceCount - 1) {
+            // Naechster Slice
+            selectSlice(fileState.activeSliceIndex + 1)
+        } else {
+            // Naechste Datei
+            val fileIds = audioManager.state.value.loadedFiles.keys.toList()
+            val currentIdx = fileIds.indexOf(activeId)
+            if (currentIdx < fileIds.size - 1) {
+                switchAudioFile(fileIds[currentIdx + 1])
+            }
+        }
     }
 
     /** Auswahl aufheben */
