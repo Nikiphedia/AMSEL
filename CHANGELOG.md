@@ -2,7 +2,7 @@
 
 Alle relevanten Änderungen an AMSEL werden in dieser Datei dokumentiert.
 
-## [0.0.7] — in Arbeit
+## [0.0.8] — 2026-04-14
 
 ### Neue Features
 - **Loop-Wiedergabe** — Loop-Button in Toolbar (Autorenew-Icon, gruen wenn aktiv), loopt den aktuellen Viewport
@@ -16,6 +16,10 @@ Alle relevanten Änderungen an AMSEL werden in dieser Datei dokumentiert.
 - **Drag & Drop Multi-File** — Mehrere Audio-Dateien gleichzeitig per Drag & Drop importieren
 - **Report-Sortierung** — CSV/PDF Reports sortierbar nach Zeit, Alphabet oder Systematik (Einstellungen)
 - **Multi-File Export** — CSV/PDF Reports aggregieren Annotations ueber alle Audio-Dateien mit Datei-Spalte
+- **Sync-Modus Referenz-Sonogramm** — Referenz-Bild an Haupt-Audio-Zeitbreite koppeln, Drag + Mausrad-Scrolling, Scrollbar-Indikator
+- **Zeitstempel-Verkettung** — Dialog zum Setzen von Aufnahme-Datum/Zeit fuer mehrere Audio-Dateien mit Auto-Ketten-Berechnung
+- **Kandidaten-Navigation** — Pfeiltasten (hoch/runter) im Kandidaten-Panel mit visuellem Highlighting
+- **Undocked Panels toFront** — Klick auf Platzhalter bringt abgedocktes Fenster in den Vordergrund
 
 - **Referenz-Priorisierung** — Referenzen mit Audio+Bild zuoberst, blaue Hervorhebung fuer lokal verfuegbare Audio-Referenzen
 - **CapsLock-Referenz-Engine** — CapsLock wechselt zwischen Haupt- und Referenz-Audio, Tastatur-Routing (Space, Pfeiltasten, Loop), farbiger Rahmen um Gallery
@@ -33,12 +37,25 @@ Alle relevanten Änderungen an AMSEL werden in dieser Datei dokumentiert.
 - Modellauswahl vereinfacht: RadioButton-Liste entfernt, nur Preset-Kacheln + "Modelle verwalten" Dialog (Kachel-Layout)
 - Markierungen-Zaehler aus Toolbar ins AudiofilesPanel verschoben
 - Solo-Modus Vor-/Nachlauf separat konfigurierbar (unabhaengig von Event-Klick)
+- Report-Export nutzt Aufnahmedatum/-zeit aus Projektdatei (CHRONOLOGICAL-Sortierung)
+- ZeitstempelDialog laedt bestehende Metadaten vor
+- Loop-Icon zeigt korrekten Status im Referenz-Modus
+- Referenz-Loop respektiert Sync-Viewport-Offset
 
 ### Behobene Fehler
 - AudioPlayer Race-Condition bei schnellem Play-Wechsel (playGeneration Counter)
 - Space aktivierte fokussierte Toolbar-Buttons statt Play/Pause (onPreviewKeyEvent Fix)
 - CapsLock-Erkennung robust gemacht (Key-Toggle + getLockingKeyState Fallback)
 - CandidatePanel pointerInput-Bug (veraltete Closures bei State-Aenderung)
+- Sync-Viewport: referenceAudioDurationSec wurde nie gesetzt (MP3 via javax.sound unlesbar)
+- CapsLock-State divergierte von playbackMode — jetzt Single Source of Truth via uiState.playbackMode
+- Pausiertes Referenz-Audio konnte per Re-Click nicht gestoppt werden
+- Race-Condition beim Wechsel MAIN-Loop → Referenz-Audio (falscher Loop-Restart)
+- @Volatile auf geteilten Feldern in PlaybackManager und AudioPlayer (Threading-Sicherheit)
+- Loop-Restart setzte viewportChangedDuringPlayback nicht zurueck
+- CompareArrows Icon-Deprecation behoben
+- URL()-Konstruktor Deprecation in BirdNetBridge + ModelDownloader behoben
+- Toter Code entfernt (SliceSelector.kt)
 
 ### Refactoring
 - Chunks → Slices umbenannt (UI + Code)
