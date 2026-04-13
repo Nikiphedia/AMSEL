@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "ch.etasystems.amsel"
-version = "0.0.6"
+version = "0.0.7"
 
 dependencies {
     // Compose Desktop
@@ -55,7 +55,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "AMSEL"
-            packageVersion = "0.0.6"
+            packageVersion = "0.0.7"
             description = "Sonogramm-Vergleichstool für Vögel und Fledermäuse"
             vendor = "ETA Systems"
 
