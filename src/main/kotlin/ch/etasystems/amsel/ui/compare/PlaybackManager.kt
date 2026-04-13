@@ -52,17 +52,20 @@ class PlaybackManager(
     private var positionCollectorJob: Job? = null
 
     /** Flag: Viewport wurde waehrend Playback verschoben (Follow-Modus) */
-    private var viewportChangedDuringPlayback = false
+    @Volatile private var viewportChangedDuringPlayback = false
     /** Merkt sich den letzten isPlaying-Zustand fuer Transition-Detection */
-    private var wasPlaying = false
+    @Volatile private var wasPlaying = false
 
     /** Letzte Play-Parameter fuer Loop-Restart (AP-29) */
-    private var lastPlaySegment: AudioSegment? = null
-    private var lastPlayOffsetSec: Float = 0f
+    @Volatile private var lastPlaySegment: AudioSegment? = null
+    @Volatile private var lastPlayOffsetSec: Float = 0f
 
     /** Referenz-Daten fuer Loop/Seek/Navigation (AP-46) */
-    private var lastReferenceSegment: AudioSegment? = null
-    private var currentReferenceResults: List<ch.etasystems.amsel.core.annotation.MatchResult> = emptyList()
+    @Volatile private var lastReferenceSegment: AudioSegment? = null
+    @Volatile private var currentReferenceResults: List<ch.etasystems.amsel.core.annotation.MatchResult> = emptyList()
+
+    /** Callback der den aktuellen Sync-Viewport liefert: Pair(offsetSec, visibleDurationSec) oder null wenn kein Sync. */
+    var syncViewportProvider: (() -> Pair<Float, Float>?)? = null
 
     init {
         // AudioPlayer-State → PlaybackManager-State synchronisieren
@@ -91,18 +94,26 @@ class PlaybackManager(
                             kotlinx.coroutines.delay(50)
                             val seg = lastPlaySegment
                             if (seg != null && _state.value.isLooping) {
+                                viewportChangedDuringPlayback = false
                                 audioPlayer.playWithOffset(seg, lastPlayOffsetSec)
                             }
                         }
                     }
-                    // Loop-Restart fuer Referenz-Audio (AP-46)
+                    // Loop-Restart fuer Referenz-Audio (AP-46, AP-75)
                     if (_state.value.isReferenceLooping
                         && _state.value.playbackMode == PlaybackMode.REFERENCE) {
                         scope.launch {
                             kotlinx.coroutines.delay(50)
                             val seg = lastReferenceSegment
                             if (seg != null && _state.value.isReferenceLooping) {
-                                audioPlayer.play(seg, 0f, null)
+                                viewportChangedDuringPlayback = false
+                                val syncViewport = syncViewportProvider?.invoke()
+                                if (syncViewport != null) {
+                                    val (offsetSec, durationSec) = syncViewport
+                                    audioPlayer.play(seg, offsetSec, offsetSec + durationSec)
+                                } else {
+                                    audioPlayer.play(seg, 0f, null)
+                                }
                             }
                         }
                     }
@@ -308,8 +319,8 @@ class PlaybackManager(
         referenceLibrary: ReferenceLibrary,
         referenceDownloader: ReferenceDownloader
     ) {
-        // Wenn gleiche Referenz schon spielt → stoppen
-        if (_state.value.playingReferenceId == result.recordingId && _state.value.isPlaying) {
+        // Toggle: gleiche Referenz erneut geklickt → Stop (auch wenn pausiert)
+        if (_state.value.playingReferenceId == result.recordingId && (_state.value.isPlaying || _state.value.isPaused)) {
             stopPlayback()
             _state.update { it.copy(playbackMode = PlaybackMode.MAIN) }
             return
@@ -348,6 +359,9 @@ class PlaybackManager(
                     playbackMode = PlaybackMode.REFERENCE,
                     referenceAudioDurationSec = segment.durationSec
                 ) }
+                // Race-Prevention: MAIN-Loop-Restart unterbinden waehrend Mode-Wechsel
+                wasPlaying = false
+                lastPlaySegment = null
                 onStatusUpdate("Spiele: ${result.species} (${result.type})")
                 audioPlayer.play(segment, 0f, null)
             } catch (e: Exception) {

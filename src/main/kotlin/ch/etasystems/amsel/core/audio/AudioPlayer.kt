@@ -31,6 +31,7 @@ class AudioPlayer {
     @Volatile
     private var stopped = false
 
+    @Volatile
     private var currentLine: SourceDataLine? = null
 
     /** Generationszaehler: verhindert dass alte Coroutinen State/Position resetten */

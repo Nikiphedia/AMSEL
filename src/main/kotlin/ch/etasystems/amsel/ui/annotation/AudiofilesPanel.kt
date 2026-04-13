@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +39,7 @@ fun AudiofilesPanel(
     onSelectSlice: (Int) -> Unit = {},
     onRemoveFile: (String) -> Unit,
     onAddFile: () -> Unit,
+    onShowZeitstempel: () -> Unit = {},
     annotationCount: Int = 0,
     isFocused: Boolean = false,
     modifier: Modifier = Modifier
@@ -74,6 +76,19 @@ fun AudiofilesPanel(
                     contentDescription = "Audio hinzufuegen",
                     modifier = Modifier.size(16.dp)
                 )
+            }
+            // Zeitstempel-Kette Button (nur wenn mehrere Files geladen)
+            if (loadedFiles.size >= 1) {
+                IconButton(
+                    onClick = onShowZeitstempel,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = "Zeitstempel-Kette",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
 

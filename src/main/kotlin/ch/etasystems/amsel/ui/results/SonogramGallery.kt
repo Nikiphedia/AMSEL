@@ -23,9 +23,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.gestures.detectDragGestures
 import ch.etasystems.amsel.core.annotation.MatchResult
 import ch.etasystems.amsel.data.SpeciesRegistry
 import ch.etasystems.amsel.ui.layout.HorizontalSplitter
@@ -56,6 +64,11 @@ fun SonogramGallery(
     referencePlaybackPositionSec: Float = 0f,
     referenceAudioDurationSec: Float = 0f,
     speciesLocale: String = "de",
+    // Sync-Parameter
+    isSyncMode: Boolean = false,
+    refViewOffsetSec: Float = 0f,
+    visibleDurationSec: Float = 0f,
+    onRefOffsetChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Ziehbare Hoehe fuer das grosse Referenzbild (80-500dp)
@@ -69,6 +82,11 @@ fun SonogramGallery(
                 result = selectedResult,
                 onClose = onClose,
                 speciesLocale = speciesLocale,
+                isSyncMode = isSyncMode,
+                refViewOffsetSec = refViewOffsetSec,
+                visibleDurationSec = visibleDurationSec,
+                referenceAudioDurationSec = referenceAudioDurationSec,
+                onRefOffsetChange = onRefOffsetChange,
                 modifier = Modifier.fillMaxWidth().height(referenceHeight.dp)
             )
             HorizontalSplitter(
@@ -187,11 +205,17 @@ fun SonogramGallery(
 // Grosses Referenz-Bild (wiederverwendet Lade-Logik aus ReferenceSonogramPanel)
 // ================================================================
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun ReferenceImageLarge(
     result: MatchResult,
     onClose: () -> Unit,
     speciesLocale: String = "de",
+    isSyncMode: Boolean = false,
+    refViewOffsetSec: Float = 0f,
+    visibleDurationSec: Float = 0f,
+    referenceAudioDurationSec: Float = 0f,
+    onRefOffsetChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var bitmap by remember(result.sonogramUrl) { mutableStateOf<ImageBitmap?>(null) }
@@ -290,14 +314,49 @@ private fun ReferenceImageLarge(
 
             // Bild
             Box(
-                modifier = Modifier.fillMaxWidth().weight(1f).background(Color.White)
+                modifier = Modifier.fillMaxWidth().weight(1f).background(Color.Black)
             ) {
                 if (bitmap != null) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawImage(
-                            image = bitmap!!,
-                            dstSize = IntSize(size.width.toInt(), size.height.toInt())
-                        )
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            // Drag: Referenz-Bild horizontal verschieben (nur im Sync-Modus)
+                            .pointerInput(isSyncMode, visibleDurationSec, referenceAudioDurationSec) {
+                                if (!isSyncMode || referenceAudioDurationSec <= 0f || visibleDurationSec <= 0f) return@pointerInput
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    val pixelsPerSec = size.width.toFloat() / visibleDurationSec
+                                    val deltaSec = -dragAmount.x / pixelsPerSec
+                                    onRefOffsetChange(refViewOffsetSec + deltaSec)
+                                }
+                            }
+                            // Scroll: Referenz-Bild horizontal verschieben (nur im Sync-Modus)
+                            .onPointerEvent(PointerEventType.Scroll) { event ->
+                                if (isSyncMode && referenceAudioDurationSec > 0f) {
+                                    val delta = if (event.changes.firstOrNull()?.scrollDelta?.y ?: 0f > 0f) 5f else -5f
+                                    onRefOffsetChange(refViewOffsetSec + delta)
+                                }
+                            }
+                    ) {
+                        if (isSyncMode && referenceAudioDurationSec > 0f && visibleDurationSec > 0f) {
+                            // Viewport-Berechnung: Ausschnitt des Bitmaps anzeigen
+                            val startFrac = (refViewOffsetSec / referenceAudioDurationSec).coerceIn(0f, 1f)
+                            val endFrac = ((refViewOffsetSec + visibleDurationSec) / referenceAudioDurationSec).coerceIn(startFrac, 1f)
+                            val srcX = (bitmap!!.width * startFrac).toInt()
+                            val srcW = ((endFrac - startFrac) * bitmap!!.width).toInt().coerceAtLeast(1)
+                            drawImage(
+                                image = bitmap!!,
+                                srcOffset = IntOffset(srcX, 0),
+                                srcSize = IntSize(srcW, bitmap!!.height),
+                                dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                            )
+                        } else {
+                            // Normalmodus: volle Breite
+                            drawImage(
+                                image = bitmap!!,
+                                dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                            )
+                        }
                     }
                 } else if (loadError) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -315,6 +374,27 @@ private fun ReferenceImageLarge(
                             color = Color.White.copy(alpha = 0.5f)
                         )
                     }
+                }
+            }
+            // Scrollbar: zeigt Position im Referenz-Clip wenn Sync aktiv
+            if (isSyncMode && referenceAudioDurationSec > 0f && visibleDurationSec > 0f) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .padding(horizontal = 4.dp)
+                ) {
+                    // Hintergrund
+                    drawRect(Color.White.copy(alpha = 0.12f))
+                    // Thumb
+                    val startFrac = (refViewOffsetSec / referenceAudioDurationSec).coerceIn(0f, 1f)
+                    val thumbFrac = (visibleDurationSec / referenceAudioDurationSec).coerceIn(0f, 1f - startFrac)
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.65f),
+                        topLeft = Offset(size.width * startFrac, 1f),
+                        size = Size(size.width * thumbFrac.coerceAtLeast(0.02f), size.height - 2f),
+                        cornerRadius = CornerRadius(3f)
+                    )
                 }
             }
         }

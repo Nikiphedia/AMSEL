@@ -3,6 +3,7 @@ package ch.etasystems.amsel.ui.compare
 import androidx.compose.ui.geometry.Rect
 import ch.etasystems.amsel.core.annotation.Annotation
 import ch.etasystems.amsel.core.annotation.MatchResult
+import ch.etasystems.amsel.core.audio.AudioDecoder
 import ch.etasystems.amsel.core.audio.AudioSegment
 import ch.etasystems.amsel.core.filter.FilterConfig
 import ch.etasystems.amsel.core.similarity.CosineSimilarityMetric
@@ -101,6 +102,9 @@ data class CompareUiState(
     val selectedMatchResult: MatchResult? = null,
     val playingReferenceId: String = "",
     val downloadingReferenceId: String = "",
+    // Referenz-Sync-Modus
+    val isSyncMode: Boolean = false,
+    val refViewOffsetSec: Float = 0f,
 
     // Vergleichsdatei (zweites Sonogramm)
     val compareFile: File? = null,
@@ -181,7 +185,10 @@ data class LocalState(
     val detectedMode: String = "",
     val isSoloMode: Boolean = false,
     val isBackgroundScanning: Boolean = false,
-    val scanDetectionCount: Int = 0
+    val scanDetectionCount: Int = 0,
+    val isSyncMode: Boolean = false,
+    val refViewOffsetSec: Float = 0f,
+    val referenceAudioDurationSec: Float = 0f
 )
 
 /**
@@ -319,7 +326,15 @@ class CompareViewModel {
         onPlaybackStopped = { viewportChanged ->
             if (viewportChanged) spectrogramManager.commitViewRange()
         }
-    )
+    ).also { manager ->
+        // Sync-Viewport-Provider fuer Referenz-Loop mit korrektem Offset (AP-75)
+        manager.syncViewportProvider = {
+            val state = _uiState.value
+            if (state.isSyncMode && state.referenceAudioDurationSec > 0f) {
+                Pair(state.refViewOffsetSec, state.viewEndSec - state.viewStartSec)
+            } else null
+        }
+    }
 
     // Manager: Projekt (Load/Save/AutoSave, Audit-Trail, Export-State)
     private val projectManager = ProjectManager(
@@ -400,7 +415,7 @@ class CompareViewModel {
                     playbackMode = playback.playbackMode,
                     isReferenceLooping = playback.isReferenceLooping,
                     activeReferenceIndex = playback.activeReferenceIndex,
-                    referenceAudioDurationSec = playback.referenceAudioDurationSec,
+                    referenceAudioDurationSec = local.referenceAudioDurationSec,
                     // Spektrogramm (21 Felder)
                     overviewSpectrogramData = spectro.overviewSpectrogramData,
                     originalOverviewData = spectro.originalOverviewData,
@@ -453,14 +468,16 @@ class CompareViewModel {
                     // Multi-Audio (2 Felder)
                     loadedAudioFiles = audio.loadedFiles,
                     activeAudioFileId = audio.activeFileId,
-                    // Lokal (7 Felder)
+                    // Lokal (9 Felder)
                     isProcessing = local.isProcessing,
                     statusText = local.statusText,
                     sidebarStatus = local.sidebarStatus,
                     detectedMode = local.detectedMode,
                     isSoloMode = local.isSoloMode,
                     isBackgroundScanning = local.isBackgroundScanning,
-                    scanDetectionCount = local.scanDetectionCount
+                    scanDetectionCount = local.scanDetectionCount,
+                    isSyncMode = local.isSyncMode,          // NEU
+                    refViewOffsetSec = local.refViewOffsetSec  // NEU
                 )
             }.collect { _uiState.value = it }
         }
@@ -915,6 +932,38 @@ class CompareViewModel {
         autoSaveProject()
     }
 
+    /**
+     * Setzt Zeitstempel fuer mehrere Audio-Dateien gleichzeitig.
+     * Laedt das Projektfile einmal, aktualisiert alle Eintraege, speichert einmal.
+     */
+    fun setMultiFileTimestamps(metadatenMap: Map<String, RecordingMetadata>) {
+        if (metadatenMap.isEmpty()) return
+        scope.launch(Dispatchers.IO) {
+            try {
+                val proj = projectManager.state.value
+                val pf = proj.projectFile ?: return@launch
+                val project = ProjectStore.load(pf)
+                val updatedFiles = project.audioFiles.map { ref ->
+                    val meta = metadatenMap[ref.id]
+                    if (meta != null) ref.copy(recordingMeta = meta) else ref
+                }
+                ProjectStore.save(project.copy(audioFiles = updatedFiles), pf)
+                projectManager.markDirty()
+                autoSaveProject()
+            } catch (e: Exception) {
+                logger.error("Zeitstempel-Kette speichern fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
+    /** Laedt die AudioReferences aus dem Projektfile (fuer UI-Abfragen). */
+    fun loadAudioReferencesMap(): Map<String, AudioReference> {
+        val pf = projectManager.state.value.projectFile ?: return emptyMap()
+        return try {
+            ProjectStore.load(pf).audioFiles.associateBy { it.id }
+        } catch (_: Exception) { emptyMap() }
+    }
+
     // ====================================================================
     // Playback
     // ====================================================================
@@ -1099,6 +1148,22 @@ class CompareViewModel {
 
     fun syncReferenceToEvent() = annotationManager.syncReferenceToEvent()
 
+    /** Sync-Modus umschalten: Referenz-Bild an Haupt-Audio-Zeitbreite koppeln. */
+    fun toggleSyncMode() {
+        _localState.update { it.copy(
+            isSyncMode = !it.isSyncMode,
+            refViewOffsetSec = 0f
+        ) }
+    }
+
+    /** Referenz-Viewport-Offset setzen (Sekunden ab Clip-Beginn). */
+    fun setRefViewOffset(sec: Float) {
+        val duration = _uiState.value.referenceAudioDurationSec
+        val visible = _uiState.value.viewEndSec - _uiState.value.viewStartSec
+        val maxOffset = (duration - visible).coerceAtLeast(0f)
+        _localState.update { it.copy(refViewOffsetSec = sec.coerceIn(0f, maxOffset)) }
+    }
+
     // Multi-Select (U3)
     fun toggleMultiSelection(annotationId: String) = annotationManager.toggleMultiSelection(annotationId)
     fun selectAllAnnotations() = annotationManager.selectAll()
@@ -1164,12 +1229,21 @@ class CompareViewModel {
         scope.launch {
             val settings = ch.etasystems.amsel.data.SettingsStore.load()
 
-            // Audio-File-Infos zusammenstellen
+            // RecordingMetadata aus Projektdatei laden
+            val audioRefMap = try {
+                projectManager.state.value.projectFile?.let { ProjectStore.load(it) }
+                    ?.audioFiles?.associateBy { it.id } ?: emptyMap()
+            } catch (_: Exception) { emptyMap() }
+
+            // Audio-File-Infos zusammenstellen (mit Aufnahmedatum/zeit)
             val audioFileInfos = audioManager.state.value.loadedFiles.map { (id, fileState) ->
+                val meta = audioRefMap[id]?.recordingMeta
                 ch.etasystems.amsel.core.export.ReportExporter.AudioFileInfo(
                     fileId = id,
                     fileName = fileState.audioFile.name,
-                    durationSec = fileState.durationSec
+                    durationSec = fileState.durationSec,
+                    recordingDate = meta?.date ?: "",
+                    recordingTime = meta?.time ?: ""
                 )
             }
             val totalDuration = audioFileInfos.sumOf { it.durationSec.toDouble() }.toFloat()
@@ -1321,8 +1395,34 @@ class CompareViewModel {
     // Referenz-Sonogramm — delegiert an AnnotationManager
     // ====================================================================
 
-    fun selectMatchResult(result: MatchResult) = annotationManager.selectMatchResult(result)
-    fun clearMatchResult() = annotationManager.clearMatchResult()
+    fun selectMatchResult(result: MatchResult) {
+        annotationManager.selectMatchResult(result)
+        // Dauer fuer Sync-Viewport: ueber eigenen AudioDecoder lesen (unterstuetzt MP3/FLAC/WAV)
+        if (result.audioUrl.isNotBlank()) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val audioFile = java.io.File(result.audioUrl)
+                    if (audioFile.exists()) {
+                        val segment = AudioDecoder.decode(audioFile)
+                        val durationSec = segment.durationSec
+                        if (durationSec > 0f) {
+                            _localState.update { it.copy(referenceAudioDurationSec = durationSec) }
+                        }
+                    }
+                } catch (_: Exception) {
+                    // noop — Dauer bleibt 0 wenn File nicht lesbar
+                }
+            }
+        }
+    }
+    fun clearMatchResult() {
+        annotationManager.clearMatchResult()
+        _localState.update { it.copy(
+            isSyncMode = false,
+            refViewOffsetSec = 0f,
+            referenceAudioDurationSec = 0f
+        ) }
+    }
 
     fun clearCompareFile() {
         audioManager.clearCompareFile()

@@ -76,6 +76,7 @@ fun CompareScreen(
     var showNewProjectDialog by remember { mutableStateOf(false) }
     var pendingMetadataFileId by remember { mutableStateOf<String?>(null) }
     var pendingMetadataFileName by remember { mutableStateOf("") }
+    var showZeitstempelDialog by remember { mutableStateOf(false) }
     val candidatePanelState = remember { UndockPanelState("Kandidaten", initialWidth = 400, initialHeight = 600) }
     val audiofilesPanelState = remember { UndockPanelState("Audiofiles", initialWidth = 350, initialHeight = 400) }
 
@@ -151,6 +152,37 @@ fun CompareScreen(
                 pendingMetadataFileName = ""
             }
         )
+    }
+
+    // Zeitstempel-Kette Dialog
+    if (showZeitstempelDialog) {
+        // Bestehende Metadaten aus Projektdatei laden
+        val audioRefMap = remember {
+            try {
+                viewModel.loadAudioReferencesMap()
+            } catch (_: Exception) { emptyMap() }
+        }
+        // Eintraege zusammenstellen: alle geladenen Files, sortiert nach Dateiname
+        val eintraege = uiState.loadedAudioFiles.entries
+            .sortedBy { it.value.audioFile.name }
+            .map { (id, fileState) ->
+                ch.etasystems.amsel.ui.settings.ZeitstempelEintrag(
+                    fileId = id,
+                    fileName = fileState.audioFile.name,
+                    durationSec = fileState.durationSec,
+                    bestehendesMeta = audioRefMap[id]?.recordingMeta
+                )
+            }
+        if (eintraege.isNotEmpty()) {
+            ch.etasystems.amsel.ui.settings.ZeitstempelDialog(
+                eintraege = eintraege,
+                onDismiss = { showZeitstempelDialog = false },
+                onConfirm = { metadatenMap ->
+                    viewModel.setMultiFileTimestamps(metadatenMap)
+                    showZeitstempelDialog = false
+                }
+            )
+        }
     }
 
     // Referenz-Editor (Fullscreen-Overlay)
@@ -409,7 +441,9 @@ fun CompareScreen(
             onCreateAnnotation = viewModel::createAnnotationFromSelection,
             onToggleFilter = { selectedTab = if (selectedTab == 0) -1 else 0 },
             onSearch = { viewModel.searchSimilar() },
-            onSync = { viewModel.syncReferenceToEvent() },
+            onSync = { viewModel.toggleSyncMode() },
+            isSyncMode = uiState.isSyncMode,
+            hasSelectedReference = uiState.selectedMatchResult != null,
             editMode = uiState.editMode,
             onToggleEditMode = { viewModel.toggleEditMode() },
             isSoloMode = uiState.isSoloMode,
@@ -446,6 +480,8 @@ fun CompareScreen(
             onPlayPause = viewModel::togglePlayPause,
             onStop = viewModel::stopPlayback,
             isLooping = uiState.isLooping,
+            isReferenceLooping = uiState.isReferenceLooping,
+            playbackMode = uiState.playbackMode,
             onToggleLoop = { viewModel.toggleLoop() },
             onDetectEvents = {
                 // BirdNET Full-Scan wenn verfuegbar, sonst lokale Event-Detection
@@ -730,6 +766,7 @@ fun CompareScreen(
                                             viewModel.importAudio(chooser.selectedFile)
                                         }
                                     },
+                                    onShowZeitstempel = { showZeitstempelDialog = true },
                                     isFocused = activePanelIndex == 3
                                 )
                             }
@@ -1242,6 +1279,10 @@ fun CompareScreen(
                             referencePlaybackPositionSec = if (uiState.playbackMode == PlaybackMode.REFERENCE) uiState.playbackPositionSec else 0f,
                             referenceAudioDurationSec = uiState.referenceAudioDurationSec,
                             speciesLocale = speciesLocale,
+                            isSyncMode = uiState.isSyncMode,
+                            refViewOffsetSec = uiState.refViewOffsetSec,
+                            visibleDurationSec = uiState.viewEndSec - uiState.viewStartSec,
+                            onRefOffsetChange = viewModel::setRefViewOffset,
                             modifier = Modifier.fillMaxWidth().height(galleryHeight.dp)
                         )
                     }

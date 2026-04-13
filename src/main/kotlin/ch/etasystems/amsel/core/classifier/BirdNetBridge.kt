@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 import javax.sound.sampled.AudioFileFormat
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
@@ -228,7 +228,7 @@ object BirdNetBridge {
      */
     fun isDaemonRunning(): Boolean {
         return try {
-            val conn = URL("$DAEMON_URL/health").openConnection() as HttpURLConnection
+            val conn = URI("$DAEMON_URL/health").toURL().openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.connectTimeout = 2000
             conn.readTimeout = 2000
@@ -310,7 +310,7 @@ object BirdNetBridge {
     fun stopDaemon() {
         try {
             if (isDaemonRunning()) {
-                val conn = URL("$DAEMON_URL/shutdown").openConnection() as HttpURLConnection
+                val conn = URI("$DAEMON_URL/shutdown").toURL().openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.connectTimeout = 3000
                 conn.readTimeout = 3000
@@ -345,7 +345,7 @@ object BirdNetBridge {
         lon: Float
     ): List<BridgeResult>? {
         return try {
-            val conn = URL("$DAEMON_URL/classify").openConnection() as HttpURLConnection
+            val conn = URI("$DAEMON_URL/classify").toURL().openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.connectTimeout = 5000
             conn.readTimeout = 120_000 // Lange Dateien brauchen Zeit

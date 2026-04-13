@@ -5,7 +5,7 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 
 /**
  * Laedt ONNX-Modelle und Label-Dateien aus dem Internet herunter.
@@ -51,7 +51,7 @@ object ModelDownloader {
             val maxRedirects = 5
 
             while (redirectCount < maxRedirects) {
-                connection = URL(currentUrl).openConnection() as HttpURLConnection
+                connection = URI(currentUrl).toURL().openConnection() as HttpURLConnection
                 connection.connectTimeout = 15_000
                 connection.readTimeout = 30_000
                 connection.instanceFollowRedirects = false  // Manuell handlen

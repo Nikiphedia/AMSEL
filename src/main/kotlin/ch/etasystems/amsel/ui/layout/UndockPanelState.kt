@@ -20,9 +20,20 @@ class UndockPanelState(
     var isUndocked by mutableStateOf(false)
         private set
 
+    /** AWT-Window-Referenz des abgedockten Fensters (null wenn eingedockt). */
+    var awtWindow: java.awt.Window? = null
+
     /** Dockt das Panel ab (oeffnet als Fenster). */
     fun undock() { isUndocked = true }
 
     /** Dockt das Panel wieder ein (schliesst Fenster, zeigt in Sidebar). */
-    fun dock() { isUndocked = false }
+    fun dock() {
+        isUndocked = false
+        awtWindow = null
+    }
+
+    /** Bringt das abgedockte Fenster in den Vordergrund. */
+    fun bringToFront() {
+        awtWindow?.toFront()
+    }
 }

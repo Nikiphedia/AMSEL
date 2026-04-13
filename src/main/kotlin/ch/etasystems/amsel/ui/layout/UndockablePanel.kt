@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpSize
@@ -36,7 +37,7 @@ fun UndockablePanel(
         // --- Platzhalter in der Sidebar ---
         UndockedPlaceholder(
             title = state.title,
-            onClick = { /* TODO: toFront() — AWT-Window-Referenz noetig, siehe Handover */ }
+            onClick = { state.bringToFront() }
         )
 
         // --- Eigenes Fenster ---
@@ -50,6 +51,10 @@ fun UndockablePanel(
             resizable = true,
             alwaysOnTop = false
         ) {
+            // AWT-Window-Referenz fuer toFront() speichern
+            LaunchedEffect(Unit) {
+                state.awtWindow = window
+            }
             AmselTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Column {
@@ -102,7 +107,7 @@ fun UndockablePanel(
 
 /**
  * Platzhalter in der Sidebar wenn Panel abgedockt ist.
- * Klick soll das Fenster in den Vordergrund bringen (TODO: toFront() in AP-35/36).
+ * Klick bringt das abgedockte Fenster in den Vordergrund via UndockPanelState.bringToFront().
  */
 @Composable
 fun UndockedPlaceholder(

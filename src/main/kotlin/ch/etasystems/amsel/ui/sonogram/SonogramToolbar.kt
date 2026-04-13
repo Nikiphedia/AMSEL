@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import ch.etasystems.amsel.ui.compare.PlaybackMode
 
 /**
  * Toolbar mit Import, Playback, Zoom, Auswahl, Markierung, Filter,
@@ -35,6 +36,8 @@ fun SonogramToolbar(
     onToggleFilter: () -> Unit,
     onSearch: () -> Unit = {},
     onSync: () -> Unit = {},
+    isSyncMode: Boolean = false,           // NEU
+    hasSelectedReference: Boolean = false, // NEU
     editMode: Boolean = false,
     onToggleEditMode: () -> Unit = {},
     isSoloMode: Boolean = false,
@@ -53,6 +56,8 @@ fun SonogramToolbar(
     onPlayPause: () -> Unit = {},
     onStop: () -> Unit = {},
     isLooping: Boolean = false,
+    isReferenceLooping: Boolean = false,
+    playbackMode: PlaybackMode = PlaybackMode.MAIN,
     onToggleLoop: () -> Unit = {},
     onDetectEvents: () -> Unit = {},
     onNormalize: () -> Unit = {},
@@ -206,12 +211,13 @@ fun SonogramToolbar(
                 Icon(Icons.Default.Stop, contentDescription = "Stopp")
             }
 
-            // Loop-Toggle (AP-29)
+            // Loop-Toggle (AP-29, AP-75)
+            val effektivLooping = if (playbackMode == PlaybackMode.REFERENCE) isReferenceLooping else isLooping
             IconButton(onClick = onToggleLoop, enabled = hasAudio) {
                 Icon(
                     Icons.Default.Autorenew,
-                    contentDescription = if (isLooping) "Loop aus" else "Loop ein",
-                    tint = if (isLooping) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                    contentDescription = if (effektivLooping) "Loop aus" else "Loop ein",
+                    tint = if (effektivLooping) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -387,19 +393,22 @@ fun SonogramToolbar(
                 }
             }
 
-            // Sync: Viewport auf aktive Annotation ausrichten
-            if (hasActiveAnnotation) {
+            // Sync: Referenz-Zeitachse mit Haupt-Audio koppeln (Toggle)
+            if (hasSelectedReference) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text("Ansicht auf Markierung synchronisieren") } },
+                    tooltip = { PlainTooltip {
+                        Text(if (isSyncMode) "Referenz-Sync aktiv (Klick zum Deaktivieren)" else "Referenz-Sync aktivieren")
+                    } },
                     state = rememberTooltipState()
                 ) {
                     IconButton(onClick = onSync, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Default.Sync,
-                            contentDescription = "Sync",
+                            contentDescription = if (isSyncMode) "Sync aktiv" else "Sync",
                             modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (isSyncMode) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
