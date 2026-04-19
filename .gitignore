@@ -41,3 +41,12 @@ birdnet-V3.0-dev-main/
 
 # Report-Outputs
 report/
+
+# Interne Arbeits-Dokumentation (Master/Worker-Workflow, lokal)
+HANDOVER_*.md
+WORKER_*_PROMPT.md
+MASTER_HANDOVER_*.md
+MASTER_BRIEFING.md
+Bugreport*.md
+Historisch/
+.claude/worktrees/
