@@ -5,8 +5,11 @@ import ch.etasystems.amsel.core.audio.AudioSegment
 import ch.etasystems.amsel.core.audio.SliceManager
 import ch.etasystems.amsel.core.audio.PcmCacheFile
 import ch.etasystems.amsel.core.spectrogram.ChunkedSpectrogram
+import ch.etasystems.amsel.core.spectrogram.FftSize
+import ch.etasystems.amsel.core.spectrogram.HopFraction
 import ch.etasystems.amsel.core.spectrogram.MelSpectrogram
 import ch.etasystems.amsel.core.spectrogram.SpectrogramData
+import ch.etasystems.amsel.core.spectrogram.WindowFunction
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -86,6 +89,9 @@ class AudioManager(
         sliceLengthMin: Float,
         sliceOverlapSec: Float,
         initialZoomDurationSec: Float,
+        specWindowType: WindowFunction = WindowFunction.HANN,
+        specFftSize: FftSize = FftSize.FFT_4096,
+        specHopFraction: HopFraction = HopFraction.HOP_1_8,
         fileId: String = java.util.UUID.randomUUID().toString()
     ): ImportResult {
         // 1. Dekodieren
@@ -151,11 +157,12 @@ class AudioManager(
         onProgressUpdate("Berechne Zoom-Ansicht...")
         val zoomedData = if (pcmCache != null) {
             val rangeSeg = pcmCache.readRange(0f, initialEnd)
-            val spec = MelSpectrogram.auto(rangeSeg.sampleRate, maxFreqHz)
+            val spec = MelSpectrogram.auto(rangeSeg.sampleRate, maxFreqHz, specWindowType, specFftSize, specHopFraction)
             spec.compute(rangeSeg.samples)
         } else {
             ChunkedSpectrogram.computeRegion(
-                actualOverview.audioSegment!!, 0f, initialEnd, maxFreqHz
+                actualOverview.audioSegment!!, 0f, initialEnd, maxFreqHz,
+                specWindowType, specFftSize, specHopFraction
             )
         }
 

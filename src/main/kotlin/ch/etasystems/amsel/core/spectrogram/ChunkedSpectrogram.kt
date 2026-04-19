@@ -120,10 +120,13 @@ object ChunkedSpectrogram {
         segment: AudioSegment,
         startSec: Float,
         endSec: Float,
-        maxFreqHz: Float = 16000f
+        maxFreqHz: Float = 16000f,
+        windowType: WindowFunction = WindowFunction.HANN,
+        fftSize: FftSize = FftSize.FFT_4096,
+        hopFraction: HopFraction = HopFraction.HOP_1_8
     ): SpectrogramData {
         val sub = segment.subRangeSec(startSec, endSec)
-        val spectrogram = MelSpectrogram.auto(segment.sampleRate, maxFreqHz)
+        val spectrogram = MelSpectrogram.auto(segment.sampleRate, maxFreqHz, windowType, fftSize, hopFraction)
         return spectrogram.compute(sub.samples)
     }
 
@@ -135,10 +138,13 @@ object ChunkedSpectrogram {
         file: File,
         startSec: Float,
         endSec: Float,
-        maxFreqHz: Float = 16000f
+        maxFreqHz: Float = 16000f,
+        windowType: WindowFunction = WindowFunction.HANN,
+        fftSize: FftSize = FftSize.FFT_4096,
+        hopFraction: HopFraction = HopFraction.HOP_1_8
     ): SpectrogramData {
         val segment = AudioDecoder.decodeRange(file, startSec, endSec)
-        val spectrogram = MelSpectrogram.auto(segment.sampleRate, maxFreqHz)
+        val spectrogram = MelSpectrogram.auto(segment.sampleRate, maxFreqHz, windowType, fftSize, hopFraction)
         return spectrogram.compute(segment.samples)
     }
 

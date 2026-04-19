@@ -49,7 +49,7 @@ object ReportExporter {
         val sorted = sortAnnotations(filteredAnnotations, fileInfoMap, config.sortOrder)
 
         val bom = "\uFEFF"
-        val header = "Nr;Datei;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung"
+        val header = "Nr;Datei;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung;Peak (Hz);Center (Hz);LowFreq-3dB (Hz);HighFreq-3dB (Hz);Bandwidth-3dB (Hz);SNR (dB)"
 
         val lines = sorted.mapIndexed { idx, ann ->
             val fileInfo = fileInfoMap[ann.audioFileId]
@@ -77,6 +77,15 @@ object ReportExporter {
             } else ""
             val notes = ann.notes.replace(";", ",").replace("\n", " ")
 
+            // Akustische Messwerte (leer wenn nicht berechnet)
+            val m = ann.metrics
+            val peakHz = if (m.isComputed) String.format(java.util.Locale.US, "%.0f", m.peakFreqHz) else ""
+            val centerHz = if (m.isComputed) String.format(java.util.Locale.US, "%.0f", m.centerFreqHz) else ""
+            val lowHz3db = if (m.isComputed) String.format(java.util.Locale.US, "%.0f", m.lowFreq3dbHz) else ""
+            val highHz3db = if (m.isComputed) String.format(java.util.Locale.US, "%.0f", m.highFreq3dbHz) else ""
+            val bw3db = if (m.isComputed) String.format(java.util.Locale.US, "%.0f", m.bandwidth3dbHz) else ""
+            val snrDb = if (m.isComputed) String.format(java.util.Locale.US, "%.1f", m.snrDb) else ""
+
             listOf(
                 idx + 1, fileName, ann.label,
                 bestCandidate?.scientificName ?: "",
@@ -85,7 +94,8 @@ object ReportExporter {
                 String.format(java.util.Locale.US, "%.2f", ann.durationSec),
                 String.format(java.util.Locale.US, "%.0f", ann.lowFreqHz),
                 String.format(java.util.Locale.US, "%.0f", ann.highFreqHz),
-                confidence, source, status, verifiedBy, verifiedAt, notes
+                confidence, source, status, verifiedBy, verifiedAt, notes,
+                peakHz, centerHz, lowHz3db, highHz3db, bw3db, snrDb
             ).joinToString(";")
         }
 
@@ -93,7 +103,7 @@ object ReportExporter {
         logger.info("CSV exportiert: {} ({} Eintraege)", file.absolutePath, lines.size)
     }
 
-    private fun sortAnnotations(
+    internal fun sortAnnotations(
         annotations: List<Annotation>,
         fileInfoMap: Map<String, AudioFileInfo>,
         sortOrder: ReportSortOrder
@@ -216,8 +226,16 @@ object ReportExporter {
             yPos -= lineHeight * 1.5f
 
             // Tabellen-Header (Landscape A4 = 842pt breit, 50pt Margin = 742pt nutzbar)
-            val colWidths = floatArrayOf(25f, 80f, 110f, 55f, 55f, 45f, 45f, 50f, 55f, 60f, 60f, 102f)
-            val colHeaders = arrayOf("Nr", "Datei", "Art", "Start", "Ende", "Dauer", "Konf.", "Quelle", "Status", "Verif. von", "Verif. am", "Bemerkung")
+            // Bestehende Spalten proportional gekuerzt um Platz fuer 6 Metriken-Spalten zu machen.
+            // Bemerkung: 102pt → 60pt (Task-Vorgabe). Uebrige 11 Spalten: Faktor 0.758.
+            val colWidths = floatArrayOf(
+                19f, 61f, 83f, 42f, 42f, 34f, 34f, 38f, 42f, 45f, 45f, 60f,
+                32f, 37f, 32f, 32f, 32f, 30f
+            )
+            val colHeaders = arrayOf(
+                "Nr", "Datei", "Art", "Start", "Ende", "Dauer", "Konf.", "Quelle", "Status", "Verif. von", "Verif. am", "Bemerkung",
+                "Peak", "Center", "f-", "f+", "BW", "SNR"
+            )
 
             content.setFont(fontBold, fontSize)
             var xPos = margin
@@ -249,7 +267,7 @@ object ReportExporter {
                 }
 
                 val fileInfo = fileInfoMap[ann.audioFileId]
-                val shortFileName = (fileInfo?.fileName ?: "").take(15)
+                val shortFileName = (fileInfo?.fileName ?: "").take(12)
                 val bestCandidate = ann.candidates.maxByOrNull { it.confidence }
                 val conf = bestCandidate?.confidence?.let { "%.0f%%".format(it * 100) } ?: ""
                 val source = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
@@ -265,18 +283,27 @@ object ReportExporter {
                     hasUncertain -> "unklar"
                     else -> "offen"
                 }
-                val verifiedBy = verifiedCandidate?.verifiedBy ?: ""
+                val verifiedBy = (verifiedCandidate?.verifiedBy ?: "").take(8)
                 val verifiedAtStr = if (verifiedCandidate != null && verifiedCandidate.verifiedAt > 0) {
                     java.time.Instant.ofEpochMilli(verifiedCandidate.verifiedAt)
                         .atZone(java.time.ZoneId.systemDefault())
                         .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yy HH:mm"))
                 } else ""
-                val pdfNotes = ann.notes.take(40)
+                val pdfNotes = ann.notes.take(12)
+
+                // Akustische Messwerte (leer wenn nicht berechnet)
+                val m = ann.metrics
+                val pdfPeak = if (m.isComputed) "%.0f".format(m.peakFreqHz) else ""
+                val pdfCenter = if (m.isComputed) "%.0f".format(m.centerFreqHz) else ""
+                val pdfLow3db = if (m.isComputed) "%.0f".format(m.lowFreq3dbHz) else ""
+                val pdfHigh3db = if (m.isComputed) "%.0f".format(m.highFreq3dbHz) else ""
+                val pdfBw = if (m.isComputed) "%.0f".format(m.bandwidth3dbHz) else ""
+                val pdfSnr = if (m.isComputed) "%.1f".format(m.snrDb) else ""
 
                 val colValues = arrayOf(
                     "${idx + 1}",
                     shortFileName,
-                    ann.label.take(18),
+                    ann.label.take(16),
                     "%.1f".format(ann.startTimeSec),
                     "%.1f".format(ann.endTimeSec),
                     "%.1f".format(ann.durationSec),
@@ -285,7 +312,8 @@ object ReportExporter {
                     status,
                     verifiedBy,
                     verifiedAtStr,
-                    pdfNotes
+                    pdfNotes,
+                    pdfPeak, pdfCenter, pdfLow3db, pdfHigh3db, pdfBw, pdfSnr
                 )
 
                 xPos = margin

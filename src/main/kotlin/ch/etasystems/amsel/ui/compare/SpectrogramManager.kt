@@ -361,14 +361,24 @@ class SpectrogramManager(
         segment: AudioSegment?, cache: PcmCacheFile?, file: File?,
         startSec: Float, endSec: Float
     ): SpectrogramData {
+        val settings = ch.etasystems.amsel.data.SettingsStore.load()
         return if (segment != null) {
-            ChunkedSpectrogram.computeRegion(segment, startSec, endSec, maxFreqHz)
+            ChunkedSpectrogram.computeRegion(
+                segment, startSec, endSec, maxFreqHz,
+                settings.specWindowType, settings.specFftSize, settings.specHopFraction
+            )
         } else if (cache != null) {
             val rangeSeg = cache.readRange(startSec, endSec)
-            val spec = MelSpectrogram.auto(rangeSeg.sampleRate, maxFreqHz)
+            val spec = MelSpectrogram.auto(
+                rangeSeg.sampleRate, maxFreqHz,
+                settings.specWindowType, settings.specFftSize, settings.specHopFraction
+            )
             spec.compute(rangeSeg.samples)
         } else {
-            ChunkedSpectrogram.computeRegionFromFile(file!!, startSec, endSec, maxFreqHz)
+            ChunkedSpectrogram.computeRegionFromFile(
+                file!!, startSec, endSec, maxFreqHz,
+                settings.specWindowType, settings.specFftSize, settings.specHopFraction
+            )
         }
     }
 

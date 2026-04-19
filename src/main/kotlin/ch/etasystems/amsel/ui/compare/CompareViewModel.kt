@@ -157,7 +157,10 @@ data class CompareUiState(
 
     // Live-Scan: Hintergrund-Scan laeuft + laufende Event-Anzahl
     val isBackgroundScanning: Boolean = false,
-    val scanDetectionCount: Int = 0
+    val scanDetectionCount: Int = 0,
+
+    // Annotations-Statistiken pro Audio-Datei (fileId -> Pair(gesamt, verifiziert))
+    val annotationStatsPerFile: Map<String, Pair<Int, Int>> = emptyMap()
 ) {
     val activeAnnotation: Annotation?
         get() = annotations.find { it.id == activeAnnotationId }
@@ -442,6 +445,16 @@ class CompareViewModel {
                     annotations = annotation.annotations.filter {
                         it.audioFileId == (audio.activeFileId ?: "") || it.audioFileId.isEmpty()
                     },
+                    annotationStatsPerFile = run {
+                        val alleAnnotationen = annotation.annotations
+                        audio.loadedFiles.keys.associateWith { fileId ->
+                            val fuerDatei = alleAnnotationen.filter {
+                                it.audioFileId == fileId ||
+                                (it.audioFileId.isEmpty() && fileId == audio.activeFileId)
+                            }
+                            Pair(fuerDatei.size, fuerDatei.count { it.verified })
+                        }
+                    },
                     activeAnnotationId = annotation.activeAnnotationId,
                     editingLabelId = annotation.editingLabelId,
                     selectedAnnotationIds = annotation.selectedAnnotationIds,
@@ -664,7 +677,7 @@ class CompareViewModel {
                             continue
                         }
                     }
-                    importAudioSuspend(resolved)
+                    importAudioSuspend(resolved, fileId = audioRef.id)
                 }
 
                 // Volume wiederherstellen
@@ -727,6 +740,7 @@ class CompareViewModel {
                 val maxFreqHz = spectrogramManager.maxFreqHz
                 val segment = fileState.audioSegment
                 val pcmCache = fileState.pcmCache
+                val switchSettings = SettingsStore.load()
 
                 if (segment != null) {
                     val overview = ch.etasystems.amsel.core.spectrogram.ChunkedSpectrogram
@@ -734,7 +748,10 @@ class CompareViewModel {
                     val end = fileState.sliceManager?.slices?.firstOrNull()?.endSec
                         ?: fileState.durationSec.coerceAtMost(INITIAL_ZOOM_DURATION_SEC)
                     val zoomedData = ch.etasystems.amsel.core.spectrogram.ChunkedSpectrogram
-                        .computeRegion(segment, 0f, end, maxFreqHz)
+                        .computeRegion(
+                            segment, 0f, end, maxFreqHz,
+                            switchSettings.specWindowType, switchSettings.specFftSize, switchSettings.specHopFraction
+                        )
                     spectrogramManager.setInitialSpectrograms(
                         overviewData = overview.spectrogramData,
                         zoomedData = zoomedData,
@@ -749,7 +766,8 @@ class CompareViewModel {
                         ?: fileState.durationSec.coerceAtMost(INITIAL_ZOOM_DURATION_SEC)
                     val zoomedSeg = pcmCache.readRange(0f, end)
                     val spec = ch.etasystems.amsel.core.spectrogram.MelSpectrogram.auto(
-                        zoomedSeg.sampleRate, maxFreqHz
+                        zoomedSeg.sampleRate, maxFreqHz,
+                        switchSettings.specWindowType, switchSettings.specFftSize, switchSettings.specHopFraction
                     )
                     val zoomedData = spec.compute(zoomedSeg.samples)
                     spectrogramManager.setInitialSpectrograms(
@@ -862,16 +880,16 @@ class CompareViewModel {
         }
     }
 
-    fun importAudio(file: File) {
+    fun importAudio(file: File, existingFileId: String? = null) {
         playbackManager.stopPlayback()
-        scope.launch { importAudioSuspend(file) }
+        scope.launch { importAudioSuspend(file, fileId = existingFileId ?: java.util.UUID.randomUUID().toString()) }
     }
 
     /**
      * Suspend-Variante des Audio-Imports. Wird direkt von loadProject() aufgerufen
      * damit kein separater scope.launch die Reihenfolge mit restoreFromProject() zerstoert.
      */
-    private suspend fun importAudioSuspend(file: File) {
+    private suspend fun importAudioSuspend(file: File, fileId: String = java.util.UUID.randomUUID().toString()) {
         _localState.update { it.copy(isProcessing = true, sidebarStatus = "Dekodiere Audio...") }
 
         try {
@@ -885,7 +903,11 @@ class CompareViewModel {
                 shortFileStartPct = settings.shortFileStartPct,
                 sliceLengthMin = settings.sliceLengthMin,
                 sliceOverlapSec = settings.sliceOverlapSec,
-                initialZoomDurationSec = INITIAL_ZOOM_DURATION_SEC
+                initialZoomDurationSec = INITIAL_ZOOM_DURATION_SEC,
+                specWindowType = settings.specWindowType,
+                specFftSize = settings.specFftSize,
+                specHopFraction = settings.specHopFraction,
+                fileId = fileId
             )
 
             // Spektrogramm setzen (immer fuer die aktive Datei)
@@ -962,6 +984,141 @@ class CompareViewModel {
         return try {
             ProjectStore.load(pf).audioFiles.associateBy { it.id }
         } catch (_: Exception) { emptyMap() }
+    }
+
+    /**
+     * Importiert einen GPX-Tracklog und setzt GPS-Koordinaten fuer alle geladenen
+     * Audio-Dateien die ein Aufnahmedatum und eine Uhrzeit haben.
+     * Laedt das Projektfile einmal, aktualisiert alle Eintraege, speichert einmal.
+     */
+    fun importGpxTrack(datei: java.io.File) {
+        scope.launch(Dispatchers.IO) {
+            val punkte = try {
+                ch.etasystems.amsel.core.export.GpxImporter.lesePunkte(datei)
+            } catch (e: Exception) {
+                _localState.update { it.copy(statusText = "GPX-Lesefehler: ${e.message}") }
+                return@launch
+            }
+
+            if (punkte.isEmpty()) {
+                _localState.update { it.copy(statusText = "GPX-Datei enthaelt keine Trackpunkte") }
+                return@launch
+            }
+
+            val pf = projectManager.state.value.projectFile ?: run {
+                _localState.update { it.copy(statusText = "Kein Projekt geladen") }
+                return@launch
+            }
+
+            val loadedFiles = audioManager.state.value.loadedFiles
+            val audioRefMap = try {
+                ProjectStore.load(pf).audioFiles.associateBy { it.id }
+            } catch (e: Exception) {
+                _localState.update { it.copy(statusText = "Projektfehler: ${e.message}") }
+                return@launch
+            }
+
+            var gesetzt = 0
+            val metadatenMap = mutableMapOf<String, RecordingMetadata>()
+
+            for ((fileId, _) in loadedFiles) {
+                val meta = audioRefMap[fileId]?.recordingMeta ?: RecordingMetadata()
+                val datum   = meta.date
+                val uhrzeit = meta.time
+                if (datum.isBlank() || uhrzeit.isBlank()) continue
+
+                val zuordnung = ch.etasystems.amsel.core.export.GpxImporter
+                    .findeNaechstenPunkt(punkte, datum, uhrzeit) ?: continue
+
+                metadatenMap[fileId] = meta.copy(
+                    latitude  = zuordnung.lat,
+                    longitude = zuordnung.lon,
+                    altitude  = zuordnung.alt
+                )
+                gesetzt++
+            }
+
+            if (gesetzt > 0) {
+                try {
+                    val project = ProjectStore.load(pf)
+                    val updatedFiles = project.audioFiles.map { ref ->
+                        val meta = metadatenMap[ref.id]
+                        if (meta != null) ref.copy(recordingMeta = meta) else ref
+                    }
+                    ProjectStore.save(project.copy(audioFiles = updatedFiles), pf)
+                    projectManager.markDirty()
+                    autoSaveProject()
+                } catch (e: Exception) {
+                    _localState.update { it.copy(statusText = "Speicherfehler: ${e.message}") }
+                    return@launch
+                }
+            }
+
+            _localState.update {
+                it.copy(statusText = "GPX-Import: GPS fuer $gesetzt von ${loadedFiles.size} Dateien gesetzt")
+            }
+        }
+    }
+
+    /**
+     * Importiert eine Raven Pro Selection Table (.txt, TSV) als Annotationen fuer die
+     * aktive Audio-Datei. Enthaelt die Tabelle GPS-Spalten, werden diese als Aufnahme-
+     * Metadaten der aktiven Datei gesetzt.
+     */
+    fun importRavenSelections(datei: java.io.File) {
+        scope.launch(Dispatchers.IO) {
+            val aktiveId = audioManager.state.value.activeFileId ?: run {
+                _localState.update { it.copy(statusText = "Kein Audio geladen") }
+                return@launch
+            }
+
+            val ergebnis = try {
+                ch.etasystems.amsel.core.export.RavenSelectionImporter.importiere(datei, aktiveId)
+            } catch (e: Exception) {
+                _localState.update { it.copy(statusText = "Raven-Lesefehler: ${e.message}") }
+                return@launch
+            }
+
+            if (ergebnis.annotationen.isEmpty() && ergebnis.fehler.isNotEmpty()) {
+                _localState.update { it.copy(statusText = "Raven-Import: ${ergebnis.fehler.first()}") }
+                return@launch
+            }
+
+            if (ergebnis.annotationen.isNotEmpty()) {
+                annotationManager.addAnnotations(ergebnis.annotationen)
+                projectManager.markDirty()
+                autoSaveProject()
+            }
+
+            if (ergebnis.gpsMetadata != null) {
+                val pf = projectManager.state.value.projectFile
+                if (pf != null) {
+                    try {
+                        val project = ProjectStore.load(pf)
+                        val updatedFiles = project.audioFiles.map { ref ->
+                            if (ref.id == aktiveId) {
+                                val existing = ref.recordingMeta ?: RecordingMetadata()
+                                ref.copy(recordingMeta = existing.copy(
+                                    latitude  = ergebnis.gpsMetadata.latitude,
+                                    longitude = ergebnis.gpsMetadata.longitude,
+                                    altitude  = ergebnis.gpsMetadata.altitude
+                                ))
+                            } else ref
+                        }
+                        ProjectStore.save(project.copy(audioFiles = updatedFiles), pf)
+                        projectManager.markDirty()
+                    } catch (_: Exception) {
+                        // GPS-Fehler nicht fatal — Annotationen wurden bereits gespeichert
+                    }
+                }
+            }
+
+            val gpsHinweis = if (ergebnis.gpsMetadata != null) " (GPS gesetzt)" else ""
+            val fehlerHinweis = if (ergebnis.fehler.isNotEmpty()) ", ${ergebnis.fehler.size} Zeile(n) uebersprungen" else ""
+            _localState.update {
+                it.copy(statusText = "Raven-Import: ${ergebnis.annotationen.size} Annotationen$gpsHinweis$fehlerHinweis")
+            }
+        }
     }
 
     // ====================================================================
@@ -1316,6 +1473,17 @@ class CompareViewModel {
                     _localState.update { it.copy(statusText = "CSV-Fehler: ${e.message}") }
                 }
             }
+
+            // Raven Selection Table (fuer Cornell Raven + Vogelwarte bioacoustic-tools)
+            val ravenFile = showReportSaveDialog("Raven Selection Table speichern", "$baseName.selections.txt", "txt")
+            if (ravenFile != null) {
+                try {
+                    ch.etasystems.amsel.core.export.RavenSelectionExporter.export(ravenFile, config, audioRefMap)
+                    _localState.update { it.copy(statusText = "Raven-Tabelle exportiert: ${ravenFile.name}") }
+                } catch (e: Exception) {
+                    _localState.update { it.copy(statusText = "Raven-Fehler: ${e.message}") }
+                }
+            }
         }
     }
 
@@ -1352,8 +1520,9 @@ class CompareViewModel {
         // Wenn Datei geladen: bei geaenderter Mindestdauer neu aufbauen
         val state = _uiState.value
         val file = state.audioFile
+        val aktiveFileId = state.activeAudioFileId
         if (file != null) {
-            importAudio(file)
+            importAudio(file, existingFileId = aktiveFileId)
         } else {
             _localState.update {
                 it.copy(statusText = "Einstellungen geladen (${newMetric.displayName}, max ${settings.maxFrequencyHz} Hz)")
@@ -1634,7 +1803,7 @@ class CompareViewModel {
         val data = s.zoomedSpectrogramData ?: return
         val startSec = (timeSec - 1f).coerceAtLeast(0f)
         val endSec = (timeSec + 1f).coerceAtMost(s.totalDurationSec)
-        annotationManager.createAnnotationAtRange(startSec, endSec, data.fMin, data.fMax)
+        annotationManager.createAnnotationAtRange(startSec, endSec, data.fMin, data.fMax, spectrogramData = data)
     }
 
     /** Viewport auf eine bestimmte Zeit zentrieren */

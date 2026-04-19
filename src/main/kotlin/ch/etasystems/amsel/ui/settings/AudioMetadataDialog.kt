@@ -21,6 +21,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun AudioMetadataDialog(
     fileName: String,
+    audioDurationSec: Float = 0f,
     onDismiss: () -> Unit,
     onConfirm: (RecordingMetadata) -> Unit
 ) {
@@ -31,6 +32,8 @@ fun AudioMetadataDialog(
     var latitude by remember { mutableStateOf("") }
     var longitude by remember { mutableStateOf("") }
     var altitude by remember { mutableStateOf("") }
+    var isMerlinDatei by remember { mutableStateOf(false) }
+    var merlinFehler by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -42,6 +45,70 @@ fun AudioMetadataDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
+
+                // Merlin-Checkbox
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = isMerlinDatei,
+                        onCheckedChange = { checked ->
+                            isMerlinDatei = checked
+                            merlinFehler = ""
+                            if (checked) {
+                                // Muster suchen: YYYY-MM-DD HH_MM im Dateinamen
+                                val muster = Regex("""(\d{4}-\d{2}-\d{2}) (\d{2})_(\d{2})""")
+                                val treffer = muster.find(fileName)
+                                if (treffer != null) {
+                                    val parsedDatum   = treffer.groupValues[1]
+                                    val endStunden    = treffer.groupValues[2].toInt()
+                                    val endMinuten    = treffer.groupValues[3].toInt()
+                                    val endSekunden   = endStunden * 3600 + endMinuten * 60
+                                    val startSekunden = endSekunden - audioDurationSec.toInt()
+
+                                    if (startSekunden >= 0) {
+                                        date = parsedDatum
+                                        time = String.format(
+                                            java.util.Locale.US,
+                                            "%02d:%02d",
+                                            startSekunden / 3600,
+                                            (startSekunden % 3600) / 60
+                                        )
+                                    } else {
+                                        // Mitternachts-Ueberschreitung: Startzeit am Vortag
+                                        val angepasst = startSekunden + 86400
+                                        time = String.format(
+                                            java.util.Locale.US,
+                                            "%02d:%02d",
+                                            angepasst / 3600,
+                                            (angepasst % 3600) / 60
+                                        )
+                                        try {
+                                            val datumObj = java.time.LocalDate.parse(
+                                                parsedDatum,
+                                                java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
+                                            )
+                                            date = datumObj.minusDays(1)
+                                                .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                        } catch (_: Exception) {
+                                            date = parsedDatum
+                                        }
+                                    }
+                                } else {
+                                    merlinFehler = "Merlin-Muster (YYYY-MM-DD HH_MM) nicht im Dateinamen gefunden"
+                                }
+                            }
+                        }
+                    )
+                    Text("Merlin-App-Aufnahme (Startzeit aus Dateiname berechnen)", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                // Fehlertext falls Muster nicht gefunden
+                if (merlinFehler.isNotEmpty()) {
+                    Text(
+                        merlinFehler,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
 
                 // Datum
                 OutlinedTextField(
@@ -69,33 +136,31 @@ fun AudioMetadataDialog(
                         checked = isPirolFile,
                         onCheckedChange = { isPirolFile = it }
                     )
-                    Text("Pirol-Datei (mit GPS-Daten)", style = MaterialTheme.typography.bodyMedium)
+                    Text("Pirol-Geraet (Metadaten automatisch gesetzt)", style = MaterialTheme.typography.bodyMedium)
                 }
 
-                // GPS-Felder (nur wenn Pirol)
-                if (isPirolFile) {
-                    OutlinedTextField(
-                        value = latitude,
-                        onValueChange = { latitude = it },
-                        label = { Text("Breitengrad (z.B. 47.3769)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = longitude,
-                        onValueChange = { longitude = it },
-                        label = { Text("Laengengrad (z.B. 8.5417)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = altitude,
-                        onValueChange = { altitude = it },
-                        label = { Text("Hoehe (m, optional)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                // GPS-Koordinaten (optional)
+                OutlinedTextField(
+                    value = latitude,
+                    onValueChange = { latitude = it },
+                    label = { Text("Breitengrad (z.B. 47.3769, leer = nicht gesetzt)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = longitude,
+                    onValueChange = { longitude = it },
+                    label = { Text("Laengengrad (z.B. 8.5417, leer = nicht gesetzt)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = altitude,
+                    onValueChange = { altitude = it },
+                    label = { Text("Hoehe (m, optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {

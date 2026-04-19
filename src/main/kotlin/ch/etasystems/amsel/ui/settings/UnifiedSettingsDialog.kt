@@ -17,6 +17,9 @@ import ch.etasystems.amsel.core.classifier.BirdNetBridge
 import ch.etasystems.amsel.core.classifier.EmbeddingExtractor
 import ch.etasystems.amsel.core.classifier.OnnxBirdNetV3
 import ch.etasystems.amsel.core.similarity.OnnxSimilarityMetric
+import ch.etasystems.amsel.core.spectrogram.FftSize
+import ch.etasystems.amsel.core.spectrogram.HopFraction
+import ch.etasystems.amsel.core.spectrogram.WindowFunction
 import ch.etasystems.amsel.data.*
 import ch.etasystems.amsel.data.ModelRegistry
 import ch.etasystems.amsel.ui.util.formatKHz
@@ -91,6 +94,9 @@ fun UnifiedSettingsDialog(
     var deviceName by remember { mutableStateOf(settings.deviceName) }
 
     // ── Tab 2: Analyse ──
+    var specWindowType by remember { mutableStateOf(settings.specWindowType) }
+    var specFftSize by remember { mutableStateOf(settings.specFftSize) }
+    var specHopFraction by remember { mutableStateOf(settings.specHopFraction) }
     var selectedAlgorithm by remember { mutableStateOf(settings.comparisonAlgorithm) }
     var confText by remember { mutableStateOf("%.2f".format(settings.birdnetMinConf)) }
     var birdnetUseFiltered by remember { mutableStateOf(settings.birdnetUseFiltered) }
@@ -248,7 +254,13 @@ fun UnifiedSettingsDialog(
                             onSoloPrerollChanged = { soloPrerollStr = it },
                             soloPostrollStr = soloPostrollStr,
                             onSoloPostrollChanged = { soloPostrollStr = it },
-                            onOpenModelManager = { showModelDialog = true }
+                            onOpenModelManager = { showModelDialog = true },
+                            specWindowType = specWindowType,
+                            onWindowTypeChanged = { specWindowType = it },
+                            specFftSize = specFftSize,
+                            onFftSizeChanged = { specFftSize = it },
+                            specHopFraction = specHopFraction,
+                            onHopFractionChanged = { specHopFraction = it }
                         )
                         2 -> TabExport(
                             freqMinKHz = freqMinKHz,
@@ -395,7 +407,11 @@ fun UnifiedSettingsDialog(
                             referenceMinQualityDownload = refMinQualityDownload,
                             referenceMinQualityDisplay = refMinQualityDisplay,
                             // Report-Sortierung
-                            reportSortOrder = reportSortOrder
+                            reportSortOrder = reportSortOrder,
+                            // Spektrogramm-Parameter
+                            specWindowType = specWindowType,
+                            specFftSize = specFftSize,
+                            specHopFraction = specHopFraction
                         )
                         SettingsStore.save(updated)
 

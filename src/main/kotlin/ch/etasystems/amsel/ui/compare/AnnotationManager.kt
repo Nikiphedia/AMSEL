@@ -2,6 +2,7 @@ package ch.etasystems.amsel.ui.compare
 
 import androidx.compose.ui.geometry.Rect
 import ch.etasystems.amsel.core.annotation.Annotation
+import ch.etasystems.amsel.core.annotation.AnnotationMetricsAnalyzer
 import ch.etasystems.amsel.core.annotation.MatchResult
 import ch.etasystems.amsel.core.spectrogram.MelFilterbank
 import ch.etasystems.amsel.core.spectrogram.SpectrogramData
@@ -115,24 +116,24 @@ class AnnotationManager(
             colorIndex = allocateColor()
         )
 
-        _state.update {
-            it.copy(
-                annotations = it.annotations + annotation,
-                activeAnnotationId = annotation.id,
-                selection = null,
-                selectionMode = false
-            )
-        }
+        // Selektion beenden, dann Annotation mit Metriken hinzufuegen
+        _state.update { it.copy(selection = null, selectionMode = false) }
+        addAnnotation(annotation, setActive = true, spectrogramData = data)
         onStatusUpdate("Markierung erstellt — Label vergeben oder Vergleichen druecken")
-        onStateChanged()
-        onDirtyChanged()
     }
 
     /**
      * Erstellt eine Annotation an einer bestimmten Zeitposition mit gegebenen Frequenzgrenzen.
      * Wird vom Canvas-Kontextmenue "Neue Annotation hier" aufgerufen.
+     * Optional: SpectrogramData fuer Metriken-Berechnung (Default null = keine Metriken).
      */
-    fun createAnnotationAtRange(startSec: Float, endSec: Float, fMin: Float, fMax: Float) {
+    fun createAnnotationAtRange(
+        startSec: Float,
+        endSec: Float,
+        fMin: Float,
+        fMax: Float,
+        spectrogramData: SpectrogramData? = null
+    ) {
         val autoLabel = "Markierung_${_state.value.annotations.size + 1}"
         val annotation = Annotation(
             audioFileId = activeAudioFileId(),
@@ -143,16 +144,10 @@ class AnnotationManager(
             highFreqHz = fMax,
             colorIndex = allocateColor()
         )
-        _state.update {
-            it.copy(
-                annotations = it.annotations + annotation,
-                activeAnnotationId = annotation.id,
-                selection = null,
-                selectionMode = false
-            )
-        }
+        // Selektion beenden, dann Annotation mit optionalen Metriken hinzufuegen
+        _state.update { it.copy(selection = null, selectionMode = false) }
+        addAnnotation(annotation, setActive = true, spectrogramData = spectrogramData)
         onStatusUpdate("Markierung erstellt — Label vergeben oder Vergleichen druecken")
-        onDirtyChanged()
     }
 
     /**
@@ -293,7 +288,7 @@ class AnnotationManager(
         val totalDuration = viewport.totalDurationSec()
 
         val autoLabel = "Markierung_${_state.value.annotations.size + 1}"
-        val annotation = Annotation(
+        val basisAnnotation = Annotation(
             audioFileId = activeAudioFileId(),
             label = autoLabel,
             startTimeSec = startSec,
@@ -302,6 +297,9 @@ class AnnotationManager(
             highFreqHz = data.fMax,
             colorIndex = allocateColor()
         )
+        // Metriken mit Overview-Spektrogramm berechnen
+        val metriken = AnnotationMetricsAnalyzer.compute(data, startSec, endSec, data.fMin, data.fMax)
+        val annotation = basisAnnotation.copy(metrics = metriken)
 
         _state.update {
             it.copy(
@@ -311,6 +309,7 @@ class AnnotationManager(
         }
         onStatusUpdate("Bereich markiert (${(endSec - startSec).format(1)}s) — Vergleichen druecken oder Label vergeben")
         onStateChanged()
+        onDirtyChanged()
 
         // Zoom auf den ausgewaehlten Bereich (mit etwas Rand)
         val margin = (endSec - startSec) * 0.1f
@@ -338,23 +337,69 @@ class AnnotationManager(
     // Annotations-Manipulation (fuer externe Erzeuger: BirdNET, EventDetection)
     // ====================================================================
 
-    /** Fuegt eine einzelne Annotation hinzu. */
-    fun addAnnotation(annotation: Annotation, setActive: Boolean = true) {
+    /**
+     * Fuegt eine einzelne Annotation hinzu.
+     * Wenn spectrogramData uebergeben wird und Metriken noch nicht berechnet sind,
+     * werden die Messwerte vor dem Hinzufuegen berechnet.
+     */
+    fun addAnnotation(
+        annotation: Annotation,
+        setActive: Boolean = true,
+        spectrogramData: SpectrogramData? = null
+    ) {
+        val annotationMitMetriken = if (spectrogramData != null && !annotation.metrics.isComputed) {
+            val metriken = AnnotationMetricsAnalyzer.compute(
+                spectrogramData,
+                annotation.startTimeSec,
+                annotation.endTimeSec,
+                annotation.lowFreqHz,
+                annotation.highFreqHz
+            )
+            annotation.copy(metrics = metriken)
+        } else {
+            annotation
+        }
         _state.update {
             it.copy(
-                annotations = it.annotations + annotation,
-                activeAnnotationId = if (setActive) annotation.id else it.activeAnnotationId
+                annotations = it.annotations + annotationMitMetriken,
+                activeAnnotationId = if (setActive) annotationMitMetriken.id else it.activeAnnotationId
             )
         }
         onStateChanged()
         onDirtyChanged()
     }
 
-    /** Fuegt mehrere Annotationen hinzu. */
-    fun addAnnotations(annotations: List<Annotation>, activeId: String? = null) {
+    /**
+     * Fuegt mehrere Annotationen hinzu.
+     * Wenn spectrogramData uebergeben wird, werden Messwerte fuer jede Annotation berechnet
+     * sofern diese noch nicht vorhanden sind.
+     */
+    fun addAnnotations(
+        annotations: List<Annotation>,
+        activeId: String? = null,
+        spectrogramData: SpectrogramData? = null
+    ) {
+        val annotationenMitMetriken = if (spectrogramData != null) {
+            annotations.map { ann ->
+                if (!ann.metrics.isComputed) {
+                    val metriken = AnnotationMetricsAnalyzer.compute(
+                        spectrogramData,
+                        ann.startTimeSec,
+                        ann.endTimeSec,
+                        ann.lowFreqHz,
+                        ann.highFreqHz
+                    )
+                    ann.copy(metrics = metriken)
+                } else {
+                    ann
+                }
+            }
+        } else {
+            annotations
+        }
         _state.update {
             it.copy(
-                annotations = it.annotations + annotations,
+                annotations = it.annotations + annotationenMitMetriken,
                 activeAnnotationId = activeId ?: it.activeAnnotationId
             )
         }
@@ -369,12 +414,31 @@ class AnnotationManager(
     fun mergeAnnotations(
         keep: (Annotation) -> Boolean,
         newAnnotations: List<Annotation>,
-        activeId: String? = null
+        activeId: String? = null,
+        spectrogramData: SpectrogramData? = null
     ) {
+        val annotationenMitMetriken = if (spectrogramData != null) {
+            newAnnotations.map { ann ->
+                if (!ann.metrics.isComputed) {
+                    val metriken = AnnotationMetricsAnalyzer.compute(
+                        spectrogramData,
+                        ann.startTimeSec,
+                        ann.endTimeSec,
+                        ann.lowFreqHz,
+                        ann.highFreqHz
+                    )
+                    ann.copy(metrics = metriken)
+                } else {
+                    ann
+                }
+            }
+        } else {
+            newAnnotations
+        }
         _state.update {
             val existing = it.annotations.filter(keep)
             it.copy(
-                annotations = existing + newAnnotations,
+                annotations = existing + annotationenMitMetriken,
                 activeAnnotationId = activeId ?: it.activeAnnotationId
             )
         }

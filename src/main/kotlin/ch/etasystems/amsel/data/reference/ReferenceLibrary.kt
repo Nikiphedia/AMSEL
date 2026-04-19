@@ -300,7 +300,13 @@ class ReferenceLibrary(
     /** PNG aus WAV generieren (Mel-Spektrogramm, 800x400, Magma-Colormap) */
     private suspend fun generatePng(wavFile: File, pngFile: File) {
         val segment = AudioDecoder.decode(wavFile) ?: throw IllegalStateException("Audio nicht dekodierbar: ${wavFile.name}")
-        val mel = MelSpectrogram.bird(segment.sampleRate)
+        val scanSettings = ch.etasystems.amsel.data.SettingsStore.load()
+        val mel = MelSpectrogram.bird(
+            segment.sampleRate,
+            windowType = scanSettings.specWindowType,
+            fftSize = scanSettings.specFftSize,
+            hopFraction = scanSettings.specHopFraction
+        )
         val spectro = mel.compute(segment.samples)
 
         val width = 800

@@ -2,6 +2,33 @@
 
 Alle relevanten Änderungen an AMSEL werden in dieser Datei dokumentiert.
 
+## [0.0.9] — 2026-04-19
+
+### Neue Features
+- Raven Selection Table Export: Annotationen im Raven Pro TSV-Format exportieren
+- Raven Selection Table Import: .txt Tabellen aus Raven Pro importieren (inkl. GPS-Spalten)
+- GPX-Tracklog Import: GPS-Koordinaten aller Aufnahmen per Zeitstempel-Matching setzen
+- Akustische Messwerte pro Annotation: Peak-Frequenz (kHz), Bandbreite 3dB, SNR (dB)
+- Metriken-Widget im Annotations-Panel (tertiary Farbe, nur bei berechneten Werten)
+- Datei-Fortschrittsbalken im AudiofilesPanel: Anteil verifizierter Annotationen
+- Verifikations-Counter pro Datei ("X/Y verif.") im AudiofilesPanel
+- Spektrogramm-Parameter live konfigurierbar: FFT-Fenstergroesse, Hop-Groesse, Mel-Bins
+- GPS-Felder im AudioMetadataDialog immer sichtbar (nicht mehr hinter Pirol-Checkbox)
+- Merlin-App-Unterstuetzung im AudioMetadataDialog: Startzeit aus Dateiname berechnen
+- Raven-Import und GPX-Import als IconButtons in der SonogramToolbar
+
+### Fehlerbehebungen
+- Kein doppelter Datei-Eintrag mehr beim Neu-Laden der Spektrogramm-Einstellungen
+- loadProject() behaelt jetzt die Original-FileIDs aus der Projektdatei bei
+- rubberBandSelect setzt jetzt korrekt den Dirty-State
+
+### Technisch
+- AnnotationMetrics + AnnotationMetricsAnalyzer (Peak, BW, SNR aus SpectrogramData)
+- RavenSelectionExporter / RavenSelectionImporter (core/export)
+- GpxImporter mit UTC-Zeitstempel-Matching (core/export)
+- RecordingMetadata: GPS + Zeitstempel pro AudioReference
+- CompareUiState: annotationStatsPerFile Map<String, Pair<Int, Int>>
+
 ## [0.0.8] — 2026-04-14
 
 ### Neue Features

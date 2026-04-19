@@ -2,6 +2,9 @@ package ch.etasystems.amsel.data
 
 import ch.etasystems.amsel.core.filter.ExpanderGate
 import ch.etasystems.amsel.core.filter.FilterConfig
+import ch.etasystems.amsel.core.spectrogram.FftSize
+import ch.etasystems.amsel.core.spectrogram.HopFraction
+import ch.etasystems.amsel.core.spectrogram.WindowFunction
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -226,7 +229,13 @@ data class AppSettings(
     /** Ordner fuer ONNX-Modelle + Python-Skripte (leer = ~/Documents/AMSEL/models/) */
     val modelDir: String = "",
     /** Setup-Assistent wurde abgeschlossen */
-    val setupComplete: Boolean = false
+    val setupComplete: Boolean = false,
+    /** Spektrogramm: Fenster-Funktion (Default HANN) */
+    val specWindowType: WindowFunction = WindowFunction.HANN,
+    /** Spektrogramm: FFT-Groesse (Default 4096 = Voegel-Qualitaet) */
+    val specFftSize: FftSize = FftSize.FFT_4096,
+    /** Spektrogramm: Hop als Bruch von FFT-Size (Default 1/32 = Ornitho-Qualitaet, feine Zeitaufloesung) */
+    val specHopFraction: HopFraction = HopFraction.HOP_1_32
 )
 
 /** Gibt den aufgeloesten Modell-Ordner zurueck (Setting oder Default). */

@@ -1,8 +1,8 @@
 # AMSEL — Another Mel Spectrogram Event Locator
 
-Desktop-Anwendung zur Sonogramm-Analyse und Artenerkennung von Voegeln und Fledermaeuse.
+Desktop-Anwendung zur Sonogramm-Analyse und Artenerkennung von Voegeln und Fledermaeusen.
 
-**Version:** 0.0.5
+**Version:** 0.0.9
 **Vendor:** ETA Systems
 **Package:** `ch.etasystems.amsel`
 
@@ -23,7 +23,7 @@ Desktop-Anwendung zur Sonogramm-Analyse und Artenerkennung von Voegeln und Flede
 | ML-Inferenz | ONNX Runtime | 1.19.0 |
 | PDF-Export | Apache PDFBox | 3.0.4 |
 | Logging | SLF4J Simple | 2.0.16 |
-| Plattform | Windows (MSI + Exe Installer) | — |
+| Plattform | Windows (MSI + Exe Installer) | -- |
 
 ### Audio-Codecs
 
@@ -38,7 +38,7 @@ Desktop-Anwendung zur Sonogramm-Analyse und Artenerkennung von Voegeln und Flede
 
 | Tool | Zweck | Pflicht? |
 |------|-------|----------|
-| Python 3 + birdnetlib | BirdNET Artenerkennung | Optional |
+| Python 3 + birdnetlib | BirdNET V2.4 Artenerkennung | Optional (V3.0 ONNX laeuft nativ) |
 | ffmpeg | FLAC/M4A/MP3 Audio-Export | Optional (WAV geht immer) |
 
 ---
@@ -47,56 +47,59 @@ Desktop-Anwendung zur Sonogramm-Analyse und Artenerkennung von Voegeln und Flede
 
 ### Sonogramm-Analyse
 - Multi-Format Audio-Import: WAV, MP3, FLAC, OGG, M4A/AAC
-- Mel-Spektrogramm-Berechnung mit Bird-Preset (100–16.000 Hz) und Bat-Preset (15–125 kHz)
-- FFT-basiert (4096-Punkt FFT, 256 Mel-Bins, parallele Berechnung)
+- Mel-Spektrogramm-Berechnung mit Bird-Preset (100-16.000 Hz) und Bat-Preset (15-125 kHz)
+- **Konfigurierbare Spektrogramm-Parameter**: FFT-Fenstergroesse, Hop-Groesse, Mel-Bins (live via Einstellungen)
+- FFT-basiert (Standard: 4096-Punkt FFT, 256 Mel-Bins, parallele Berechnung)
 - Interaktives Zoomen/Pannen: Uebersichtsleiste + Zeitleiste + Detail-Canvas
 - Drag & Drop fuer Audio-Dateien
 
 ### Artenerkennung (Klassifikation)
-- **BirdNET-Integration** via Python-Bridge:
-  - Persistenter HTTP-Daemon auf localhost:5757 (Modell einmal laden)
-  - Fallback: Einzelprozess pro Datei
-  - Automatische Python-Erkennung (AppData, Anaconda, Scoop, PATH)
-- **ONNX-Runtime** fuer EfficientNet-Embeddings (lokale Modelle)
+- **BirdNET V3.0 ONNX (nativ, empfohlen)**: 11'560 Arten, kein Python noetig
+- **BirdNET V2.4 (Python, optional)**: Rueckwaerts-kompatibel via HTTP-Daemon
 - Standort-bewusst: optionale Lat/Lon-Filterung fuer Artwahrscheinlichkeiten
+
+### Akustische Messwerte
+- **AnnotationMetrics** pro Annotation (automatisch berechnet):
+  - Peak-Frequenz (kHz), Bandbreite 3dB (kHz), SNR (dB)
+  - Anzeige im Annotations-Panel und in CSV-/PDF-Export
 
 ### Akustischer Vergleich
 - **Offline:** MFCC-Feature-Cache (vorberechnete Vergleichsvektoren)
-- **Online:** Xeno-Canto API v3 — Suche nach Referenzaufnahmen
-- **Metriken:**
-  - Cosinus-Aehnlichkeit (MFCC / Embeddings)
-  - Dynamic Time Warping (DTW) fuer temporale Ausrichtung
-  - Embedding-basierter Neuronaler Vergleich (ONNX)
-- Rangierte Ergebnisse mit Konfidenz-Score
+- **Online:** Xeno-Canto API v3 -- Suche nach Referenzaufnahmen
+- Metriken: Cosinus-Aehnlichkeit, DTW, ONNX-Embeddings
 
-### Audio-DSP (Filterkette, 7 Stufen)
+### Audio-DSP (Filterkette, 8 Stufen)
 1. Volume Fader (Breakpoint-basierte Huellkurve)
-2. Bandpass-Filter (Frequenzbereich eingrenzen)
-3. Limiter (Clipping-Schutz)
-4. Normalisierung (Pegel auf -2 dBFS)
-5. Spectral Gating (bandweise Rauschunterdrueckung)
-6. Noise Filter (dynamische Schwelle)
-7. Expander/Gate (leise Bereiche reduzieren)
-8. Median-Filter (Glaettung)
+2. Bandpass-Filter
+3. Limiter
+4. Normalisierung (-2 dBFS)
+5. Spectral Gating
+6. Noise Filter
+7. Expander/Gate
+8. Median-Filter
 
-### Referenz-Bibliothek
-- Bulk-Download von Xeno-Canto Sonogrammen
-- Kuratierter Bestand: `~/Documents/AMSEL/curated/`
-- Benutzer-Aufnahmen: `~/Documents/AMSEL/user/`
-- `referenzen.csv` Masterdatei (ID, Art, Quelle, Typ, Beschreibung, Qualitaet)
-- Regions-Sets: Schweizer Brutvoegel (180), Mitteleuropa (302), Global (~1000+)
-- Mehrsprachige Artnamen (species_master.json, IOC v15.1, 23 Sprachen)
+### GPS & Metadaten
+- GPS-Koordinaten pro Aufnahme (Breitengrad, Laengengrad, Hoehe)
+- AudioMetadataDialog: GPS-Felder immer sichtbar (nicht mehr hinter Pirol-Checkbox)
+- **GPX-Tracklog Import**: laedt .gpx, matcht Aufnahmen per Zeitstempel (UTC), setzt GPS batch-weise
+- **Raven Selection Table Import**: parst TSV-Format (Raven Pro), extrahiert GPS aus Latitude/Longitude/Altitude-Spalten
+
+### Datei-Fortschrittsanzeige
+- **Fortschrittsbalken** (3 dp, LinearProgressIndicator) pro Audio-Datei im AudiofilesPanel
+- **Verifikations-Counter** ("X/Y ✓") rechts neben dem Balken
+- Farbindikator: gruen (tertiary) wenn verifiziert, neutral wenn offen
 
 ### Export
-- **PNG:** Sonogramm mit Achsen und Annotationen
-- **WAV/FLAC/M4A/MP3:** Audio-Ausschnitt (markierter Bereich), optional mit Filter
-- **PDF:** Analysebericht mit Zusammenfassung und Annotationstabelle
-- **CSV:** Artenliste mit Zeitstempel und BirdNET-Konfidenz
+- **PNG:** Sonogramm mit Achsen und Annotationen, 600 DPI
+- **WAV/FLAC/M4A/MP3:** Audio-Ausschnitt mit angewendeten Filtern
+- **PDF:** Analysebericht mit Annotationstabelle (inkl. Messwerte)
+- **CSV:** Artenliste mit Zeitstempel, BirdNET-Konfidenz, Peak-Freq, BW, SNR
+- **Raven Selection Table (.txt):** TSV-Export im Raven Pro Format
 
 ### Projekt-Management
-- Speichern/Laden: `.amsel` Projektdateien (JSON-serialisierter Zustand)
-- Annotationen: manuelle Markierungen mit Kandidaten-Panel
-- Einstellungen: Analyse-Parameter, Datenbank-Pfade, Export-Optionen
+- Speichern/Laden: `.amsel.json` Projektdateien
+- Stabile File-IDs: UUID wird aus Projektdatei beibehalten (kein Duplikat-Bug beim Reload)
+- Auto-Save, Dirty-State, Audit-Trail
 
 ---
 
@@ -106,53 +109,63 @@ Desktop-Anwendung zur Sonogramm-Analyse und Artenerkennung von Voegeln und Flede
 
 ```
 ch.etasystems.amsel/
-├── Main.kt                         Einstiegspunkt
-│
-├── core/                           Algorithmen & Signalverarbeitung
-│   ├── annotation/                 Annotations-Datenmodell
-│   ├── audio/                      AudioDecoder, AudioPlayer, AudioSegment,
-│   │                               FilteredAudio, PcmCacheFile, SilenceDetector
-│   ├── classifier/                 BirdNetBridge, OnnxClassifier, EmbeddingExtractor
-│   ├── detection/                  EventDetector (RMS + Clustering)
-│   ├── export/                     AudioExporter, ImageExporter, ReportExporter,
-│   │                               SpeciesCsvExporter
-│   ├── filter/                     FilterPipeline, Bandpass, Limiter, SpectralGating,
-│   │                               NoiseFilter, ExpanderGate, MedianFilter
-│   ├── i18n/                       SpeciesTranslations
-│   ├── reference/                  ReferenceGenerator (300 DPI Feldfuehrer-Sonogramme)
-│   ├── similarity/                 SimilarityEngine, DTW, Cosine, MFCC, ONNX-Metriken
-│   └── spectrogram/                MelSpectrogram, ChunkedSpectrogram, Colormap,
-│                                   MelFilterbank, SpectrogramData
-│
-├── data/                           Konfiguration & Persistenz
-│   ├── api/                        XenoCantoApi (v3), Modelle, RecordingProvider
-│   ├── reference/                  ReferenceLibrary, ReferenceDownloader
-│   ├── ModelRegistry.kt            ML-Modell-Verwaltung
-│   ├── ProjectFile.kt              Projekt-Serialisierung
-│   ├── RegionSetRegistry.kt        Artenlisten nach Region
-│   ├── Settings.kt                 App-Einstellungen
-│   └── SpeciesRegistry.kt          Arten-Stammdaten
-│
-└── ui/                             Jetbrains Compose Desktop UI
-    ├── annotation/                 AnnotationPanel, CandidatePanel, ChunkSelector
-    ├── compare/                    CompareScreen, CompareViewModel,
-    │                               AudioManager, ClassificationManager,
-    │                               ExportManager, ProjectManager, DragDropHandler
-    ├── layout/                     DraggableSplitter, VerticalSplitter
-    ├── reference/                  ReferenceEditorScreen (Batch-Import + Sonogramm)
-    ├── results/                    ResultsPanel, ResultCard, SonogramGallery
-    ├── settings/                   UnifiedSettingsDialog, ModelManagerDialog,
-    │                               ApiKeyDialog, Tabs (Allgemein/Analyse/DB/Export)
-    ├── sonogram/                   ZoomedCanvas, OverviewStrip, FilterPanel,
-    │                               SpectrogramRenderer, TimelineBar, VolumePanel
-    └── theme/                      Material 3 Theming
++-- Main.kt                         Einstiegspunkt
+|
++-- core/                           Algorithmen & Signalverarbeitung
+|   +-- annotation/                 Annotations-Datenmodell, AnnotationMetrics,
+|   |                               AnnotationMetricsAnalyzer
+|   +-- audio/                      AudioDecoder, AudioPlayer, AudioSegment,
+|   |                               FilteredAudio, PcmCacheFile, SilenceDetector
+|   +-- classifier/                 OnnxBirdNetV3, BirdNetBridge, OnnxClassifier,
+|   |                               EmbeddingExtractor
+|   +-- detection/                  EventDetector (RMS + Clustering)
+|   +-- export/                     AudioExporter, ImageExporter, ReportExporter,
+|   |                               SpeciesCsvExporter, RavenSelectionExporter,
+|   |                               RavenSelectionImporter, GpxImporter
+|   +-- filter/                     FilterPipeline, Bandpass, Limiter, SpectralGating,
+|   |                               NoiseFilter, ExpanderGate, MedianFilter
+|   +-- i18n/                       SpeciesTranslations
+|   +-- reference/                  ReferenceGenerator
+|   +-- similarity/                 SimilarityEngine, DTW, Cosine, MFCC, ONNX-Metriken
+|   +-- spectrogram/                MelSpectrogram, ChunkedSpectrogram, Colormap,
+|                                   MelFilterbank, SpectrogramData
+|
++-- data/                           Konfiguration & Persistenz
+|   +-- api/                        XenoCantoApi (v3), Modelle, RecordingProvider
+|   +-- reference/                  ReferenceLibrary, ReferenceDownloader
+|   +-- ModelRegistry.kt
+|   +-- ProjectFile.kt              Projekt-Serialisierung + AudioReference
+|   +-- RecordingMetadata.kt        GPS + Zeitstempel pro Aufnahme
+|   +-- RegionSetRegistry.kt
+|   +-- Settings.kt
+|   +-- SpeciesRegistry.kt
+|
++-- ui/                             Jetbrains Compose Desktop UI
+    +-- annotation/                 AnnotationPanel (mit Messwert-Widget),
+    |                               CandidatePanel, ChunkSelector,
+    |                               AudiofilesPanel (mit Fortschrittsbalken)
+    +-- compare/                    CompareScreen, CompareViewModel,
+    |                               AudioManager, AnnotationManager,
+    |                               ClassificationManager, ExportManager,
+    |                               ProjectManager, PlaybackManager,
+    |                               SpectrogramManager, VolumeManager
+    +-- layout/                     DraggableSplitter, VerticalSplitter,
+    |                               UndockablePanel, UndockPanelState
+    +-- reference/                  ReferenceEditorScreen
+    +-- results/                    ResultsPanel, ResultCard, SonogramGallery
+    +-- settings/                   UnifiedSettingsDialog, ModelManagerDialog,
+    |                               AudioMetadataDialog, SetupDialog
+    +-- sonogram/                   ZoomedCanvas, OverviewStrip, FilterPanel,
+    |                               SonogramToolbar (mit Raven/GPX-Import-Buttons),
+    |                               TimelineBar, VolumePanel
+    +-- theme/                      Material 3 Theming
 ```
 
 ### Design-Patterns
 - **MVVM:** CompareViewModel verwaltet UI-State als `StateFlow`
 - **Strategy:** SimilarityMetric-Interface (Cosine, DTW, ONNX)
 - **Coroutines:** Alle IO/Compute-Operationen asynchron
-- **Manager-Architektur:** AudioManager, ClassificationManager, ExportManager, etc.
+- **Manager-Architektur:** 8 Manager unter CompareViewModel
 - **Cache-First:** MFCC-Feature-Cache + Recording-Provider (Offline-Prioritaet)
 
 ---
@@ -161,19 +174,16 @@ ch.etasystems.amsel/
 
 | Datei | Inhalt |
 |-------|--------|
-| `species_master.json` | ~1000+ Arten mit wissenschaftlichen + mehrsprachigen Namen |
-| `i18n/species_de.json` | Deutsche Artnamen |
+| `species_master.json` | 11'565 Arten mit wissenschaftlichen + mehrsprachigen Namen |
 | `region_sets.json` | Artenlisten: CH Brutvoegel, CH komplett, Mitteleuropa, Global |
-| `classify.py` | Python BirdNET Bridge (Einzelaufruf) |
-| `classify_daemon.py` | Python BirdNET HTTP-Daemon (Port 5757) |
+| `classify.py` | Python BirdNET V2.4 Bridge (optional) |
+| `classify_daemon.py` | Python BirdNET V2.4 HTTP-Daemon (Port 5757, optional) |
 
 Laufzeit-Daten: `~/Documents/AMSEL/`
-- `models/` — ONNX-Modelle + Python-Skripte
-- `curated/` — kuratierte Referenz-Sonogramme
-- `user/` — Benutzer-Aufnahmen
-- `referenzen.csv` — Referenz-Masterdatei
-- `reference_index.json` — Auto-generierter Index
-- `cache/` — MFCC-Feature-Cache
+- `models/` -- ONNX-Modelle + Python-Skripte
+- `references/` -- kuratierte Referenz-Sonogramme
+- `species/` -- species_master.json, region_sets.json
+- `cache/` -- MFCC-Feature-Cache
 
 ---
 
@@ -198,8 +208,9 @@ cd D:\80002\AMSEL
 
 ## Statistik
 
-- 105 Kotlin-Dateien
-- 13 Haupt-Module
+- ~105 Kotlin-Dateien
+- 22 Haupt-Module
 - 6 Ressourcen-Dateien
 - 1 externe API (Xeno-Canto v3)
-- 1 Python-Abhaengigkeit (BirdNET, optional)
+- 1 Python-Abhaengigkeit (BirdNET V2.4, optional)
+- BirdNET V3.0 ONNX nativ (kein Python)

@@ -4,12 +4,35 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.Serializable
 import org.jtransforms.fft.DoubleFFT_1D
 import kotlin.math.log10
 
+// ====================================================================
+// Spektrogramm-Konfigurationstypen
+// ====================================================================
+
+/** Fenster-Funktion fuer FFT (beeinflusst Nebenkeulen-Unterdrueckung) */
+@Serializable
+enum class WindowFunction {
+    HANN, HAMMING, BLACKMAN, GAUSS
+}
+
+/** FFT-Groesse als Zweierpotenzen-Enum */
+@Serializable
+enum class FftSize(val samples: Int) {
+    FFT_1024(1024), FFT_2048(2048), FFT_4096(4096), FFT_8192(8192)
+}
+
+/** Hop-Groesse als Bruch der FFT-Groesse */
+@Serializable
+enum class HopFraction(val divisor: Int) {
+    HOP_1_32(32), HOP_1_16(16), HOP_1_8(8), HOP_1_4(4), HOP_1_2(2)
+}
+
 /**
  * Berechnet ein Mel-Spektrogramm aus rohem PCM-Audio.
- * Konfigurierbar für Vögel (125-7500 Hz) und Fledermäuse (15000-125000 Hz).
+ * Konfigurierbar fuer Voegel (125-7500 Hz) und Fledermaeuse (15000-125000 Hz).
  */
 class MelSpectrogram(
     val fftSize: Int = 1024,
@@ -17,10 +40,11 @@ class MelSpectrogram(
     val nMels: Int = 64,
     val fMin: Float = 125f,
     val fMax: Float = 7500f,
-    val sampleRate: Int = 16000
+    val sampleRate: Int = 16000,
+    val windowType: WindowFunction = WindowFunction.HANN
 ) {
     private val filterbank = MelFilterbank.build(nMels, fftSize, sampleRate, fMin, fMax)
-    private val window = hannWindow(fftSize)
+    private val window = buildWindow(fftSize, windowType)
 
     companion object {
         /** Cache fuer MelSpectrogram-Instanzen: key = Preset + Parameter */
@@ -30,19 +54,27 @@ class MelSpectrogram(
          * Voegel-Preset: Maximale Aufloesung (Ornitho-Qualitaet).
          * FFT 4096 → 4x so feine Frequenzaufloesung wie vorher
          * 160 Mel-Bins → doppelte Frequenz-Detailtiefe
-         * Hop 256 → 4x hoehere Zeitaufloesung
+         * Hop als Bruch von FFT-Size → konfigurierbare Zeitaufloesung
          */
-        fun bird(sampleRate: Int = 48000, maxFreqHz: Float = 16000f): MelSpectrogram {
+        fun bird(
+            sampleRate: Int = 48000,
+            maxFreqHz: Float = 16000f,
+            windowType: WindowFunction = WindowFunction.HANN,
+            fftSize: FftSize = FftSize.FFT_4096,
+            hopFraction: HopFraction = HopFraction.HOP_1_32
+        ): MelSpectrogram {
             val fMax = maxFreqHz.coerceAtMost(sampleRate / 2f)
-            val key = "bird_${sampleRate}_${fMax.toInt()}"
+            val hopSize = fftSize.samples / hopFraction.divisor
+            val key = "bird_${sampleRate}_${fMax.toInt()}_${windowType}_${fftSize.samples}_${hopFraction.divisor}"
             return instanceCache.getOrPut(key) {
                 MelSpectrogram(
-                    fftSize = 4096,
-                    hopSize = 128,
+                    fftSize = fftSize.samples,
+                    hopSize = hopSize,
                     nMels = 256,
                     fMin = 100f,
                     fMax = fMax,
-                    sampleRate = sampleRate
+                    sampleRate = sampleRate,
+                    windowType = windowType
                 )
             }
         }
@@ -63,13 +95,36 @@ class MelSpectrogram(
         }
 
         /** Automatisch: Vogel oder Fledermaus basierend auf Sample-Rate */
-        fun auto(sampleRate: Int, maxFreqHz: Float = 16000f): MelSpectrogram {
-            return if (sampleRate > 96000) bat(sampleRate) else bird(sampleRate, maxFreqHz)
+        fun auto(
+            sampleRate: Int,
+            maxFreqHz: Float = 16000f,
+            windowType: WindowFunction = WindowFunction.HANN,
+            fftSize: FftSize = FftSize.FFT_4096,
+            hopFraction: HopFraction = HopFraction.HOP_1_32
+        ): MelSpectrogram {
+            return if (sampleRate > 96000) bat(sampleRate)
+            else bird(sampleRate, maxFreqHz, windowType, fftSize, hopFraction)
         }
 
-        private fun hannWindow(size: Int): FloatArray {
+        /** Erzeugt Fenster-Array der angegebenen Groesse und Funktion */
+        private fun buildWindow(size: Int, type: WindowFunction): FloatArray {
+            val n = size - 1
             return FloatArray(size) { i ->
-                (0.5 * (1.0 - kotlin.math.cos(2.0 * Math.PI * i / (size - 1)))).toFloat()
+                when (type) {
+                    WindowFunction.HANN ->
+                        (0.5 * (1.0 - kotlin.math.cos(2.0 * Math.PI * i / n))).toFloat()
+                    WindowFunction.HAMMING ->
+                        (0.54 - 0.46 * kotlin.math.cos(2.0 * Math.PI * i / n)).toFloat()
+                    WindowFunction.BLACKMAN ->
+                        (0.42 - 0.5 * kotlin.math.cos(2.0 * Math.PI * i / n)
+                            + 0.08 * kotlin.math.cos(4.0 * Math.PI * i / n)).toFloat()
+                    WindowFunction.GAUSS -> {
+                        val sigma = 0.4
+                        val center = n / 2.0
+                        val x = (i - center) / (sigma * center)
+                        kotlin.math.exp(-0.5 * x * x).toFloat()
+                    }
+                }
             }
         }
     }
@@ -115,7 +170,7 @@ class MelSpectrogram(
                     for (frame in batchStart until batchEnd) {
                         val offset = frame * hopSize
 
-                        // Hann-Fenster anwenden + in FFT-Buffer kopieren
+                        // Fenster anwenden + in FFT-Buffer kopieren
                         for (i in 0 until fftSize) {
                             val sampleIdx = offset + i
                             localFftBuffer[i] = if (sampleIdx < samples.size) {

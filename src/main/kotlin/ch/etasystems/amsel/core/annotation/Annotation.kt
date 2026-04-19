@@ -28,7 +28,9 @@ data class Annotation(
     // BirdNET Top-N Kandidaten fuer diesen Slice (Alternative Artbestimmungen)
     val candidates: List<SpeciesCandidate> = emptyList(),
     // Freitext-Bemerkung (z.B. bei Fehlbestimmung: "BirdNET sagt Kohlmeise, ist aber Blaumeise")
-    val notes: String = ""
+    val notes: String = "",
+    /** Akustische Messwerte (Peak, Bandbreite, SNR). Default = nicht berechnet. */
+    val metrics: AnnotationMetrics = AnnotationMetrics()
 ) {
     val durationSec: Float get() = endTimeSec - startTimeSec
     val freqRangeHz: Float get() = highFreqHz - lowFreqHz

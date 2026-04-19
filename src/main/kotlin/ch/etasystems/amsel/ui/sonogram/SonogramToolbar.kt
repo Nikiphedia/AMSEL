@@ -92,6 +92,9 @@ fun SonogramToolbar(
     onSaveProject: () -> Unit = {},
     hasProject: Boolean = false,
     projectDirty: Boolean = false,
+    // AP-88: Raven- und GPX-Import
+    onImportRaven: () -> Unit = {},
+    onImportGpx: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -191,6 +194,38 @@ fun SonogramToolbar(
                         contentDescription = "Vergleichsdatei laden",
                         tint = if (hasCompareFile) Color(0xFF4CAF50)
                         else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Raven Selection Table importieren (AP-88)
+            if (hasAudio) {
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text("Raven Selection Table importieren (.txt)") } },
+                    state = rememberTooltipState()
+                ) {
+                    IconButton(onClick = onImportRaven) {
+                        Icon(
+                            Icons.Default.GridOn,
+                            contentDescription = "Raven Selection Table importieren",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            // GPX-Tracklog importieren (AP-88)
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                tooltip = { PlainTooltip { Text("GPX-Tracklog importieren") } },
+                state = rememberTooltipState()
+            ) {
+                IconButton(onClick = onImportGpx) {
+                    Icon(
+                        Icons.Default.GpsFixed,
+                        contentDescription = "GPX-Tracklog importieren",
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

@@ -5,11 +5,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Nightlife
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ch.etasystems.amsel.core.spectrogram.FftSize
+import ch.etasystems.amsel.core.spectrogram.HopFraction
+import ch.etasystems.amsel.core.spectrogram.WindowFunction
 import ch.etasystems.amsel.data.ComparisonAlgorithm
 
 /** Preset-Definition fuer Analyse-Einstellungen */
@@ -28,6 +31,7 @@ private val ANALYSE_PRESETS = listOf(
     AnalysePreset("Fledermaeuse", ComparisonAlgorithm.ONNX_EFFICIENTNET, 0.15f, 0.2f, 0.2f, 1.0f, 5f),
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TabAnalyse(
     selectedAlgorithm: ComparisonAlgorithm,
@@ -58,7 +62,13 @@ internal fun TabAnalyse(
     onSoloPrerollChanged: (String) -> Unit = {},
     soloPostrollStr: String = "5",
     onSoloPostrollChanged: (String) -> Unit = {},
-    onOpenModelManager: () -> Unit = {}
+    onOpenModelManager: () -> Unit = {},
+    specWindowType: WindowFunction = WindowFunction.HANN,
+    onWindowTypeChanged: (WindowFunction) -> Unit = {},
+    specFftSize: FftSize = FftSize.FFT_4096,
+    onFftSizeChanged: (FftSize) -> Unit = {},
+    specHopFraction: HopFraction = HopFraction.HOP_1_8,
+    onHopFractionChanged: (HopFraction) -> Unit = {}
 ) {
     // === ANALYSE-PRESETS (prominent, ganz oben) ===
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -187,6 +197,107 @@ internal fun TabAnalyse(
 
     Spacer(Modifier.height(12.dp))
 
+    // === SPEKTROGRAMM-PARAMETER ===
+    SectionCard(title = "Spektrogramm-Parameter") {
+        Text("Fenster-Funktion", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            WindowFunction.entries.forEach { wf ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    RadioButton(
+                        selected = specWindowType == wf,
+                        onClick = { onWindowTypeChanged(wf) }
+                    )
+                    Text(
+                        wf.name.lowercase().replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        val fftOptionen = listOf(
+            FftSize.FFT_1024 to "1024",
+            FftSize.FFT_2048 to "2048",
+            FftSize.FFT_4096 to "4096 — Standard",
+            FftSize.FFT_8192 to "8192"
+        )
+        var fftExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = fftExpanded,
+            onExpandedChange = { fftExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = fftOptionen.first { it.first == specFftSize }.second,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("FFT-Groesse") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fftExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+            )
+            ExposedDropdownMenu(
+                expanded = fftExpanded,
+                onDismissRequest = { fftExpanded = false }
+            ) {
+                fftOptionen.forEach { (groesse, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = { onFftSizeChanged(groesse); fftExpanded = false }
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        val hopOptionen = listOf(
+            HopFraction.HOP_1_32 to "1/32 — sehr fein",
+            HopFraction.HOP_1_16 to "1/16",
+            HopFraction.HOP_1_8 to "1/8 — Standard",
+            HopFraction.HOP_1_4 to "1/4",
+            HopFraction.HOP_1_2 to "1/2 — schnell"
+        )
+        var hopExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = hopExpanded,
+            onExpandedChange = { hopExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = hopOptionen.first { it.first == specHopFraction }.second,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Hop-Groesse") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = hopExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+            )
+            ExposedDropdownMenu(
+                expanded = hopExpanded,
+                onDismissRequest = { hopExpanded = false }
+            ) {
+                hopOptionen.forEach { (fraktion, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = { onHopFractionChanged(fraktion); hopExpanded = false }
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Groessere FFT = bessere Frequenz-Aufloesung, schlechtere Zeit-Aufloesung. " +
+            "Blackman-Fenster unterdrueckt Nebenkeulen staerker als Hann (nuetzlich bei Nebengeraeuschen).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+
     // === ERWEITERT (Collapsible) ===
     ExpandableSection(title = "Erweitert") {
         Text(
@@ -263,4 +374,3 @@ internal fun TabAnalyse(
         )
     }
 }
-

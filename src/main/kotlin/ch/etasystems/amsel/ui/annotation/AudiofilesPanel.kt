@@ -5,7 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AudioFile
@@ -41,6 +43,7 @@ fun AudiofilesPanel(
     onAddFile: () -> Unit,
     onShowZeitstempel: () -> Unit = {},
     annotationCount: Int = 0,
+    annotationStatsPerFile: Map<String, Pair<Int, Int>> = emptyMap(),
     isFocused: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -119,7 +122,8 @@ fun AudiofilesPanel(
                         onSelect = { onSelectFile(fileId) },
                         onSelectSlice = onSelectSlice,
                         onRemove = { onRemoveFile(fileId) },
-                        isHighlighted = isFocused && isActive
+                        isHighlighted = isFocused && isActive,
+                        annotationStats = annotationStatsPerFile[fileState.fileId]?.takeIf { it.first > 0 }
                     )
                 }
             }
@@ -136,7 +140,8 @@ private fun AudiofileItem(
     onSelect: () -> Unit,
     onSelectSlice: (Int) -> Unit,
     onRemove: () -> Unit,
-    isHighlighted: Boolean = false
+    isHighlighted: Boolean = false,
+    annotationStats: Pair<Int, Int>? = null
 ) {
     var expanded by remember { mutableStateOf(isActive) }
     val hasSlices = fileState.sliceManager != null && (fileState.sliceManager?.sliceCount ?: 0) > 1
@@ -177,6 +182,22 @@ private fun AudiofileItem(
                 Spacer(Modifier.width(20.dp))
             }
 
+            // Statusindikator: gruener Kreis wenn verifiziert, blau-transparent wenn annotiert, unsichtbar sonst
+            val (statGesamt, statVerifiziert) = annotationStats ?: Pair(0, 0)
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when {
+                            annotationStats == null -> Color.Transparent
+                            statVerifiziert > 0 -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        }
+                    )
+            )
+            Spacer(Modifier.width(4.dp))
+
             Icon(
                 Icons.Default.AudioFile,
                 contentDescription = null,
@@ -211,6 +232,31 @@ private fun AudiofileItem(
                     modifier = Modifier.size(14.dp),
                     tint = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+        }
+
+        // --- Fortschrittsbalken + Counter (wenn Annotationen vorhanden) ---
+        if (annotationStats != null) {
+            val (gesamt, verifiziert) = annotationStats
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 36.dp, end = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LinearProgressIndicator(
+                    progress = { if (gesamt > 0) verifiziert.toFloat() / gesamt else 0f },
+                    modifier = Modifier.weight(1f).height(3.dp),
+                    color = MaterialTheme.colorScheme.tertiary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "$verifiziert/$gesamt \u2713",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (verifiziert > 0) MaterialTheme.colorScheme.tertiary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

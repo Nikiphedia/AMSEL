@@ -451,7 +451,8 @@ class ClassificationManager(
                         annotationManager.mergeAnnotations(
                             keep = { ann -> !ann.isBirdNetDetection },
                             newAnnotations = tempAnnotations,
-                            activeId = tempAnnotations.firstOrNull()?.id
+                            activeId = tempAnnotations.firstOrNull()?.id,
+                            spectrogramData = audioData.zoomedSpectrogramData()
                         )
                         // Zoom auf erste Detektion
                         val first = tempAnnotations.first()
@@ -495,7 +496,8 @@ class ClassificationManager(
                             annotationManager.mergeAnnotations(
                                 keep = { ann -> !ann.isBirdNetDetection },
                                 newAnnotations = progressiveAnnotations,
-                                activeId = null  // Aktive Annotation nicht aendern
+                                activeId = null,  // Aktive Annotation nicht aendern
+                                spectrogramData = audioData.zoomedSpectrogramData()
                             )
                         }
                     }
@@ -567,7 +569,8 @@ class ClassificationManager(
                             (ann.endTimeSec < scanStart || ann.startTimeSec > scanEnd))
                     },
                     newAnnotations = newAnnotations,
-                    activeId = newAnnotations.firstOrNull()?.id
+                    activeId = newAnnotations.firstOrNull()?.id,
+                    spectrogramData = audioData.zoomedSpectrogramData()
                 )
                 onProcessingChanged(false)
                 onStatusUpdate(
@@ -986,7 +989,7 @@ class ClassificationManager(
                         colorIndex = annotationManager.allocateColor(),
                         audioFileId = audioData.activeAudioFileId()
                     )
-                    annotationManager.addAnnotation(fallback)
+                    annotationManager.addAnnotation(fallback, spectrogramData = data)
                     onProcessingChanged(false)
                     onStatusUpdate("Gleichmaessiges Signal -- gesamter Bereich markiert", null)
                     return@launch
@@ -1026,7 +1029,7 @@ class ClassificationManager(
                 }
 
                 val summary = categoryCounts.entries.joinToString(", ") { "${it.value} ${it.key}" }
-                annotationManager.addAnnotations(newAnnotations, activeId = newAnnotations.firstOrNull()?.id)
+                annotationManager.addAnnotations(newAnnotations, activeId = newAnnotations.firstOrNull()?.id, spectrogramData = data)
                 onProcessingChanged(false)
                 onStatusUpdate("${capped.size} Events: $summary", null)
 

@@ -139,6 +139,7 @@ fun CompareScreen(
     if (pendingMetadataFileId != null) {
         AudioMetadataDialog(
             fileName = pendingMetadataFileName,
+            audioDurationSec = uiState.loadedAudioFiles[pendingMetadataFileId]?.durationSec ?: 0f,
             onDismiss = {
                 pendingMetadataFileId = null
                 pendingMetadataFileName = ""
@@ -564,6 +565,28 @@ fun CompareScreen(
             hasProject = uiState.projectFile != null,
             projectDirty = uiState.projectDirty,
             onExportReport = viewModel::exportReport,
+            // AP-89: Raven-Import
+            onImportRaven = {
+                val chooser = javax.swing.JFileChooser()
+                chooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                    "Raven Selection Table (*.txt)", "txt"
+                )
+                chooser.dialogTitle = "Raven Selection Table importieren"
+                if (chooser.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                    viewModel.importRavenSelections(chooser.selectedFile)
+                }
+            },
+            // AP-88: GPX-Import
+            onImportGpx = {
+                val chooser = javax.swing.JFileChooser()
+                chooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                    "GPX-Tracklog (*.gpx)", "gpx"
+                )
+                chooser.dialogTitle = "GPX-Tracklog importieren"
+                if (chooser.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                    viewModel.importGpxTrack(chooser.selectedFile)
+                }
+            },
             speciesCsvEnabled = uiState.annotations.any { it.isBirdNetDetection },
             onExportSpeciesCsv = {
                 val annotations = uiState.annotations.filter { it.isBirdNetDetection }
@@ -754,6 +777,7 @@ fun CompareScreen(
                                     onSelectSlice = { index -> viewModel.selectSlice(index) },
                                     onRemoveFile = { fileId -> viewModel.removeAudioFile(fileId) },
                                     annotationCount = uiState.annotations.size,
+                                    annotationStatsPerFile = uiState.annotationStatsPerFile,
                                     onAddFile = {
                                         val chooser = JFileChooser()
                                         chooser.fileFilter = FileNameExtensionFilter("Audio", "wav", "mp3", "flac", "ogg", "m4a")

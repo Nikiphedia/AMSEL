@@ -460,6 +460,19 @@ private fun AnnotationItem(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
+                // Akustische Messwerte (nur wenn berechnet)
+                if (annotation.metrics.isComputed) {
+                    val m = annotation.metrics
+                    Text(
+                        buildString {
+                            append("Peak ${"%.1f".format(m.peakFreqHz / 1000f)} kHz")
+                            append("  BW ${"%.1f".format(m.bandwidth3dbHz / 1000f)} kHz")
+                            if (m.snrDb > 0f) append("  SNR ${"%.1f".format(m.snrDb)} dB")
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
+                    )
+                }
                 // Konfidenz
                 val conf = extractConfidence(annotation.label)
                 if (conf > 0f) {
