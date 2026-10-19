@@ -29,9 +29,6 @@ dependencies {
     // DSP
     implementation(libs.jtransforms)
 
-    // Image Loading
-    implementation(libs.kamel.image)
-
     // Audio Decode (MP3 + FLAC + AAC/M4A)
     implementation(libs.jlayer)
     implementation(libs.jflac)
