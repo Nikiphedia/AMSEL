@@ -275,21 +275,37 @@ object SettingsStore {
 
     private val settingsFile: File get() = File(settingsDir, "settings.json")
 
+    // In-Memory-Cache: load() wird an ~50 Stellen aufgerufen (u.a. bei jedem Zoom).
+    // AppSettings ist unveraenderlich → die Instanz kann gefahrlos geteilt werden.
+    // Aenderungszeit der Datei wird geprueft, damit externe Bearbeitungen weiterhin greifen.
+    private class Cached(val settings: AppSettings, val lastModified: Long)
+
+    @Volatile
+    private var cache: Cached? = null
+
     fun load(): AppSettings {
-        return try {
-            if (settingsFile.exists()) {
-                json.decodeFromString(settingsFile.readText())
+        val file = settingsFile
+        val lastModified = file.lastModified()  // 0 wenn Datei fehlt
+        cache?.let { if (it.lastModified == lastModified) return it.settings }
+
+        val settings = try {
+            if (lastModified != 0L) {
+                json.decodeFromString<AppSettings>(file.readText())
             } else {
                 AppSettings()
             }
         } catch (_: Exception) {
             AppSettings()
         }
+        cache = Cached(settings, lastModified)
+        return settings
     }
 
     fun save(settings: AppSettings) {
         try {
-            settingsFile.writeText(json.encodeToString(AppSettings.serializer(), settings))
+            val file = settingsFile
+            file.writeText(json.encodeToString(AppSettings.serializer(), settings))
+            cache = Cached(settings, file.lastModified())
         } catch (_: Exception) {
             // Stille Fehlerbehandlung — Settings sind nicht kritisch
         }

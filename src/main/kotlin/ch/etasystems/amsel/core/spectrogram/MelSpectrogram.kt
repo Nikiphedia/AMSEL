@@ -43,12 +43,33 @@ class MelSpectrogram(
     val sampleRate: Int = 16000,
     val windowType: WindowFunction = WindowFunction.HANN
 ) {
-    private val filterbank = MelFilterbank.build(nMels, fftSize, sampleRate, fMin, fMax)
     private val window = buildWindow(fftSize, windowType)
+
+    // Duenn besetzte Filterbank: pro Mel-Band nur der Bin-Bereich mit Gewicht != 0.
+    // Ein Dreiecksfilter deckt nur wenige Bins ab — die volle Matrix-Multiplikation
+    // (nMels x numBins) wuerde fast nur mit Nullen rechnen.
+    private val filterStart: IntArray
+    private val filterWeights: Array<FloatArray>
+
+    init {
+        val dense = MelFilterbank.build(nMels, fftSize, sampleRate, fMin, fMax)
+        filterStart = IntArray(nMels)
+        filterWeights = Array(nMels) { m ->
+            val row = dense[m]
+            val first = row.indexOfFirst { it != 0f }
+            if (first < 0) {
+                FloatArray(0)
+            } else {
+                val last = row.indexOfLast { it != 0f }
+                filterStart[m] = first
+                row.copyOfRange(first, last + 1)
+            }
+        }
+    }
 
     companion object {
         /** Cache fuer MelSpectrogram-Instanzen: key = Preset + Parameter */
-        private val instanceCache = mutableMapOf<String, MelSpectrogram>()
+        private val instanceCache = java.util.concurrent.ConcurrentHashMap<String, MelSpectrogram>()
 
         /**
          * Voegel-Preset: Maximale Aufloesung (Ornitho-Qualitaet).
@@ -164,8 +185,9 @@ class MelSpectrogram(
                     val batchEnd = minOf(batchStart + batchSize, nFrames)
                     // Jeder Thread bekommt eigene Arbeitsbuffer (nicht geteilt!)
                     val localFft = DoubleFFT_1D(fftSize.toLong())
-                    val localFftBuffer = DoubleArray(fftSize * 2)
+                    val localFftBuffer = DoubleArray(fftSize)
                     val localPowerSpectrum = FloatArray(numBins)
+                    val half = fftSize / 2
 
                     for (frame in batchStart until batchEnd) {
                         val offset = frame * hopSize
@@ -179,26 +201,29 @@ class MelSpectrogram(
                                 0.0
                             }
                         }
-                        // Imaginaerteil auf 0
-                        for (i in fftSize until fftSize * 2) {
-                            localFftBuffer[i] = 0.0
-                        }
 
-                        // FFT berechnen
-                        localFft.realForwardFull(localFftBuffer)
+                        // Reelle FFT (halb so viel Arbeit wie realForwardFull).
+                        // Layout: [0]=Re(0), [1]=Re(n/2), [2k]=Re(k), [2k+1]=Im(k)
+                        localFft.realForward(localFftBuffer)
 
                         // Power-Spektrum
-                        for (k in 0 until numBins) {
+                        val dc = localFftBuffer[0].toFloat()
+                        val nyquist = localFftBuffer[1].toFloat()
+                        localPowerSpectrum[0] = dc * dc
+                        localPowerSpectrum[half] = nyquist * nyquist
+                        for (k in 1 until half) {
                             val re = localFftBuffer[2 * k].toFloat()
                             val im = localFftBuffer[2 * k + 1].toFloat()
                             localPowerSpectrum[k] = re * re + im * im
                         }
 
-                        // Mel-Filterbank anwenden
+                        // Mel-Filterbank anwenden (nur Bins mit Gewicht != 0)
                         for (m in 0 until nMels) {
+                            val weights = filterWeights[m]
+                            val start = filterStart[m]
                             var energy = 0f
-                            for (k in 0 until numBins) {
-                                energy += filterbank[m][k] * localPowerSpectrum[k]
+                            for (j in weights.indices) {
+                                energy += weights[j] * localPowerSpectrum[start + j]
                             }
                             // Matrix-Zugriff ist thread-safe: jeder Frame schreibt nur seine eigene Spalte
                             matrix[m * nFrames + frame] = log10(energy + 1e-10f)

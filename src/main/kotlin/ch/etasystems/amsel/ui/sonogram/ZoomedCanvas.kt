@@ -33,12 +33,6 @@ import ch.etasystems.amsel.core.annotation.ANNOTATION_COLORS
 import ch.etasystems.amsel.core.annotation.Annotation
 import ch.etasystems.amsel.core.spectrogram.MelFilterbank
 import ch.etasystems.amsel.core.spectrogram.SpectrogramData
-import org.jetbrains.skia.Bitmap
-import org.jetbrains.skia.ColorAlphaType
-import org.jetbrains.skia.ColorType
-import org.jetbrains.skia.ImageInfo
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlin.math.log2
 import kotlin.math.roundToInt
 
@@ -97,54 +91,53 @@ fun ZoomedCanvas(
         spectrogramData?.let { data -> createSpectrogramBitmap(data, displayDbRange, displayGamma, volumeGainsLog10, normReferenceMaxDb) }
     }
 
-    // Linear-Bitmap: gecacht, abgeleitet von melBitmap (nur 1x berechnet pro Daten-Aenderung)
-    val linearBitmapCached = remember(melBitmapCached, spectrogramData) {
-        melBitmapCached?.let { melBmp ->
-            val data = spectrogramData ?: return@let melBmp
-            val width = melBmp.width
-            val height = melBmp.height
-            if (width == 0 || height == 0) return@let melBmp
+    // Linear-Bitmap: gecacht pro Daten-Aenderung, aber erst beim ersten Umschalten auf
+    // die lineare Achse berechnet (lazy) — im Log-Modus entfaellt die Arbeit komplett.
+    val linearBitmapLazy = remember(melBitmapCached, spectrogramData) {
+        lazy {
+            melBitmapCached?.let { melBmp ->
+                val data = spectrogramData ?: return@let melBmp
+                val width = melBmp.width
+                val height = melBmp.height
+                if (width == 0 || height == 0) return@let melBmp
 
-            val srcPixels = IntArray(width * height)
-            melBmp.readPixels(srcPixels, 0, 0, width, height)
-            val dstPixels = IntArray(width * height)
-            val fMin = data.fMin; val fMax = data.fMax
+                val srcPixels = IntArray(width * height)
+                melBmp.readPixels(srcPixels, 0, 0, width, height)
+                val dstPixels = IntArray(width * height)
+                val fMin = data.fMin; val fMax = data.fMax
 
-            for (y in 0 until height) {
-                val linearFraction = 1f - (y.toFloat() / (height - 1).toFloat())
-                val hz = fMin + linearFraction * (fMax - fMin)
-                val melNorm = hzToNormalizedMel(hz, fMin, fMax)
-                val srcYExact = (1f - melNorm) * (height - 1).toFloat()
-                val srcY0 = srcYExact.toInt().coerceIn(0, height - 1)
-                val srcY1 = (srcY0 + 1).coerceIn(0, height - 1)
-                val frac = srcYExact - srcY0
-                for (x in 0 until width) {
+                for (y in 0 until height) {
+                    val linearFraction = 1f - (y.toFloat() / (height - 1).toFloat())
+                    val hz = fMin + linearFraction * (fMax - fMin)
+                    val melNorm = hzToNormalizedMel(hz, fMin, fMax)
+                    val srcYExact = (1f - melNorm) * (height - 1).toFloat()
+                    val srcY0 = srcYExact.toInt().coerceIn(0, height - 1)
+                    val srcY1 = (srcY0 + 1).coerceIn(0, height - 1)
+                    val frac = srcYExact - srcY0
+                    val dstRow = y * width
+                    val row0 = srcY0 * width
                     if (srcY0 == srcY1) {
-                        dstPixels[y * width + x] = srcPixels[srcY0 * width + x]
-                    } else {
-                        val c0 = srcPixels[srcY0 * width + x]; val c1 = srcPixels[srcY1 * width + x]
-                        dstPixels[y * width + x] = (lerpChannel(c0, c1, frac, 24) shl 24) or
+                        // Ganze Zeile identisch → Bulk-Kopie
+                        System.arraycopy(srcPixels, row0, dstPixels, dstRow, width)
+                        continue
+                    }
+                    val row1 = srcY1 * width
+                    for (x in 0 until width) {
+                        val c0 = srcPixels[row0 + x]; val c1 = srcPixels[row1 + x]
+                        dstPixels[dstRow + x] = (lerpChannel(c0, c1, frac, 24) shl 24) or
                             (lerpChannel(c0, c1, frac, 16) shl 16) or
                             (lerpChannel(c0, c1, frac, 8) shl 8) or
                             lerpChannel(c0, c1, frac, 0)
                     }
                 }
-            }
 
-            val skiaBitmap = Bitmap()
-            skiaBitmap.allocPixels(ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.OPAQUE))
-            val buf = ByteBuffer.allocate(width * height * 4).order(ByteOrder.LITTLE_ENDIAN)
-            for (px in dstPixels) {
-                buf.put((px and 0xFF).toByte()); buf.put(((px shr 8) and 0xFF).toByte())
-                buf.put(((px shr 16) and 0xFF).toByte()); buf.put(((px shr 24) and 0xFF).toByte())
+                pixelsToImageBitmap(dstPixels, width, height)
             }
-            buf.rewind(); skiaBitmap.installPixels(buf.array())
-            skiaBitmap.asComposeImageBitmap()
         }
     }
 
-    // Toggle zwischen Log/Linear = nur Referenzwechsel, 0ms!
-    val bitmap = if (useLogFreqAxis) melBitmapCached else linearBitmapCached
+    // Toggle zwischen Log/Linear = nur Referenzwechsel (Linear einmalig beim ersten Umschalten)
+    val bitmap = if (useLogFreqAxis) melBitmapCached else linearBitmapLazy.value
 
     val textMeasurer = rememberTextMeasurer()
     var dragStart by remember { mutableStateOf<Offset?>(null) }
