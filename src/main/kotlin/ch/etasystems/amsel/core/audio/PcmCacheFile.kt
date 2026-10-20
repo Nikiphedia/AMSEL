@@ -27,10 +27,68 @@ class PcmCacheFile private constructor(
     companion object {
         private const val MAGIC = "BSPC"
         private const val HEADER_SIZE = 16L  // 4 (magic) + 4 (sampleRate) + 8 (totalSamples)
+        private const val CHUNK_SAMPLES = 65536
+
+        private fun newCacheFile(sourceName: String): File {
+            val cacheDir = File(System.getProperty("user.home"), "Documents/AMSEL/cache")
+            cacheDir.mkdirs()
+            return File(cacheDir, "pcm_${sourceName}_${System.currentTimeMillis()}.raw")
+        }
+
+        private fun writeHeader(raf: RandomAccessFile, sampleRate: Int, totalSamples: Long) {
+            raf.seek(0)
+            raf.write(MAGIC.toByteArray(Charsets.US_ASCII))  // 4 Bytes
+            val headerBuf = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+            headerBuf.putInt(sampleRate)
+            headerBuf.putLong(totalSamples)
+            raf.write(headerBuf.array())
+        }
+
+        /** Schreibt Samples als Float32-LE per Bulk-Put an die aktuelle Dateiposition. */
+        private fun writeSamples(raf: RandomAccessFile, samples: FloatArray, from: Int, count: Int, buf: ByteBuffer) {
+            var written = 0
+            val chunk = buf.capacity() / 4
+            while (written < count) {
+                val n = minOf(chunk, count - written)
+                buf.clear()
+                buf.asFloatBuffer().put(samples, from + written, n)
+                buf.limit(n * 4)
+                raf.channel.write(buf)
+                written += n
+            }
+        }
+
+        /**
+         * Erstellt eine PCM-Cache-Datei aus einem bereits dekodierten Segment.
+         * Bevorzugt verwenden, wenn das Audio ohnehin schon im Speicher liegt
+         * (spart das erneute Dekodieren der Quelldatei).
+         */
+        fun createFromSegment(
+            segment: AudioSegment,
+            sourceName: String,
+            onProgress: ((Float) -> Unit)? = null
+        ): PcmCacheFile {
+            val cacheFile = newCacheFile(sourceName)
+            val samples = segment.samples
+            val buf = ByteBuffer.allocate(CHUNK_SAMPLES * 4).order(ByteOrder.LITTLE_ENDIAN)
+            RandomAccessFile(cacheFile, "rw").use { raf ->
+                writeHeader(raf, segment.sampleRate, samples.size.toLong())
+                var written = 0
+                while (written < samples.size) {
+                    val n = minOf(CHUNK_SAMPLES * 16, samples.size - written)
+                    writeSamples(raf, samples, written, n, buf)
+                    written += n
+                    onProgress?.invoke(written.toFloat() / samples.size)
+                }
+            }
+            onProgress?.invoke(1.0f)
+            return PcmCacheFile(cacheFile, segment.sampleRate, samples.size.toLong())
+        }
 
         /**
          * Erstellt eine PCM-Cache-Datei aus einer Audio-Datei.
-         * Dekodiert das gesamte Audio und schreibt es als Raw-Float32.
+         * Dekodiert streaming und schreibt jeden Chunk direkt in die Datei —
+         * das gesamte Audio liegt nie komplett im Speicher.
          *
          * @param audioFile Quell-Audiodatei (WAV, MP3, FLAC, M4A etc.)
          * @param onProgress Fortschritts-Callback (0.0 .. 1.0)
@@ -40,54 +98,30 @@ class PcmCacheFile private constructor(
             audioFile: File,
             onProgress: ((Float) -> Unit)? = null
         ): PcmCacheFile {
-            // Cache-Verzeichnis
-            val cacheDir = File(System.getProperty("user.home"), "Documents/AMSEL/cache")
-            cacheDir.mkdirs()
-            val cacheFile = File(cacheDir, "pcm_${audioFile.nameWithoutExtension}_${System.currentTimeMillis()}.raw")
+            val cacheFile = newCacheFile(audioFile.nameWithoutExtension)
+            // Erwartete Laenge fuer Fortschrittsanzeige (bei MP3 oft unbekannt → -1)
+            val expectedSamples = runCatching {
+                javax.sound.sampled.AudioSystem.getAudioFileFormat(audioFile).frameLength.toLong()
+            }.getOrDefault(-1L)
 
-            onProgress?.invoke(0.1f)
-
-            // Audio streaming dekodieren und direkt in Datei schreiben
-            val segment = AudioDecoder.decode(audioFile)
-            val samples = segment.samples
-            val sampleRate = segment.sampleRate
-
-            onProgress?.invoke(0.5f)
-
-            // Header + Samples schreiben
-            RandomAccessFile(cacheFile, "rw").use { raf ->
-                // Header
-                raf.write(MAGIC.toByteArray(Charsets.US_ASCII))  // 4 Bytes
-                val headerBuf = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
-                headerBuf.putInt(sampleRate)
-                headerBuf.putLong(samples.size.toLong())
-                raf.write(headerBuf.array())
-
-                // Samples in Chunks schreiben (vermeidet riesigen ByteBuffer)
-                val chunkSize = 65536
-                val buf = ByteBuffer.allocate(chunkSize * 4).order(ByteOrder.LITTLE_ENDIAN)
-                var written = 0
-                while (written < samples.size) {
-                    val count = minOf(chunkSize, samples.size - written)
-                    buf.clear()
-                    for (i in 0 until count) {
-                        buf.putFloat(samples[written + i])
-                    }
-                    buf.flip()
-                    val bytes = ByteArray(count * 4)
-                    buf.get(bytes)
-                    raf.write(bytes)
-                    written += count
-
-                    if (written % (chunkSize * 10) == 0) {
-                        onProgress?.invoke(0.5f + 0.5f * written.toFloat() / samples.size)
+            onProgress?.invoke(0.0f)
+            val buf = ByteBuffer.allocate(CHUNK_SAMPLES * 4).order(ByteOrder.LITTLE_ENDIAN)
+            val result = RandomAccessFile(cacheFile, "rw").use { raf ->
+                // Header mit Platzhalter, Laenge wird am Ende nachgetragen
+                writeHeader(raf, 0, 0L)
+                val streaming = AudioDecoder.decodeStreaming(audioFile) { chunk, offset ->
+                    writeSamples(raf, chunk, 0, chunk.size, buf)
+                    if (expectedSamples > 0) {
+                        onProgress?.invoke(((offset + chunk.size).toFloat() / expectedSamples).coerceAtMost(0.99f))
                     }
                 }
+                writeHeader(raf, streaming.sampleRate, streaming.totalSamples)
+                streaming
             }
 
             onProgress?.invoke(1.0f)
 
-            return PcmCacheFile(cacheFile, sampleRate, samples.size.toLong())
+            return PcmCacheFile(cacheFile, result.sampleRate, result.totalSamples)
         }
 
         /** Oeffnet eine bestehende PCM-Cache-Datei */

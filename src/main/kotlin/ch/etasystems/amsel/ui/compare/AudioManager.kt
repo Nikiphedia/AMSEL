@@ -129,11 +129,12 @@ class AudioManager(
         val actualOverview = ChunkedSpectrogram.computeOverview(segment, targetFrames = 4000, maxFreqHz = maxFreqHz)
         val mode = actualOverview.mode
 
-        // 4. Grosse Dateien: PCM-Cache erstellen (einmalig, danach Random Access)
+        // 4. Grosse Dateien: PCM-Cache erstellen (einmalig, danach Random Access).
+        //    Aus dem bereits dekodierten Segment — kein zweites Dekodieren der Datei.
         var pcmCache: PcmCacheFile? = null
         if (isLargeFile) {
             onProgressUpdate("Erstelle Audio-Cache...")
-            pcmCache = PcmCacheFile.createFromAudioFile(file) { p ->
+            pcmCache = PcmCacheFile.createFromSegment(rawSegment, file.nameWithoutExtension) { p ->
                 onProgressUpdate("Audio-Cache: ${(p * 100).toInt()}%")
             }
         }

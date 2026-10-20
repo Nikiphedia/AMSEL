@@ -52,11 +52,7 @@ object AudioDecoder {
 
                 val numSamples = bytesRead / 2
                 val samples = FloatArray(numSamples)
-                for (i in 0 until numSamples) {
-                    val lo = buffer[i * 2].toInt() and 0xFF
-                    val hi = buffer[i * 2 + 1].toInt()
-                    samples[i] = ((hi shl 8) or lo) / 32768f
-                }
+                pcm16ToFloats(buffer, numSamples, samples, 0)
 
                 onChunk(samples, totalSamples)
                 totalSamples += numSamples
@@ -86,27 +82,15 @@ object AudioDecoder {
         val endSample = (endSec * sampleRate).toLong()
         val numSamples = (endSample - startSample).toInt()
 
-        val skipBytes = startSample * 2
-        var remaining = skipBytes
-        val skipBuffer = ByteArray(minOf(remaining, 65536L).toInt())
         try {
-            while (remaining > 0) {
-                val toRead = minOf(remaining, skipBuffer.size.toLong()).toInt()
-                val read = decodedStream.read(skipBuffer, 0, toRead)
-                if (read <= 0) break
-                remaining -= read
-            }
+            skipFully(decodedStream, startSample * 2)
 
             val bytes = ByteArray(numSamples * 2)
             val bytesRead = readFully(decodedStream, bytes)
             val actualSamples = bytesRead / 2
 
             val samples = FloatArray(actualSamples)
-            for (i in 0 until actualSamples) {
-                val lo = bytes[i * 2].toInt() and 0xFF
-                val hi = bytes[i * 2 + 1].toInt()
-                samples[i] = ((hi shl 8) or lo) / 32768f
-            }
+            pcm16ToFloats(bytes, actualSamples, samples, 0)
 
             return AudioSegment(samples = samples, sampleRate = sampleRate)
         } finally {
@@ -249,28 +233,35 @@ object AudioDecoder {
         val targetFormat = buildTargetFormat(originalFormat)
         val decodedStream = convertToTarget(originalStream, originalFormat, targetFormat)
 
-        // Chunk-weise lesen statt readBytes() — robuster bei unbekannter Länge
-        val baos = ByteArrayOutputStream()
-        val readBuffer = ByteArray(65536)
+        // Chunk-weise lesen und direkt in Floats wandeln — kein ByteArrayOutputStream
+        // (der wuerde durch Verdoppeln + toByteArray() ein Mehrfaches des Speichers belegen).
+        // Laenge ist bei WAV/FLAC bekannt → exakt vorallozieren; sonst (MP3) wachsen lassen.
+        val knownFrames = decodedStream.frameLength
+        var samples = FloatArray(
+            if (knownFrames in 1..Int.MAX_VALUE.toLong()) knownFrames.toInt() else 1 shl 20
+        )
+        var numSamples = 0
+        val readBuffer = ByteArray(1 shl 16)
+        var carry = 0  // ungerades Byte aus dem letzten read()
         try {
             while (true) {
-                val read = decodedStream.read(readBuffer)
+                val read = decodedStream.read(readBuffer, carry, readBuffer.size - carry)
                 if (read <= 0) break
-                baos.write(readBuffer, 0, read)
+                val available = carry + read
+                val count = available / 2
+                if (numSamples + count > samples.size) {
+                    samples = samples.copyOf(maxOf(samples.size * 2, numSamples + count))
+                }
+                pcm16ToFloats(readBuffer, count, samples, numSamples)
+                numSamples += count
+                carry = available - count * 2
+                if (carry == 1) readBuffer[0] = readBuffer[available - 1]
             }
         } finally {
             decodedStream.close()
             originalStream.close()
         }
-
-        val bytes = baos.toByteArray()
-        val numSamples = bytes.size / 2
-        val samples = FloatArray(numSamples)
-        for (i in 0 until numSamples) {
-            val lo = bytes[i * 2].toInt() and 0xFF
-            val hi = bytes[i * 2 + 1].toInt()
-            samples[i] = ((hi shl 8) or lo) / 32768f
-        }
+        if (numSamples != samples.size) samples = samples.copyOf(numSamples)
 
         return AudioSegment(samples = samples, sampleRate = targetFormat.sampleRate.toInt())
     }
@@ -338,34 +329,13 @@ object AudioDecoder {
     }
 
     /**
-     * Manuelles Stereo→Mono Downmix: Mittelwert beider Kanäle.
+     * Manuelles Stereo→Mono Downmix: Mittelwert aller Kanaele.
+     * Streaming — wandelt blockweise beim Lesen, statt alles vorab in den Speicher zu laden.
      */
     private fun manualStereoToMono(
         stereoStream: AudioInputStream,
         stereoFormat: AudioFormat
     ): AudioInputStream {
-        val channels = stereoFormat.channels
-        val bytesPerFrame = channels * 2  // 16-Bit pro Kanal
-        val frameBuffer = ByteArray(bytesPerFrame)
-        val monoBytes = ByteArrayOutputStream()
-
-        while (true) {
-            val read = readFully(stereoStream, frameBuffer)
-            if (read < bytesPerFrame) break
-
-            // Mittelwert aller Kanäle
-            var sum = 0
-            for (ch in 0 until channels) {
-                val lo = frameBuffer[ch * 2].toInt() and 0xFF
-                val hi = frameBuffer[ch * 2 + 1].toInt()
-                sum += (hi shl 8) or lo
-            }
-            val mono = (sum / channels).toShort()
-            monoBytes.write(mono.toInt() and 0xFF)
-            monoBytes.write((mono.toInt() shr 8) and 0xFF)
-        }
-
-        val monoData = monoBytes.toByteArray()
         val monoFormat = AudioFormat(
             AudioFormat.Encoding.PCM_SIGNED,
             stereoFormat.sampleRate,
@@ -374,10 +344,87 @@ object AudioDecoder {
             false
         )
         return AudioInputStream(
-            java.io.ByteArrayInputStream(monoData),
+            DownmixInputStream(stereoStream, stereoFormat.channels),
             monoFormat,
-            (monoData.size / 2).toLong()
+            stereoStream.frameLength
         )
+    }
+
+    /** Liest interleaved 16-Bit-LE-PCM mit n Kanaelen und liefert 16-Bit-LE-Mono. */
+    private class DownmixInputStream(
+        private val source: java.io.InputStream,
+        private val channels: Int
+    ) : java.io.InputStream() {
+        private val bytesPerFrame = channels * 2
+        private val inBuffer = ByteArray(bytesPerFrame * 8192)
+        private val outBuffer = ByteArray(2 * 8192)
+        private var outPos = 0
+        private var outLen = 0
+
+        private fun fill(): Boolean {
+            val read = readFully(source, inBuffer)
+            val frames = read / bytesPerFrame
+            for (f in 0 until frames) {
+                var sum = 0
+                val base = f * bytesPerFrame
+                for (ch in 0 until channels) {
+                    val lo = inBuffer[base + ch * 2].toInt() and 0xFF
+                    val hi = inBuffer[base + ch * 2 + 1].toInt()
+                    sum += (hi shl 8) or lo
+                }
+                val mono = sum / channels
+                outBuffer[f * 2] = (mono and 0xFF).toByte()
+                outBuffer[f * 2 + 1] = ((mono shr 8) and 0xFF).toByte()
+            }
+            outPos = 0
+            outLen = frames * 2
+            return outLen > 0
+        }
+
+        override fun read(): Int {
+            if (outPos >= outLen && !fill()) return -1
+            return outBuffer[outPos++].toInt() and 0xFF
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (len == 0) return 0
+            if (outPos >= outLen && !fill()) return -1
+            val n = minOf(len, outLen - outPos)
+            System.arraycopy(outBuffer, outPos, b, off, n)
+            outPos += n
+            return n
+        }
+
+        override fun close() = source.close()
+    }
+
+    /** 16-Bit-LE-PCM → Float [-1..1]. */
+    private fun pcm16ToFloats(bytes: ByteArray, count: Int, dst: FloatArray, dstOffset: Int) {
+        for (i in 0 until count) {
+            val lo = bytes[i * 2].toInt() and 0xFF
+            val hi = bytes[i * 2 + 1].toInt()
+            dst[dstOffset + i] = ((hi shl 8) or lo) / 32768f
+        }
+    }
+
+    /**
+     * Ueberspringt n Bytes. skip() springt bei unkomprimiertem WAV direkt in der Datei;
+     * liefert ein Stream 0 (z.B. Konverter-Streams), wird per read() verworfen.
+     */
+    private fun skipFully(stream: java.io.InputStream, n: Long) {
+        var remaining = n
+        var scratch: ByteArray? = null
+        while (remaining > 0) {
+            val skipped = stream.skip(remaining)
+            if (skipped > 0) {
+                remaining -= skipped
+                continue
+            }
+            val buf = scratch ?: ByteArray(65536).also { scratch = it }
+            val read = stream.read(buf, 0, minOf(remaining, buf.size.toLong()).toInt())
+            if (read <= 0) break
+            remaining -= read
+        }
     }
 
     /** Liest so viele Bytes wie möglich in den Buffer. */
