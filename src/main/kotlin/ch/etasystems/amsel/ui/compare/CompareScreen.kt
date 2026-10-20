@@ -70,6 +70,9 @@ fun CompareScreen(
     awtWindow: java.awt.Window? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    // Bewusst ohne `by`: .value wird nur in Lambdas gelesen (Zeichnen / Zeit-Label),
+    // damit Positions-Updates (~30/s) nicht den ganzen Screen rekomponieren.
+    val playbackPosition = viewModel.playbackPositionSec.collectAsState()
     var showReferenceEditor by remember { mutableStateOf(false) }
     var showUnifiedSettings by remember { mutableStateOf(false) }
     var showCompareDialog by remember { mutableStateOf(false) }
@@ -418,7 +421,9 @@ fun CompareScreen(
             annotationCount = uiState.annotations.size,
             isPlaying = uiState.isPlaying,
             isPaused = uiState.isPaused,
-            playbackPositionText = uiState.playbackPositionText,
+            playbackPositionText = {
+                if (uiState.isPlaying || uiState.isPaused) formatPlaybackPosition(playbackPosition.value) else ""
+            },
             filterPanelVisible = uiState.showFilterPanel,
             onImport = {
                 val file = showFileChooser()
@@ -870,9 +875,9 @@ fun CompareScreen(
                         viewEndSec = uiState.viewEndSec,
                         totalDurationSec = uiState.totalDurationSec,
                         annotations = uiState.annotations,
-                        playbackPositionSec = if (uiState.isPlaying || uiState.isPaused) {
-                            uiState.playbackPositionSec
-                        } else null,
+                        playbackPositionSec = {
+                            if (uiState.isPlaying || uiState.isPaused) playbackPosition.value else null
+                        },
                         paletteVersion = uiState.paletteVersion,
                         onViewRangeChanged = { start, end -> viewModel.updateViewRange(start, end) },
                         onViewRangeDrag = { start, end -> viewModel.updateViewRangeLive(start, end) },
@@ -969,9 +974,9 @@ fun CompareScreen(
                                 }
                                 showCanvasContextMenu = true
                             },
-                            playbackPositionSec = if (uiState.isPlaying || uiState.isPaused) {
-                                uiState.playbackPositionSec
-                            } else null,
+                            playbackPositionSec = {
+                                if (uiState.isPlaying || uiState.isPaused) playbackPosition.value else null
+                            },
                             isComputing = uiState.isComputingZoom,
                             paletteVersion = uiState.paletteVersion,
                             displayDbRange = uiState.displayDbRange,
@@ -1295,7 +1300,9 @@ fun CompareScreen(
                             isPlayingAudio = uiState.isPlaying,
                             playingRecordingId = uiState.playingReferenceId,
                             downloadingRecordingId = uiState.downloadingReferenceId,
-                            referencePlaybackPositionSec = if (uiState.playbackMode == PlaybackMode.REFERENCE) uiState.playbackPositionSec else 0f,
+                            referencePlaybackPositionSec = {
+                                if (uiState.playbackMode == PlaybackMode.REFERENCE) playbackPosition.value else 0f
+                            },
                             referenceAudioDurationSec = uiState.referenceAudioDurationSec,
                             speciesLocale = speciesLocale,
                             isSyncMode = uiState.isSyncMode,

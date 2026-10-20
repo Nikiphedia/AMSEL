@@ -27,7 +27,8 @@ fun SonogramToolbar(
     annotationCount: Int = 0,
     isPlaying: Boolean = false,
     isPaused: Boolean = false,
-    playbackPositionText: String = "",
+    /** Liefert die Positionsanzeige ("" = ausblenden); wird nur im Label selbst gelesen. */
+    playbackPositionText: () -> String = { "" },
     filterPanelVisible: Boolean = false,
     onImport: () -> Unit,
     onClose: () -> Unit = {},
@@ -256,13 +257,7 @@ fun SonogramToolbar(
                 )
             }
 
-            if (playbackPositionText.isNotEmpty()) {
-                Text(
-                    playbackPositionText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF4CAF50)
-                )
-            }
+            PlaybackPositionLabel(playbackPositionText)
 
             Spacer(modifier = Modifier.width(4.dp))
 
@@ -572,5 +567,21 @@ fun SonogramToolbar(
                 }
             }
         }
+    }
+}
+
+/**
+ * Eigener Composable-Scope fuer die Zeitanzeige: aendert sich ~30x/s waehrend der
+ * Wiedergabe, soll aber nur dieses Label rekomponieren, nicht die ganze Toolbar.
+ */
+@Composable
+private fun PlaybackPositionLabel(text: () -> String) {
+    val value = text()
+    if (value.isNotEmpty()) {
+        Text(
+            value,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF4CAF50)
+        )
     }
 }

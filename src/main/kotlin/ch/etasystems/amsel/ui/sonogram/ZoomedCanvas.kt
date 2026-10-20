@@ -62,7 +62,8 @@ fun ZoomedCanvas(
     onAnnotationClicked: (String) -> Unit = {},
     onAnnotationRightClicked: (annotationId: String, posX: Float, posY: Float) -> Unit = { _, _, _ -> },
     onCanvasRightClicked: (timeSec: Float, freqHz: Float, posX: Float, posY: Float) -> Unit = { _, _, _, _ -> },
-    playbackPositionSec: Float? = null,
+    /** Wird erst beim Zeichnen gelesen → Positions-Updates loesen nur ein Redraw aus, keine Recomposition. */
+    playbackPositionSec: () -> Float? = { null },
     isComputing: Boolean = false,
     paletteVersion: Int = 0,
     displayDbRange: Float = 0f,
@@ -581,8 +582,9 @@ fun ZoomedCanvas(
             }
 
             // Playback-Position (rote vertikale Linie + Dreieck)
-            if (playbackPositionSec != null && playbackPositionSec in viewStartSec..viewEndSec) {
-                val posX = axisLeft + ((playbackPositionSec - viewStartSec) / duration) * plotWidth
+            val playbackPos = playbackPositionSec()
+            if (playbackPos != null && playbackPos in viewStartSec..viewEndSec) {
+                val posX = axisLeft + ((playbackPos - viewStartSec) / duration) * plotWidth
 
                 drawLine(
                     color = Color(0xFFFF4444),

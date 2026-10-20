@@ -66,7 +66,6 @@ data class CompareUiState(
     // Playback
     val isPlaying: Boolean = false,
     val isPaused: Boolean = false,
-    val playbackPositionSec: Float = 0f,
     val isLooping: Boolean = false,
     val playbackMode: PlaybackMode = PlaybackMode.MAIN,
     val isReferenceLooping: Boolean = false,
@@ -168,16 +167,14 @@ data class CompareUiState(
     val hasResults: Boolean
         get() = annotations.any { it.matchResults.isNotEmpty() }
 
-    val playbackPositionText: String
-        get() {
-            if (!isPlaying && !isPaused) return ""
-            val s = playbackPositionSec
-            val m = (s / 60).toInt()
-            val sec = (s % 60).toInt()
-            // Millisekunden-Praezision (3 Dezimalstellen) fuer wissenschaftliche Genauigkeit
-            val millis = ((s - s.toInt()) * 1000).toInt().coerceIn(0, 999)
-            return "$m:${sec.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}"
-        }
+}
+
+/** Formatiert eine Playback-Position als m:ss.mmm (Millisekunden fuer wissenschaftliche Genauigkeit). */
+fun formatPlaybackPosition(s: Float): String {
+    val m = (s / 60).toInt()
+    val sec = (s % 60).toInt()
+    val millis = ((s - s.toInt()) * 1000).toInt().coerceIn(0, 999)
+    return "$m:${sec.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}"
 }
 
 /** Lokaler ViewModel-State: Felder die keinem Manager gehoeren. */
@@ -209,6 +206,12 @@ class CompareViewModel {
     private val _localState = MutableStateFlow(LocalState())
     private val _uiState = MutableStateFlow(CompareUiState())
     val uiState: StateFlow<CompareUiState> = _uiState.asStateFlow()
+
+    /**
+     * Playback-Position separat vom uiState (~30 Updates/s waehrend der Wiedergabe).
+     * UI liest sie nur dort, wo sie gezeichnet wird — so rekomponiert nicht der ganze Screen.
+     */
+    val playbackPositionSec: StateFlow<Float> get() = playbackManager.positionSec
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
@@ -411,7 +414,6 @@ class CompareViewModel {
                     // Playback (8 Felder)
                     isPlaying = playback.isPlaying,
                     isPaused = playback.isPaused,
-                    playbackPositionSec = playback.playbackPositionSec,
                     isLooping = playback.isLooping,
                     playingReferenceId = playback.playingReferenceId,
                     downloadingReferenceId = playback.downloadingReferenceId,

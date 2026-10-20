@@ -34,7 +34,6 @@ class PlaybackManager(
     data class State(
         val isPlaying: Boolean = false,
         val isPaused: Boolean = false,
-        val playbackPositionSec: Float = 0f,
         val playingReferenceId: String = "",
         val downloadingReferenceId: String = "",
         val isLooping: Boolean = false,
@@ -48,8 +47,14 @@ class PlaybackManager(
     val state: StateFlow<State> = _state.asStateFlow()
 
     private val audioPlayer = AudioPlayer()
+
+    /**
+     * Playback-Position (Sekunden) als eigener Flow, ~30 Updates/s waehrend der Wiedergabe.
+     * Bewusst NICHT Teil von [State]: sonst wuerde jedes Positions-Update den gesamten
+     * CompareUiState neu bauen und den kompletten Screen rekomponieren.
+     */
+    val positionSec: StateFlow<Float> get() = audioPlayer.positionSec
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var positionCollectorJob: Job? = null
 
     /** Flag: Viewport wurde waehrend Playback verschoben (Follow-Modus) */
     @Volatile private var viewportChangedDuringPlayback = false
@@ -124,21 +129,6 @@ class PlaybackManager(
                     }
                 }
                 wasPlaying = isNowPlaying
-            }
-        }
-
-        // Playback-Position mit Viewport-Follow
-        positionCollectorJob = scope.launch {
-            audioPlayer.positionSec.collect { pos ->
-                _state.update { it.copy(playbackPositionSec = pos) }
-                onStateChanged()
-
-                // Viewport-Follow: nur wenn gerade abgespielt wird
-                val s = _state.value
-                if (s.isPlaying && pos > 0f) {
-                    // Viewport-Daten werden als Parameter uebergeben bei togglePlayPause
-                    // Follow-Logik wird vom ViewModel gesteuert via onViewportFollow
-                }
             }
         }
     }
@@ -249,7 +239,7 @@ class PlaybackManager(
         if (!_state.value.isPlaying && !_state.value.isPaused) return
         if (audioSegment == null && pcmCache == null) return
 
-        val currentPos = _state.value.playbackPositionSec
+        val currentPos = audioPlayer.positionSec.value
         val newPos = (currentPos + deltaSec).coerceIn(0f, totalDurationSec - 0.1f)
 
         // Audio-Segment ab neuer Position bis Ende laden
@@ -376,7 +366,7 @@ class PlaybackManager(
      * Prueft ob die aktuelle Position ausserhalb des sichtbaren Bereichs liegt.
      */
     fun checkViewportFollow(viewStartSec: Float, viewEndSec: Float, totalDurationSec: Float) {
-        val pos = _state.value.playbackPositionSec
+        val pos = audioPlayer.positionSec.value
         if (!_state.value.isPlaying || pos <= 0f) return
 
         val viewDuration = viewEndSec - viewStartSec
