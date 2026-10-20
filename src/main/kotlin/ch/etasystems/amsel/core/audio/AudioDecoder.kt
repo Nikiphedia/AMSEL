@@ -114,9 +114,18 @@ object AudioDecoder {
      * 2. BufferedInputStream mit 1MB Buffer (Fallback für MP3/FLAC mit großen Headern)
      */
     private fun openAudioStream(file: File): AudioInputStream {
-        // M4A/AAC: JCodec-basierter Decoder (javax.sound hat keinen SPI dafuer)
+        // M4A/AAC: javax.sound hat keinen SPI dafuer.
+        // Bevorzugt ffmpeg (korrekte Dekodierung); JCodec nur als Fallback —
+        // dessen AAC-Decoder weicht deutlich vom Original ab und verliert teils Frames.
         val ext = file.extension.lowercase()
         if (ext == "m4a" || ext == "aac") {
+            if (ch.etasystems.amsel.core.export.AudioExporter.ffmpegAvailable) {
+                try {
+                    return decodeWithFfmpeg(file)
+                } catch (_: Exception) {
+                    // Fallthrough zu JCodec
+                }
+            }
             return decodeM4aToAudioStream(file)
         }
 
@@ -213,6 +222,80 @@ object AudioDecoder {
             return AudioInputStream(pcmStream, format, AudioSystem.NOT_SPECIFIED.toLong())
         } catch (e: Exception) {
             throw IllegalArgumentException("M4A/AAC-Dekodierung fehlgeschlagen: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Dekodiert ueber einen ffmpeg-Prozess: ffmpeg schreibt WAV (32-Bit-Float,
+     * Original-Kanalzahl) auf stdout, der Header wird hier gelesen und der Rest
+     * als PCM_FLOAT-Stream weitergereicht. close() beendet den Prozess.
+     */
+    private fun decodeWithFfmpeg(file: File): AudioInputStream {
+        val process = ProcessBuilder(
+            "ffmpeg", "-v", "error", "-i", file.absolutePath,
+            "-map", "0:a:0", "-f", "wav", "-acodec", "pcm_f32le", "-"
+        ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+
+        val stream = object : java.io.FilterInputStream(BufferedInputStream(process.inputStream, 1 shl 16)) {
+            override fun close() {
+                try {
+                    super.close()
+                } finally {
+                    process.destroy()
+                }
+            }
+        }
+        try {
+            val (channels, sampleRate) = readWavHeaderBisDaten(stream)
+            val format = AudioFormat(
+                AudioFormat.Encoding.PCM_FLOAT,
+                sampleRate.toFloat(), 32, channels, 4 * channels, sampleRate.toFloat(), false
+            )
+            return AudioInputStream(stream, format, AudioSystem.NOT_SPECIFIED.toLong())
+        } catch (e: Exception) {
+            stream.close()
+            throw e
+        }
+    }
+
+    /**
+     * Liest einen WAV-Header bis zum Beginn des data-Chunks (Stream steht danach auf
+     * dem ersten Sample). Unbekannte Chunks (z.B. LIST) werden uebersprungen.
+     * @return Kanalzahl und Sample-Rate aus dem fmt-Chunk
+     */
+    private fun readWavHeaderBisDaten(input: java.io.InputStream): Pair<Int, Int> {
+        fun bytes(n: Int): ByteArray {
+            val b = ByteArray(n)
+            if (readFully(input, b) < n) throw java.io.EOFException("WAV-Header unvollstaendig")
+            return b
+        }
+        fun le32(b: ByteArray, o: Int): Long =
+            (b[o].toLong() and 0xFF) or ((b[o + 1].toLong() and 0xFF) shl 8) or
+                ((b[o + 2].toLong() and 0xFF) shl 16) or ((b[o + 3].toLong() and 0xFF) shl 24)
+
+        val riff = bytes(12)
+        require(String(riff, 0, 4, Charsets.US_ASCII) == "RIFF" && String(riff, 8, 4, Charsets.US_ASCII) == "WAVE") {
+            "Keine WAV-Ausgabe von ffmpeg"
+        }
+        var channels = 0
+        var sampleRate = 0
+        while (true) {
+            val header = bytes(8)
+            val id = String(header, 0, 4, Charsets.US_ASCII)
+            val size = le32(header, 4)
+            when (id) {
+                "fmt " -> {
+                    val fmt = bytes(size.toInt())
+                    channels = (fmt[2].toInt() and 0xFF) or ((fmt[3].toInt() and 0xFF) shl 8)
+                    sampleRate = le32(fmt, 4).toInt()
+                    if (size % 2 == 1L) bytes(1)
+                }
+                "data" -> {
+                    require(channels > 0 && sampleRate > 0) { "WAV ohne gueltigen fmt-Chunk" }
+                    return channels to sampleRate
+                }
+                else -> skipFully(input, size + (size % 2))
+            }
         }
     }
 

@@ -170,4 +170,39 @@ class AudioDecoderTest {
             ausSegment.delete()
         }
     }
+
+    /** Kopiert eine Test-Ressource in das Temp-Verzeichnis (Decoder braucht eine Datei). */
+    private fun ressource(name: String): File {
+        val ziel = File(dir, name)
+        javaClass.getResourceAsStream("/audio/$name")!!.use { input -> ziel.outputStream().use { input.copyTo(it) } }
+        return ziel
+    }
+
+    /** Prueft grob: ~1 s Laenge, hoerbarer Pegel, Grundfrequenz ~1 kHz (Nulldurchgaenge). */
+    private fun pruefe1kHzTon(seg: AudioSegment, erwarteteRate: Int) {
+        assertEquals(erwarteteRate, seg.sampleRate)
+        kotlin.test.assertTrue(seg.durationSec in 0.95f..1.15f, "Dauer ${seg.durationSec}")
+        // Mittleres Drittel (Encoder-Ein-/Ausschwingen ausblenden)
+        val mitte = seg.samples.copyOfRange(seg.samples.size / 3, seg.samples.size * 2 / 3)
+        val rms = kotlin.math.sqrt(mitte.sumOf { (it * it).toDouble() } / mitte.size)
+        kotlin.test.assertTrue(rms > 0.05, "RMS $rms")
+        var nulldurchgaenge = 0
+        for (i in 1 until mitte.size) if ((mitte[i - 1] < 0f) != (mitte[i] < 0f)) nulldurchgaenge++
+        val freq = nulldurchgaenge / 2.0 / (mitte.size.toDouble() / seg.sampleRate)
+        kotlin.test.assertTrue(freq in 980.0..1020.0, "Frequenz $freq Hz")
+    }
+
+    @Test
+    fun `Stereo-MP3 wird dekodiert (frueher Absturz in mp3spi)`() {
+        pruefe1kHzTon(AudioDecoder.decode(ressource("stereo_1khz.mp3")), 44100)
+    }
+
+    @Test
+    fun `M4A wird dekodiert (ffmpeg)`() {
+        // Ohne ffmpeg faellt der Decoder auf JCodec zurueck, das hier nur Stille liefert
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+            ch.etasystems.amsel.core.export.AudioExporter.ffmpegAvailable, "ffmpeg nicht im PATH"
+        )
+        pruefe1kHzTon(AudioDecoder.decode(ressource("stereo_1khz.m4a")), 48000)
+    }
 }

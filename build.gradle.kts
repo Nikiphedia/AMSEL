@@ -30,7 +30,6 @@ dependencies {
     implementation(libs.jtransforms)
 
     // Audio Decode (MP3 + FLAC + AAC/M4A)
-    implementation(libs.jlayer)
     implementation(libs.jflac)
     implementation(libs.mp3spi)
     implementation(libs.jcodec)

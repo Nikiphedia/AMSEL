@@ -25,7 +25,6 @@ jtransforms = { module = "com.github.wendykierp:JTransforms", version.ref = "jtr
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
 # Audio Decode (MP3 + FLAC + AAC Unterstützung auf JVM)
-jlayer = { module = "javazoom:jlayer", version = "1.0.1" }
 jflac = { module = "org.jflac:jflac-codec", version = "1.5.2" }
 mp3spi = { module = "com.googlecode.soundlibs:mp3spi", version = "1.9.5.4" }
 jcodec = { module = "org.jcodec:jcodec", version = "0.2.5" }
