@@ -327,7 +327,8 @@ class CompareViewModel {
             _localState.update { it.copy(sidebarStatus = if (msg.isNotBlank()) msg else it.sidebarStatus) }
         },
         onViewportFollow = { newStart, newEnd ->
-            spectrogramManager.setViewportPosition(newStart, newEnd)
+            // Koordinaten + debounced Neuberechnung, damit das Bild zur neuen Zeitachse passt
+            spectrogramManager.updateViewRange(newStart, newEnd)
         },
         onPlaybackStopped = { viewportChanged ->
             if (viewportChanged) spectrogramManager.commitViewRange()
@@ -386,6 +387,15 @@ class CompareViewModel {
         // Reaktive State-Propagation: combine() ersetzt die 7 syncXxxState()-Bridges
         // Option A: Verschachtelte combine() (typsicher, kein Casting)
         // ================================================================
+        // Viewport-Follow: laeuft die Wiedergabe aus dem sichtbaren Bereich (z.B. nach
+        // S+Pfeil-Sprung, der bis Dateiende spielt), springt die Ansicht mit.
+        scope.launch {
+            playbackManager.positionSec.collect {
+                val s = spectrogramManager.state.value
+                playbackManager.checkViewportFollow(s.viewStartSec, s.viewEndSec, s.totalDurationSec)
+            }
+        }
+
         scope.launch {
             combine(
                 combine(volumeManager.state, audioManager.state, playbackManager.state) { v, a, p -> Triple(v, a, p) },

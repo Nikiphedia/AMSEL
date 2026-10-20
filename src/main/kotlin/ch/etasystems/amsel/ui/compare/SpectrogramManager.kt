@@ -263,12 +263,6 @@ class SpectrogramManager(
         zoomToRange(s.viewStartSec, s.viewEndSec)
     }
 
-    /** Setzt Viewport-Position ohne Recompute (fuer Playback-Follow) */
-    fun setViewportPosition(startSec: Float, endSec: Float) {
-        _state.update { it.copy(viewStartSec = startSec, viewEndSec = endSec) }
-        onStateChanged()
-    }
-
     /**
      * Debounced Spektrogramm-Berechnung.
      * Wird nach jeder Viewport-Aenderung getriggert, aber erst nach

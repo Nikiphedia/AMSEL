@@ -364,10 +364,12 @@ class PlaybackManager(
     /**
      * Viewport-Follow: wird vom ViewModel aufgerufen wenn Position-Updates eintreffen.
      * Prueft ob die aktuelle Position ausserhalb des sichtbaren Bereichs liegt.
+     * Nur im MAIN-Modus — Referenz-Positionen beziehen sich auf eine andere Aufnahme.
      */
     fun checkViewportFollow(viewStartSec: Float, viewEndSec: Float, totalDurationSec: Float) {
         val pos = audioPlayer.positionSec.value
         if (!_state.value.isPlaying || pos <= 0f) return
+        if (_state.value.playbackMode != PlaybackMode.MAIN) return
 
         val viewDuration = viewEndSec - viewStartSec
 
