@@ -835,11 +835,13 @@ class CompareViewModel {
                 val nMels = height
                 val nFrames = width
                 val matrix = FloatArray(nMels * nFrames)
+                // Alle Pixel in einem Aufruf lesen statt getRGB pro Pixel
+                val argb = image.getRGB(0, 0, width, height, null, 0, width)
 
                 for (y in 0 until height) {
                     val mel = height - 1 - y  // Flip: oben = hohe Frequenz
                     for (x in 0 until width) {
-                        val rgb = image.getRGB(x, y)
+                        val rgb = argb[y * width + x]
                         val r = (rgb shr 16) and 0xFF
                         val g = (rgb shr 8) and 0xFF
                         val b = rgb and 0xFF

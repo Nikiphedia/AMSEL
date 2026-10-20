@@ -196,6 +196,8 @@ object ImageExporter {
             if (frameCount > 0) {
                 val nBins = spectrogramData.nMels
                 val dataFRange = dataFMax - dataFMin
+                // Zeilenpuffer: ein setRGB pro Bildzeile statt pro Pixel
+                val rowPixels = IntArray(actualPlotW)
 
                 for (py in 0 until rowPlotH) {
                     val linFrac = 1f - py.toFloat() / rowPlotH
@@ -204,10 +206,8 @@ object ImageExporter {
                     val inData = freqHz in dataFMin..dataFMax
 
                     if (!inAnn || !inData) {
-                        val bgRgb = Color.WHITE.rgb
-                        for (px in 0 until actualPlotW) {
-                            image.setRGB(plotX + px, plotY + py, bgRgb)
-                        }
+                        rowPixels.fill(Color.WHITE.rgb)
+                        image.setRGB(plotX, plotY + py, actualPlotW, 1, rowPixels, 0, actualPlotW)
                         continue
                     }
 
@@ -260,11 +260,11 @@ object ImageExporter {
                         } else if (norm < 0.05f) {
                             0xFFFFFF  // Hintergrund weiss fuer Druck
                         } else {
-                            val (cr, cg, cb) = Colormap.mapValueRgb(norm)
-                            (cr shl 16) or (cg shl 8) or cb
+                            Colormap.mapValue(norm) and 0xFFFFFF  // gleiche LUT wie mapValueRgb, ohne Triple-Allokation
                         }
-                        image.setRGB(plotX + px, plotY + py, 0xFF000000.toInt() or color)
+                        rowPixels[px] = 0xFF000000.toInt() or color
                     }
+                    image.setRGB(plotX, plotY + py, actualPlotW, 1, rowPixels, 0, actualPlotW)
                 }
             }
 

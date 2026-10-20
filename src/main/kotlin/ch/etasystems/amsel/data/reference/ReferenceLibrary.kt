@@ -313,16 +313,20 @@ class ReferenceLibrary(
         val height = 400
         val img = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
 
+        // Pixel in ein Array schreiben und einmal uebergeben statt setRGB pro Pixel
+        val pixels = IntArray(width * height)
+        val minValue = spectro.minValue
+        val range = (spectro.maxValue - minValue).coerceAtLeast(1e-6f)
         for (x in 0 until width) {
             val frame = (x.toFloat() / width * spectro.nFrames).toInt().coerceIn(0, spectro.nFrames - 1)
             for (y in 0 until height) {
                 val melBin = ((height - 1 - y).toFloat() / height * spectro.nMels).toInt().coerceIn(0, spectro.nMels - 1)
                 val value = spectro.valueAt(melBin, frame)
-                val norm = ((value - spectro.minValue) / (spectro.maxValue - spectro.minValue).coerceAtLeast(1e-6f))
-                    .coerceIn(0f, 1f)
-                img.setRGB(x, y, magmaColor(norm))
+                val norm = ((value - minValue) / range).coerceIn(0f, 1f)
+                pixels[y * width + x] = magmaColor(norm)
             }
         }
+        img.setRGB(0, 0, width, height, pixels, 0, width)
 
         ImageIO.write(img, "png", pngFile)
         logger.debug("PNG generiert: {}", pngFile.name)
