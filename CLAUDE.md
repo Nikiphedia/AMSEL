@@ -65,4 +65,3 @@ ui/sonogram/         ZoomedCanvas, OverviewStrip, FilterPanel, SonogramToolbar
 - BirdNET V3 ONNX Download-URL noch Platzhalter (Modell muss manuell kopiert werden)
 - FLAC/M4A/MP3 Export braucht ffmpeg im PATH
 - Selbst-signiertes Code-Signing-Zertifikat (Windows SmartScreen warnt)
-- PDF-Floats nutzen noch System-Locale (minor)

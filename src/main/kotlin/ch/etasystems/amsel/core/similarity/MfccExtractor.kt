@@ -1,6 +1,8 @@
 package ch.etasystems.amsel.core.similarity
 
 import ch.etasystems.amsel.core.spectrogram.MelFilterbank
+import ch.etasystems.amsel.core.spectrogram.SparseFilterbank
+import ch.etasystems.amsel.core.spectrogram.SpectrumUtils
 import org.jtransforms.fft.DoubleFFT_1D
 import kotlin.math.*
 
@@ -22,7 +24,7 @@ class MfccExtractor(
     val applyCmvn: Boolean = false
 ) {
     private val fft = DoubleFFT_1D(fftSize.toLong())
-    private val filterbank = MelFilterbank.build(nMels, fftSize, sampleRate, fMin, fMax)
+    private val filterbank = SparseFilterbank(MelFilterbank.build(nMels, fftSize, sampleRate, fMin, fMax))
     private val window = FloatArray(fftSize) { i ->
         (0.5 * (1.0 - cos(2.0 * Math.PI * i / (fftSize - 1)))).toFloat()
     }
@@ -91,7 +93,8 @@ class MfccExtractor(
         if (nFrames <= 0) return emptyArray()
 
         val numBins = fftSize / 2 + 1
-        val fftBuffer = DoubleArray(fftSize * 2)
+        val fftBuffer = DoubleArray(fftSize)
+        val power = DoubleArray(numBins)
         val result = Array(nFrames) { FloatArray(nMfcc) }
 
         for (frame in 0 until nFrames) {
@@ -103,22 +106,16 @@ class MfccExtractor(
                 fftBuffer[i] = if (idx < samples.size) {
                     (samples[idx] * window[i]).toDouble()
                 } else 0.0
-                if (i + fftSize < fftBuffer.size) fftBuffer[i + fftSize] = 0.0
             }
 
-            // FFT
-            fft.realForwardFull(fftBuffer)
+            // Reelle FFT + Power-Spektrum
+            fft.realForward(fftBuffer)
+            SpectrumUtils.powerFromRealForward(fftBuffer, fftSize, power)
 
-            // Power-Spektrum
+            // Mel-Energien (nur Bins mit Gewicht != 0)
             val melEnergies = FloatArray(nMels)
             for (m in 0 until nMels) {
-                var energy = 0.0
-                for (k in 0 until numBins) {
-                    val re = fftBuffer[2 * k]
-                    val im = fftBuffer[2 * k + 1]
-                    val power = re * re + im * im
-                    energy += filterbank[m][k] * power
-                }
+                val energy = filterbank.energy(m, power)
                 melEnergies[m] = ln(energy.coerceAtLeast(1e-10)).toFloat()
             }
 

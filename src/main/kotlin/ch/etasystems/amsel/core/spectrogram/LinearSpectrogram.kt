@@ -52,7 +52,8 @@ object LinearSpectrogram {
 
         val window = hannWindow(fftSize)
         val fft = DoubleFFT_1D(fftSize.toLong())
-        val fftBuffer = DoubleArray(fftSize * 2)
+        val fftBuffer = DoubleArray(fftSize)
+        val power = FloatArray(numBins)
         val matrix = FloatArray(nBins * nFrames)
 
         for (frame in 0 until nFrames) {
@@ -64,18 +65,12 @@ object LinearSpectrogram {
                     (paddedSamples[sampleIdx] * window[i]).toDouble()
                 } else 0.0
             }
-            for (i in fftSize until fftSize * 2) {
-                fftBuffer[i] = 0.0
-            }
-
-            fft.realForwardFull(fftBuffer)
+            // Reelle FFT + Power-Spektrum (halb so viel Arbeit wie realForwardFull)
+            fft.realForward(fftBuffer)
+            SpectrumUtils.powerFromRealForward(fftBuffer, fftSize, power)
 
             for (b in 0 until nBins) {
-                val k = binMin + b
-                val re = fftBuffer[2 * k].toFloat()
-                val im = fftBuffer[2 * k + 1].toFloat()
-                val power = re * re + im * im
-                matrix[b * nFrames + frame] = log10(power + 1e-10f)
+                matrix[b * nFrames + frame] = log10(power[binMin + b] + 1e-10f)
             }
         }
 

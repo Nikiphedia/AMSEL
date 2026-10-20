@@ -15,6 +15,7 @@ import javax.imageio.metadata.IIOMetadataNode
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import java.util.Locale
 
 /**
  * Exportiert den markierten/bearbeiteten Sonogramm-Ausschnitt
@@ -514,7 +515,7 @@ object ImageExporter {
             if (settings.operatorName.isNotBlank()) meta["AMSEL:Operator"] = settings.operatorName
             if (settings.deviceName.isNotBlank()) meta["AMSEL:Device"] = settings.deviceName
             if (settings.locationName.isNotBlank()) meta["AMSEL:Location"] = settings.locationName
-            meta["AMSEL:Coordinates"] = "%.4f, %.4f".format(settings.locationLat, settings.locationLon)
+            meta["AMSEL:Coordinates"] = String.format(Locale.US, "%.4f, %.4f", settings.locationLat, settings.locationLon)
         } catch (_: Exception) { }
 
         if (speciesName.isNotBlank()) {
@@ -530,29 +531,29 @@ object ImageExporter {
         meta["AMSEL:SignalFreqMax_Hz"] = "$signalMaxF"
 
         // Dynamik — Zuordnung zur Darstellung
-        meta["AMSEL:DynamicRange_dB"] = "${"%.1f".format(dynamicRange)}"
-        meta["AMSEL:MinValue_log"] = "${"%.2f".format(data.minValue)}"
-        meta["AMSEL:MaxValue_log"] = "${"%.2f".format(data.maxValue)}"
+        meta["AMSEL:DynamicRange_dB"] = "${String.format(Locale.US, "%.1f", dynamicRange)}"
+        meta["AMSEL:MinValue_log"] = "${String.format(Locale.US, "%.2f", data.minValue)}"
+        meta["AMSEL:MaxValue_log"] = "${String.format(Locale.US, "%.2f", data.maxValue)}"
         meta["AMSEL:RenderMode"] = if (blackAndWhite) "grayscale_inverted" else Colormap.getActivePalette().name
         meta["AMSEL:DynamicMapping"] = if (blackAndWhite) {
             "inverted_linear: log10(energy) [${
-                "%.2f".format(data.minValue)}..${
-                "%.2f".format(data.maxValue)}] -> grayscale [255..0] (hohe Energie=schwarz)"
+                String.format(Locale.US, "%.2f", data.minValue)}..${
+                String.format(Locale.US, "%.2f", data.maxValue)}] -> grayscale [255..0] (hohe Energie=schwarz)"
         } else {
             "linear: log10(energy) [${
-                "%.2f".format(data.minValue)}..${
-                "%.2f".format(data.maxValue)}] -> ${Colormap.getActivePalette().name} [0..255]"
+                String.format(Locale.US, "%.2f", data.minValue)}..${
+                String.format(Locale.US, "%.2f", data.maxValue)}] -> ${Colormap.getActivePalette().name} [0..255]"
         }
 
         // Zeit
-        meta["AMSEL:ViewStartSec"] = "${"%.3f".format(viewStartSec)}"
-        meta["AMSEL:ViewEndSec"] = "${"%.3f".format(viewEndSec)}"
-        meta["AMSEL:Duration_sec"] = "${"%.2f".format(duration)}"
-        meta["AMSEL:SignalDuration_sec"] = "${"%.2f".format(signalDuration)}"
+        meta["AMSEL:ViewStartSec"] = "${String.format(Locale.US, "%.3f", viewStartSec)}"
+        meta["AMSEL:ViewEndSec"] = "${String.format(Locale.US, "%.3f", viewEndSec)}"
+        meta["AMSEL:Duration_sec"] = "${String.format(Locale.US, "%.2f", duration)}"
+        meta["AMSEL:SignalDuration_sec"] = "${String.format(Locale.US, "%.2f", signalDuration)}"
         meta["AMSEL:EventCount"] = "${events.size}"
 
         if (events.isNotEmpty()) {
-            val lengths = events.map { "${"%.3f".format(it.endSec - it.startSec)}" }
+            val lengths = events.map { "${String.format(Locale.US, "%.3f", it.endSec - it.startSec)}" }
             meta["AMSEL:SignalLengths_sec"] = lengths.joinToString(",")
         }
 
@@ -560,7 +561,7 @@ object ImageExporter {
         meta["AMSEL:DPI"] = "$DPI"
         meta["AMSEL:Scale_mm_per_sec"] = "${MM_PER_SEC.roundToInt()}"
         meta["AMSEL:Scale_Hz_per_cm"] = "${HZ_PER_CM.roundToInt()}"
-        meta["AMSEL:SecondsPerRow"] = "${"%.1f".format(SECONDS_PER_ROW)}"
+        meta["AMSEL:SecondsPerRow"] = "${String.format(Locale.US, "%.1f", SECONDS_PER_ROW)}"
         meta["AMSEL:SpectrogramFFT"] = "${data.nMels} Mels, hop ${data.hopSize}, SR ${data.sampleRate}"
 
         if (filterDescription.isNotBlank()) {
