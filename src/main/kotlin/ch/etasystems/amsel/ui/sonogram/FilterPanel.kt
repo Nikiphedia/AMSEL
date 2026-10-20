@@ -132,7 +132,7 @@ fun StepSliderInt(
 @Composable
 private fun LabelWithTooltip(label: String, tooltip: String) {
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltip { Text(tooltip) } },
         state = rememberTooltipState()
     ) {

@@ -33,7 +33,7 @@ internal fun CompareImportDialog(
         text = {
             Column(modifier = Modifier.width(400.dp)) {
                 // Tabs
-                TabRow(selectedTabIndex = selectedTab) {
+                SecondaryTabRow(selectedTabIndex = selectedTab) {
                     Tab(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
