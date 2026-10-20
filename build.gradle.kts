@@ -43,6 +43,13 @@ dependencies {
 
     // Logging
     implementation(libs.slf4j.simple)
+
+    // Tests (nur Testklassenpfad, nicht im Installer)
+    testImplementation(kotlin("test"))
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 compose.desktop {

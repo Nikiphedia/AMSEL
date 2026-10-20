@@ -9,6 +9,7 @@ Kotlin 2.1.0 + Compose Desktop 1.7.3 + Material3 Dark Theme.
 set "JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.10.7-hotspot"
 cd D:\80002\AMSEL
 .\gradlew.bat compileKotlin   # Typcheck
+.\gradlew.bat test            # Unit-Tests
 .\gradlew.bat run              # Starten
 .\gradlew.bat packageMsi       # Installer
 ```
