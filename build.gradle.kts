@@ -13,8 +13,8 @@ version = "0.0.9"
 dependencies {
     // Compose Desktop
     implementation(compose.desktop.currentOs)
-    implementation(compose.material3)
-    implementation(compose.materialIconsExtended)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
 
     // Coroutines
     implementation(libs.coroutines.core)
