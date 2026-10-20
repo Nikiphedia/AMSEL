@@ -2,13 +2,14 @@
 
 ## Projekt
 **AMSEL** (Another Mel Spectrogram Event Locator) — Desktop-App zur Sonogramm-Analyse und Artenerkennung.
-Kotlin 2.1.0 + Compose Desktop 1.7.3 + Material3 Dark Theme.
+Kotlin 2.4.21 + Compose Multiplatform 1.12.2 (Material3 1.9.0) + Gradle 9.8.2, Dark Theme.
 
 ## Build
 ```bash
 set "JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.10.7-hotspot"
 cd D:\80002\AMSEL
 .\gradlew.bat compileKotlin   # Typcheck
+.\gradlew.bat test            # Unit-Tests
 .\gradlew.bat run              # Starten
 .\gradlew.bat packageMsi       # Installer
 ```
@@ -63,6 +64,5 @@ ui/sonogram/         ZoomedCanvas, OverviewStrip, FilterPanel, SonogramToolbar
 
 ## Bekannte Einschraenkungen
 - BirdNET V3 ONNX Download-URL noch Platzhalter (Modell muss manuell kopiert werden)
-- FLAC/M4A/MP3 Export braucht ffmpeg im PATH
+- FLAC/M4A/MP3 Export braucht ffmpeg im PATH; M4A-Import ohne ffmpeg unzuverlaessig (JCodec-Fallback)
 - Selbst-signiertes Code-Signing-Zertifikat (Windows SmartScreen warnt)
-- PDF-Floats nutzen noch System-Locale (minor)

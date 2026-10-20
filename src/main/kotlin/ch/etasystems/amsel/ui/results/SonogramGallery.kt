@@ -61,7 +61,8 @@ fun SonogramGallery(
     isPlayingAudio: Boolean = false,
     playingRecordingId: String = "",
     downloadingRecordingId: String = "",
-    referencePlaybackPositionSec: Float = 0f,
+    /** Wird nur im Item des gerade spielenden Treffers gelesen. */
+    referencePlaybackPositionSec: () -> Float = { 0f },
     referenceAudioDurationSec: Float = 0f,
     speciesLocale: String = "de",
     // Sync-Parameter
@@ -186,7 +187,7 @@ fun SonogramGallery(
                                 isDownloading = isThisDownloading,
                                 hasLocalAudio = result.audioUrl.isNotBlank(),
                                 playbackProgress = if (playingRecordingId == result.recordingId && referenceAudioDurationSec > 0f)
-                                    (referencePlaybackPositionSec / referenceAudioDurationSec).coerceIn(0f, 1f)
+                                    (referencePlaybackPositionSec() / referenceAudioDurationSec).coerceIn(0f, 1f)
                                 else 0f
                             )
                         }

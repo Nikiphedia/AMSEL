@@ -237,7 +237,7 @@ internal fun TabAnalyse(
                 readOnly = true,
                 label = { Text("FFT-Groesse") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fftExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
             )
             ExposedDropdownMenu(
                 expanded = fftExpanded,
@@ -272,7 +272,7 @@ internal fun TabAnalyse(
                 readOnly = true,
                 label = { Text("Hop-Groesse") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = hopExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
             )
             ExposedDropdownMenu(
                 expanded = hopExpanded,

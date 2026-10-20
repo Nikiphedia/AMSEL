@@ -66,7 +66,6 @@ data class CompareUiState(
     // Playback
     val isPlaying: Boolean = false,
     val isPaused: Boolean = false,
-    val playbackPositionSec: Float = 0f,
     val isLooping: Boolean = false,
     val playbackMode: PlaybackMode = PlaybackMode.MAIN,
     val isReferenceLooping: Boolean = false,
@@ -168,16 +167,14 @@ data class CompareUiState(
     val hasResults: Boolean
         get() = annotations.any { it.matchResults.isNotEmpty() }
 
-    val playbackPositionText: String
-        get() {
-            if (!isPlaying && !isPaused) return ""
-            val s = playbackPositionSec
-            val m = (s / 60).toInt()
-            val sec = (s % 60).toInt()
-            // Millisekunden-Praezision (3 Dezimalstellen) fuer wissenschaftliche Genauigkeit
-            val millis = ((s - s.toInt()) * 1000).toInt().coerceIn(0, 999)
-            return "$m:${sec.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}"
-        }
+}
+
+/** Formatiert eine Playback-Position als m:ss.mmm (Millisekunden fuer wissenschaftliche Genauigkeit). */
+fun formatPlaybackPosition(s: Float): String {
+    val m = (s / 60).toInt()
+    val sec = (s % 60).toInt()
+    val millis = ((s - s.toInt()) * 1000).toInt().coerceIn(0, 999)
+    return "$m:${sec.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}"
 }
 
 /** Lokaler ViewModel-State: Felder die keinem Manager gehoeren. */
@@ -209,6 +206,12 @@ class CompareViewModel {
     private val _localState = MutableStateFlow(LocalState())
     private val _uiState = MutableStateFlow(CompareUiState())
     val uiState: StateFlow<CompareUiState> = _uiState.asStateFlow()
+
+    /**
+     * Playback-Position separat vom uiState (~30 Updates/s waehrend der Wiedergabe).
+     * UI liest sie nur dort, wo sie gezeichnet wird — so rekomponiert nicht der ganze Screen.
+     */
+    val playbackPositionSec: StateFlow<Float> get() = playbackManager.positionSec
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
@@ -324,7 +327,8 @@ class CompareViewModel {
             _localState.update { it.copy(sidebarStatus = if (msg.isNotBlank()) msg else it.sidebarStatus) }
         },
         onViewportFollow = { newStart, newEnd ->
-            spectrogramManager.setViewportPosition(newStart, newEnd)
+            // Koordinaten + debounced Neuberechnung, damit das Bild zur neuen Zeitachse passt
+            spectrogramManager.updateViewRange(newStart, newEnd)
         },
         onPlaybackStopped = { viewportChanged ->
             if (viewportChanged) spectrogramManager.commitViewRange()
@@ -383,6 +387,15 @@ class CompareViewModel {
         // Reaktive State-Propagation: combine() ersetzt die 7 syncXxxState()-Bridges
         // Option A: Verschachtelte combine() (typsicher, kein Casting)
         // ================================================================
+        // Viewport-Follow: laeuft die Wiedergabe aus dem sichtbaren Bereich (z.B. nach
+        // S+Pfeil-Sprung, der bis Dateiende spielt), springt die Ansicht mit.
+        scope.launch {
+            playbackManager.positionSec.collect {
+                val s = spectrogramManager.state.value
+                playbackManager.checkViewportFollow(s.viewStartSec, s.viewEndSec, s.totalDurationSec)
+            }
+        }
+
         scope.launch {
             combine(
                 combine(volumeManager.state, audioManager.state, playbackManager.state) { v, a, p -> Triple(v, a, p) },
@@ -411,7 +424,6 @@ class CompareViewModel {
                     // Playback (8 Felder)
                     isPlaying = playback.isPlaying,
                     isPaused = playback.isPaused,
-                    playbackPositionSec = playback.playbackPositionSec,
                     isLooping = playback.isLooping,
                     playingReferenceId = playback.playingReferenceId,
                     downloadingReferenceId = playback.downloadingReferenceId,
@@ -833,11 +845,13 @@ class CompareViewModel {
                 val nMels = height
                 val nFrames = width
                 val matrix = FloatArray(nMels * nFrames)
+                // Alle Pixel in einem Aufruf lesen statt getRGB pro Pixel
+                val argb = image.getRGB(0, 0, width, height, null, 0, width)
 
                 for (y in 0 until height) {
                     val mel = height - 1 - y  // Flip: oben = hohe Frequenz
                     for (x in 0 until width) {
-                        val rgb = image.getRGB(x, y)
+                        val rgb = argb[y * width + x]
                         val r = (rgb shr 16) and 0xFF
                         val g = (rgb shr 8) and 0xFF
                         val b = rgb and 0xFF

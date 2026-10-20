@@ -238,6 +238,10 @@ class EmbeddingExtractor(
         var sumBandwidth = 0.0
         var sumZcr = 0.0
         var sumFlatness = 0.0
+        val numBins = N_FFT / 2 + 1
+        // Buffer einmal allozieren statt pro Frame
+        val fftBuffer = DoubleArray(N_FFT)
+        val power = DoubleArray(numBins)
 
         for (frame in 0 until nFrames) {
             val offset = frame * HOP_SIZE
@@ -256,24 +260,19 @@ class EmbeddingExtractor(
             }
             sumZcr += zeroCrossings.toDouble() / N_FFT
 
-            // FFT berechnen
-            val fftBuffer = DoubleArray(N_FFT * 2)
+            // Reelle FFT
             for (i in 0 until N_FFT) {
                 val idx = offset + i
                 fftBuffer[i] = if (idx < samples.size) {
                     (samples[idx] * window[i]).toDouble()
                 } else 0.0
             }
-            fft.realForwardFull(fftBuffer)
+            fft.realForward(fftBuffer)
 
             // Power-Spektrum
-            val numBins = N_FFT / 2 + 1
-            val power = DoubleArray(numBins)
+            ch.etasystems.amsel.core.spectrogram.SpectrumUtils.powerFromRealForward(fftBuffer, N_FFT, power)
             var totalPower = 0.0
             for (k in 0 until numBins) {
-                val re = fftBuffer[2 * k]
-                val im = fftBuffer[2 * k + 1]
-                power[k] = re * re + im * im
                 totalPower += power[k]
             }
 
@@ -373,7 +372,7 @@ class EmbeddingExtractor(
         val nFrames = (samples.size - N_FFT) / HOP_SIZE + 1
         if (nFrames <= 0) return FloatArray(0)
 
-        val melFilters = createMelFilterbank()
+        val melFilters = ch.etasystems.amsel.core.spectrogram.SparseFilterbank(createMelFilterbank())
         val window = FloatArray(N_FFT) { i ->
             (0.5 * (1.0 - cos(2.0 * Math.PI * i / (N_FFT - 1)))).toFloat()
         }
@@ -381,10 +380,12 @@ class EmbeddingExtractor(
         val fft = DoubleFFT_1D(N_FFT.toLong())
         val numBins = N_FFT / 2 + 1
         val matrix = FloatArray(N_MELS * nFrames)
+        // Buffer einmal allozieren statt pro Frame
+        val fftBuffer = DoubleArray(N_FFT)
+        val power = FloatArray(numBins)
 
         for (frame in 0 until nFrames) {
             val offset = frame * HOP_SIZE
-            val fftBuffer = DoubleArray(N_FFT * 2)
 
             for (i in 0 until N_FFT) {
                 val idx = offset + i
@@ -393,20 +394,11 @@ class EmbeddingExtractor(
                 } else 0.0
             }
 
-            fft.realForwardFull(fftBuffer)
-
-            val power = FloatArray(numBins)
-            for (k in 0 until numBins) {
-                val re = fftBuffer[2 * k].toFloat()
-                val im = fftBuffer[2 * k + 1].toFloat()
-                power[k] = re * re + im * im
-            }
+            fft.realForward(fftBuffer)
+            ch.etasystems.amsel.core.spectrogram.SpectrumUtils.powerFromRealForward(fftBuffer, N_FFT, power)
 
             for (m in 0 until N_MELS) {
-                var energy = 0f
-                for (k in 0 until numBins) {
-                    energy += melFilters[m][k] * power[k]
-                }
+                val energy = melFilters.energy(m, power)
                 matrix[m * nFrames + frame] = log10(energy + 1e-10f)
             }
         }

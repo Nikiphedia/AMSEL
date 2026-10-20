@@ -212,7 +212,9 @@ object ReferenceGenerator {
             val frameCount = endFrame - startFrame
 
             // Sonogramm rendern (schwarz auf weiss)
-            if (frameCount > 0) {
+            if (frameCount > 0 && actualPlotW > 0) {
+                // Zeilenpuffer: ein setRGB pro Bildzeile statt pro Pixel
+                val rowPixels = IntArray(actualPlotW)
                 for (py in 0 until rowPlotH) {
                     val melFrac = 1f - py.toFloat() / rowPlotH
                     val mel = (melFrac * data.nMels).toInt().coerceIn(0, data.nMels - 1)
@@ -224,8 +226,9 @@ object ReferenceGenerator {
                         val norm = data.normalizedValueAt(mel, frame)
                         // Invertiert: hohe Energie = schwarz
                         val gray = (255 * (1f - norm)).toInt().coerceIn(0, 255)
-                        image.setRGB(plotX + px, plotY + py, Color(gray, gray, gray).rgb)
+                        rowPixels[px] = (0xFF shl 24) or (gray shl 16) or (gray shl 8) or gray
                     }
+                    image.setRGB(plotX, plotY + py, actualPlotW, 1, rowPixels, 0, actualPlotW)
                 }
             }
 

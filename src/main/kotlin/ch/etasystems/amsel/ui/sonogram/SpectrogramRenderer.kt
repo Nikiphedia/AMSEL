@@ -28,23 +28,20 @@ internal fun createSpectrogramBitmap(
     if (width == 0 || height == 0) return ImageBitmap(1, 1)
 
     val pixels = Colormap.toPixels(data, dbRange, gamma, volumeGainsLog10, referenceMaxDb)
+    return pixelsToImageBitmap(pixels, width, height)
+}
 
+/**
+ * ARGB-Pixel → Skia-Bitmap.
+ * BGRA_8888 in Little-Endian hat exakt das Byte-Layout eines ARGB-Int,
+ * daher reicht ein Bulk-Put ueber IntBuffer — kein Byte-Swap pro Pixel noetig.
+ */
+internal fun pixelsToImageBitmap(pixels: IntArray, width: Int, height: Int): ImageBitmap {
     val skiaBitmap = Bitmap()
-    val imageInfo = ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.OPAQUE)
-    skiaBitmap.allocPixels(imageInfo)
+    skiaBitmap.allocPixels(ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.OPAQUE))
 
     val byteBuffer = ByteBuffer.allocate(width * height * 4).order(ByteOrder.LITTLE_ENDIAN)
-    for (pixel in pixels) {
-        val a = (pixel shr 24) and 0xFF
-        val r = (pixel shr 16) and 0xFF
-        val g = (pixel shr 8) and 0xFF
-        val b = pixel and 0xFF
-        byteBuffer.put(b.toByte())
-        byteBuffer.put(g.toByte())
-        byteBuffer.put(r.toByte())
-        byteBuffer.put(a.toByte())
-    }
-    byteBuffer.rewind()
+    byteBuffer.asIntBuffer().put(pixels, 0, width * height)
     skiaBitmap.installPixels(byteBuffer.array())
 
     return skiaBitmap.asComposeImageBitmap()

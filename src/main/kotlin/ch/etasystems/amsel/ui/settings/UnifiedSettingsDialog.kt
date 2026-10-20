@@ -179,7 +179,7 @@ fun UnifiedSettingsDialog(
                 )
 
                 // Tabs
-                TabRow(
+                SecondaryTabRow(
                     selectedTabIndex = selectedTab,
                     modifier = Modifier.fillMaxWidth()
                 ) {

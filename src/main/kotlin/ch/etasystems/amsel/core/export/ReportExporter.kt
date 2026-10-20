@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Exportiert Analyse-Ergebnisse als PDF-Report und/oder CSV-Tabelle.
@@ -172,7 +173,7 @@ object ReportExporter {
                 headerLines.add("Dateien: $fileList")
             }
             if (config.totalDurationSec > 0) {
-                headerLines.add("Gesamtdauer: ${"%.1f".format(config.totalDurationSec / 60f)} min")
+                headerLines.add("Gesamtdauer: ${String.format(Locale.US, "%.1f", config.totalDurationSec / 60f)} min")
             }
             if (config.operatorName.isNotBlank()) headerLines.add("Bearbeiter: ${config.operatorName}")
             if (config.deviceName.isNotBlank()) headerLines.add("Geraet: ${config.deviceName}")
@@ -269,7 +270,7 @@ object ReportExporter {
                 val fileInfo = fileInfoMap[ann.audioFileId]
                 val shortFileName = (fileInfo?.fileName ?: "").take(12)
                 val bestCandidate = ann.candidates.maxByOrNull { it.confidence }
-                val conf = bestCandidate?.confidence?.let { "%.0f%%".format(it * 100) } ?: ""
+                val conf = bestCandidate?.confidence?.let { String.format(Locale.US, "%.0f%%", it * 100) } ?: ""
                 val source = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
 
                 val verifiedCandidate = ann.candidates.find { it.verified }
@@ -293,20 +294,20 @@ object ReportExporter {
 
                 // Akustische Messwerte (leer wenn nicht berechnet)
                 val m = ann.metrics
-                val pdfPeak = if (m.isComputed) "%.0f".format(m.peakFreqHz) else ""
-                val pdfCenter = if (m.isComputed) "%.0f".format(m.centerFreqHz) else ""
-                val pdfLow3db = if (m.isComputed) "%.0f".format(m.lowFreq3dbHz) else ""
-                val pdfHigh3db = if (m.isComputed) "%.0f".format(m.highFreq3dbHz) else ""
-                val pdfBw = if (m.isComputed) "%.0f".format(m.bandwidth3dbHz) else ""
-                val pdfSnr = if (m.isComputed) "%.1f".format(m.snrDb) else ""
+                val pdfPeak = if (m.isComputed) String.format(Locale.US, "%.0f", m.peakFreqHz) else ""
+                val pdfCenter = if (m.isComputed) String.format(Locale.US, "%.0f", m.centerFreqHz) else ""
+                val pdfLow3db = if (m.isComputed) String.format(Locale.US, "%.0f", m.lowFreq3dbHz) else ""
+                val pdfHigh3db = if (m.isComputed) String.format(Locale.US, "%.0f", m.highFreq3dbHz) else ""
+                val pdfBw = if (m.isComputed) String.format(Locale.US, "%.0f", m.bandwidth3dbHz) else ""
+                val pdfSnr = if (m.isComputed) String.format(Locale.US, "%.1f", m.snrDb) else ""
 
                 val colValues = arrayOf(
                     "${idx + 1}",
                     shortFileName,
                     ann.label.take(16),
-                    "%.1f".format(ann.startTimeSec),
-                    "%.1f".format(ann.endTimeSec),
-                    "%.1f".format(ann.durationSec),
+                    String.format(Locale.US, "%.1f", ann.startTimeSec),
+                    String.format(Locale.US, "%.1f", ann.endTimeSec),
+                    String.format(Locale.US, "%.1f", ann.durationSec),
                     conf,
                     source,
                     status,

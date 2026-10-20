@@ -40,7 +40,8 @@ fun OverviewStrip(
     viewEndSec: Float,
     totalDurationSec: Float,
     annotations: List<Annotation> = emptyList(),
-    playbackPositionSec: Float? = null,
+    /** Wird erst beim Zeichnen gelesen → Positions-Updates loesen nur ein Redraw aus, keine Recomposition. */
+    playbackPositionSec: () -> Float? = { null },
     paletteVersion: Int = 0,
     onViewRangeChanged: (startSec: Float, endSec: Float) -> Unit,
     onViewRangeDrag: ((startSec: Float, endSec: Float) -> Unit)? = null,
@@ -280,8 +281,9 @@ fun OverviewStrip(
         }
 
         // Playback-Position (rote Linie im Overview)
-        if (playbackPositionSec != null && totalDurationSec > 0f) {
-            val posX = (playbackPositionSec / totalDurationSec) * size.width
+        val playbackPos = playbackPositionSec()
+        if (playbackPos != null && totalDurationSec > 0f) {
+            val posX = (playbackPos / totalDurationSec) * size.width
             drawLine(
                 color = Color(0xFFFF4444),
                 start = Offset(posX, 0f),

@@ -13,8 +13,8 @@ version = "0.0.9"
 dependencies {
     // Compose Desktop
     implementation(compose.desktop.currentOs)
-    implementation(compose.material3)
-    implementation(compose.materialIconsExtended)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
 
     // Coroutines
     implementation(libs.coroutines.core)
@@ -29,11 +29,7 @@ dependencies {
     // DSP
     implementation(libs.jtransforms)
 
-    // Image Loading
-    implementation(libs.kamel.image)
-
     // Audio Decode (MP3 + FLAC + AAC/M4A)
-    implementation(libs.jlayer)
     implementation(libs.jflac)
     implementation(libs.mp3spi)
     implementation(libs.jcodec)
@@ -46,6 +42,13 @@ dependencies {
 
     // Logging
     implementation(libs.slf4j.simple)
+
+    // Tests (nur Testklassenpfad, nicht im Installer)
+    testImplementation(kotlin("test"))
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 compose.desktop {

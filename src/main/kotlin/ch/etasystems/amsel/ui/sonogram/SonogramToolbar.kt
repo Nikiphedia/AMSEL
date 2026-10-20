@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,7 +28,8 @@ fun SonogramToolbar(
     annotationCount: Int = 0,
     isPlaying: Boolean = false,
     isPaused: Boolean = false,
-    playbackPositionText: String = "",
+    /** Liefert die Positionsanzeige ("" = ausblenden); wird nur im Label selbst gelesen. */
+    playbackPositionText: () -> String = { "" },
     filterPanelVisible: Boolean = false,
     onImport: () -> Unit,
     onClose: () -> Unit = {},
@@ -109,7 +111,7 @@ fun SonogramToolbar(
         ) {
             // Import
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Audiodatei oeffnen (WAV, MP3, FLAC)") } },
                 state = rememberTooltipState()
             ) {
@@ -121,7 +123,7 @@ fun SonogramToolbar(
             // Datei schliessen
             if (hasAudio) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text("Datei schliessen") } },
                     state = rememberTooltipState()
                 ) {
@@ -133,7 +135,7 @@ fun SonogramToolbar(
 
             // Neues Projekt
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Neues Projekt erstellen...") } },
                 state = rememberTooltipState()
             ) {
@@ -148,7 +150,7 @@ fun SonogramToolbar(
 
             // Projekt oeffnen
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Projekt oeffnen (.amsel.json)") } },
                 state = rememberTooltipState()
             ) {
@@ -164,7 +166,7 @@ fun SonogramToolbar(
             // Projekt speichern (nur sichtbar wenn Audio geladen)
             if (hasAudio) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text(if (hasProject) "Projekt speichern" else "Als Projekt speichern (.amsel.json)") } },
                     state = rememberTooltipState()
                 ) {
@@ -181,7 +183,7 @@ fun SonogramToolbar(
 
             // Vergleichsdatei importieren
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Zweite Datei zum Vergleichen laden") } },
                 state = rememberTooltipState()
             ) {
@@ -201,7 +203,7 @@ fun SonogramToolbar(
             // Raven Selection Table importieren (AP-88)
             if (hasAudio) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text("Raven Selection Table importieren (.txt)") } },
                     state = rememberTooltipState()
                 ) {
@@ -217,7 +219,7 @@ fun SonogramToolbar(
 
             // GPX-Tracklog importieren (AP-88)
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("GPX-Tracklog importieren") } },
                 state = rememberTooltipState()
             ) {
@@ -256,13 +258,7 @@ fun SonogramToolbar(
                 )
             }
 
-            if (playbackPositionText.isNotEmpty()) {
-                Text(
-                    playbackPositionText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF4CAF50)
-                )
-            }
+            PlaybackPositionLabel(playbackPositionText)
 
             Spacer(modifier = Modifier.width(4.dp))
 
@@ -274,7 +270,7 @@ fun SonogramToolbar(
                 Icon(Icons.Default.ZoomOut, contentDescription = "Herauszoomen")
             }
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Ganze Aufnahme anzeigen") } },
                 state = rememberTooltipState()
             ) {
@@ -286,7 +282,7 @@ fun SonogramToolbar(
             // Frequenz-Zoom (F+ / F-)
             Spacer(modifier = Modifier.width(2.dp))
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Frequenz-Zoom: Darstellung vergroessern") } },
                 state = rememberTooltipState()
             ) {
@@ -298,7 +294,7 @@ fun SonogramToolbar(
                 }
             }
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Frequenz-Zoom zuruecksetzen") } },
                 state = rememberTooltipState()
             ) {
@@ -312,7 +308,7 @@ fun SonogramToolbar(
 
             // Full View (Sonogramm volle Hoehe)
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Vollansicht: Sonogramm maximiert") } },
                 state = rememberTooltipState()
             ) {
@@ -413,7 +409,7 @@ fun SonogramToolbar(
 
             // Event-Erkennung (Energie-basiert)
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = {
                     PlainTooltip { Text("Analyse starten — BirdNET erkennt Arten im gesamten Audio") }
                 },
@@ -431,7 +427,7 @@ fun SonogramToolbar(
             // Sync: Referenz-Zeitachse mit Haupt-Audio koppeln (Toggle)
             if (hasSelectedReference) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip {
                         Text(if (isSyncMode) "Referenz-Sync aktiv (Klick zum Deaktivieren)" else "Referenz-Sync aktivieren")
                     } },
@@ -452,7 +448,7 @@ fun SonogramToolbar(
             // Bearbeiten: Annotations-Raender per Drag anpassen
             if (hasActiveAnnotation) {
                 TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                     tooltip = { PlainTooltip { Text("Markierung bearbeiten (Raender ziehen)") } },
                     state = rememberTooltipState()
                 ) {
@@ -469,7 +465,7 @@ fun SonogramToolbar(
 
             // Solo-Modus: Annotation in voller Breite anzeigen
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Solo-Modus: Chunk in voller Breite (Tab = naechster)") } },
                 state = rememberTooltipState()
             ) {
@@ -487,7 +483,7 @@ fun SonogramToolbar(
 
             // Report (U4)
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Report exportieren (PDF + CSV)") } },
                 state = rememberTooltipState()
             ) {
@@ -512,7 +508,7 @@ fun SonogramToolbar(
 
             // Arten-CSV Export (AP-4)
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Arten-CSV exportieren") } },
                 state = rememberTooltipState()
             ) {
@@ -527,7 +523,7 @@ fun SonogramToolbar(
 
             // Referenz-Editor
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Referenz-Editor: Sonogramme verifizieren und in Sammlungen speichern") } },
                 state = rememberTooltipState()
             ) {
@@ -542,7 +538,7 @@ fun SonogramToolbar(
 
             // Einstellungen (vereinheitlichter Dialog)
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Einstellungen (Allgemein, Analyse, Export, Datenbank)") } },
                 state = rememberTooltipState()
             ) {
@@ -559,18 +555,34 @@ fun SonogramToolbar(
 
             // Sonogramm-Vergleich: Referenz-Sonogramme der erkannten Art laden
             TooltipBox(
-                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
                 tooltip = { PlainTooltip { Text("Referenz-Sonogramme laden") } },
                 state = rememberTooltipState()
             ) {
                 IconButton(onClick = onSearch, enabled = hasAudio && hasActiveAnnotation) {
                     Icon(
-                        Icons.Default.CompareArrows,
+                        Icons.AutoMirrored.Filled.CompareArrows,
                         contentDescription = "Sonogramm vergleichen",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
+    }
+}
+
+/**
+ * Eigener Composable-Scope fuer die Zeitanzeige: aendert sich ~30x/s waehrend der
+ * Wiedergabe, soll aber nur dieses Label rekomponieren, nicht die ganze Toolbar.
+ */
+@Composable
+private fun PlaybackPositionLabel(text: () -> String) {
+    val value = text()
+    if (value.isNotEmpty()) {
+        Text(
+            value,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF4CAF50)
+        )
     }
 }

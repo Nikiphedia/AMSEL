@@ -217,25 +217,21 @@ object OnnxSimilarityMetric : SimilarityMetric {
 
         val fft = org.jtransforms.fft.DoubleFFT_1D(N_FFT.toLong())
         val result = Array(N_MELS) { FloatArray(nFrames) }
+        // Buffer einmal allozieren statt pro Frame
+        val fftBuffer = DoubleArray(N_FFT)
+        val power = FloatArray(N_FFT / 2 + 1)
 
         for (frame in 0 until nFrames) {
             val offset = frame * HOP_SIZE
-            val fftBuffer = DoubleArray(N_FFT * 2)
 
             for (i in 0 until N_FFT) {
                 val idx = offset + i
                 fftBuffer[i] = if (idx < samples.size) (samples[idx] * window[i]).toDouble() else 0.0
             }
 
-            fft.realForwardFull(fftBuffer)
-
-            // Power Spectrum
-            val power = FloatArray(N_FFT / 2 + 1)
-            for (k in 0..N_FFT / 2) {
-                val re = fftBuffer[2 * k].toFloat()
-                val im = fftBuffer[2 * k + 1].toFloat()
-                power[k] = re * re + im * im
-            }
+            // Reelle FFT + Power Spectrum
+            fft.realForward(fftBuffer)
+            ch.etasystems.amsel.core.spectrogram.SpectrumUtils.powerFromRealForward(fftBuffer, N_FFT, power)
 
             // Mel-Filter anwenden
             for (m in 0 until N_MELS) {
