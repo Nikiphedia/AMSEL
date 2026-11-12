@@ -7,7 +7,7 @@ Kotlin 2.4.21 + Compose Multiplatform 1.12.2 (Material3 1.9.0) + Gradle 9.8.2, D
 ## Build
 ```bash
 set "JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.10.7-hotspot"
-cd D:\80002\AMSEL
+cd D:\S\81402_AMSEL
 .\gradlew.bat compileKotlin   # Typcheck
 .\gradlew.bat test            # Unit-Tests
 .\gradlew.bat run              # Starten

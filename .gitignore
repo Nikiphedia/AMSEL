@@ -50,3 +50,11 @@ MASTER_BRIEFING.md
 Bugreport*.md
 Historisch/
 .claude/worktrees/
+
+# Signatur-Zertifikate, Installer, Archive, lokale Projekt- und Tool-Dateien
+*.pfx
+*.msi
+*.zip
+*.amsel.json
+birdsono/
+.claude/settings.local.json

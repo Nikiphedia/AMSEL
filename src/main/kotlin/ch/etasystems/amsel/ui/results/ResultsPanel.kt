@@ -43,6 +43,7 @@ fun ResultsPanel(
     onShowInSonogram: ((MatchResult) -> Unit)? = null,
     onAdoptSpecies: ((MatchResult) -> Unit)? = null,
     onSearchXenoCanto: ((MatchResult) -> Unit)? = null,
+    speciesLocale: String = "de",
     modifier: Modifier = Modifier
 ) {
     // U2c: Rechtsklick-Kontextmenue State
@@ -108,6 +109,7 @@ fun ResultsPanel(
                                     group = group,
                                     onResultClicked = onResultClicked,
                                     onPlayAudio = onPlayAudio,
+                                    speciesLocale = speciesLocale,
                                     onResultRightClicked = { result, px, py ->
                                         rightClickedResult = result
                                         rightClickOffset = with(density) {
@@ -180,6 +182,7 @@ private fun SpeciesGroup(
     group: ResultGroup,
     onResultClicked: (MatchResult) -> Unit,
     onPlayAudio: ((MatchResult) -> Unit)? = null,
+    speciesLocale: String = "de",
     onResultRightClicked: ((MatchResult, Float, Float) -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -196,7 +199,7 @@ private fun SpeciesGroup(
                     .pointerInput(group.best) {
                         awaitPointerEventScope {
                             while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                val event = awaitPointerEvent(PointerEventPass.Final)
                                 if (event.type != PointerEventType.Release) continue
                                 val change = event.changes.firstOrNull() ?: continue
                                 if (!change.previousPressed || change.pressed) continue
@@ -211,7 +214,8 @@ private fun SpeciesGroup(
                 ResultCard(
                     result = group.best,
                     onClick = { onResultClicked(group.best) },
-                    onPlayAudio = onPlayAudio
+                    onPlayAudio = onPlayAudio,
+                    speciesLocale = speciesLocale
                 )
             }
 
@@ -282,7 +286,7 @@ private fun SpeciesGroup(
                                 .pointerInput(variant) {
                                     awaitPointerEventScope {
                                         while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Main)
+                                            val event = awaitPointerEvent(PointerEventPass.Final)
                                             if (event.type != PointerEventType.Release) continue
                                             val change = event.changes.firstOrNull() ?: continue
                                             if (!change.previousPressed || change.pressed) continue
@@ -297,7 +301,8 @@ private fun SpeciesGroup(
                             ResultCard(
                                 result = variant,
                                 onClick = { onResultClicked(variant) },
-                                onPlayAudio = onPlayAudio
+                                onPlayAudio = onPlayAudio,
+                                speciesLocale = speciesLocale
                             )
                         }
                     }

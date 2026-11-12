@@ -7,7 +7,7 @@ import ch.etasystems.amsel.core.audio.AudioResampler
 import ch.etasystems.amsel.data.SettingsStore
 import ch.etasystems.amsel.data.resolvedModelDir
 import ch.etasystems.amsel.core.audio.SilenceDetector
-import kotlinx.coroutines.Dispatchers
+import ch.etasystems.amsel.core.AmselDispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -160,7 +160,7 @@ class OnnxBirdNetV3(
             // Jede Coroutine kopiert ihren Chunk lokal — vermeidet shared-buffer Konflikte
             val allResults = coroutineScope {
                 activeRanges.map { (index, range) ->
-                    async(Dispatchers.Default) {
+                    async(AmselDispatchers.Inference) {
                         val chunk = FloatArray(chunkSamples)
                         val copyLen = range.last - range.first + 1
                         System.arraycopy(resampled, range.first, chunk, 0, copyLen)
@@ -171,9 +171,8 @@ class OnnxBirdNetV3(
                 }.awaitAll().flatten()
             }
 
-            // 4. Filtern und sortieren
-            val filtered = allResults.filter { it.confidence >= minConfidence }
-            val sorted = filtered.sortedByDescending { it.confidence }
+            // 4. Sortieren (Filterung passiert bereits in classifyChunk)
+            val sorted = allResults.sortedByDescending { it.confidence }
             if (topN > 0) sorted.take(topN) else sorted
         } catch (e: Exception) {
             logger.error("Klassifikation fehlgeschlagen", e)
@@ -205,22 +204,33 @@ class OnnxBirdNetV3(
             val scores = extractPredictions(result, session)
 
             val endTimeSec = startTimeSec + chunkDurationSec
-            val results = mutableListOf<ClassifierResult>()
-            for (index in scores.indices) {
-                val score = scores[index]
-                if (score >= minConfidence && index < scientificNames.size) {
-                    val sciName = scientificNames[index]
-                    val comName = if (index < commonNames.size) commonNames[index] else ""
-                    results.add(ClassifierResult(
-                        species = "${sciName}_${comName}",
-                        confidence = score,
-                        startTime = startTimeSec,
-                        endTime = endTimeSec,
-                        scientificName = sciName
-                    ))
-                }
+
+            // Alle Scores mit Index sammeln und absteigend sortieren
+            val scoredIndices = scores.indices
+                .filter { it < scientificNames.size }
+                .map { Pair(it, scores[it]) }
+                .sortedByDescending { it.second }
+
+            // Mindestens 3 Kandidaten, aber alle ueber minConfidence
+            val aboveThreshold = scoredIndices.filter { it.second >= minConfidence }
+            val candidates = if (aboveThreshold.size >= 3) {
+                aboveThreshold.take(10)
+            } else {
+                // Unter 3 ueber Schwelle: auffuellen mit naechstbesten
+                scoredIndices.take(3.coerceAtLeast(aboveThreshold.size).coerceAtMost(10))
             }
-            results
+
+            candidates.map { (index, score) ->
+                val sciName = scientificNames[index]
+                val comName = if (index < commonNames.size) commonNames[index] else ""
+                ClassifierResult(
+                    species = "${sciName}_${comName}",
+                    confidence = score,
+                    startTime = startTimeSec,
+                    endTime = endTimeSec,
+                    scientificName = sciName
+                )
+            }
         } finally {
             tensor.close()
         }

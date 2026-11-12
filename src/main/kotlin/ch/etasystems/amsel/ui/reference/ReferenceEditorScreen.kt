@@ -36,6 +36,7 @@ import ch.etasystems.amsel.core.audio.FilteredAudio
 import ch.etasystems.amsel.core.export.AudioExporter
 import ch.etasystems.amsel.core.export.AudioExportFormat
 import ch.etasystems.amsel.core.export.SpeciesCsvExporter
+import ch.etasystems.amsel.core.AmselDispatchers
 import ch.etasystems.amsel.core.classifier.BirdNetBridge
 import ch.etasystems.amsel.core.classifier.ClassifierResult
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,8 @@ import java.io.File
 import javax.imageio.ImageIO
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
+
+private val logger = org.slf4j.LoggerFactory.getLogger("ReferenceEditorScreen")
 
 /**
  * Referenz-Editor-Modus.
@@ -137,7 +140,7 @@ fun ReferenceEditorScreen(
                 audioSegment = segment
                 totalDurationSec = segment.durationSec
 
-                val overview = withContext(Dispatchers.Default) {
+                val overview = withContext(AmselDispatchers.Compute) {
                     val spec = MelSpectrogram(
                         fftSize = 2048, hopSize = 512, nMels = 80,
                         fMin = 500f, fMax = 10000f, sampleRate = segment.sampleRate
@@ -151,7 +154,7 @@ fun ReferenceEditorScreen(
                 viewStartSec = 0f
                 viewEndSec = end
 
-                val zoomed = withContext(Dispatchers.Default) {
+                val zoomed = withContext(AmselDispatchers.Compute) {
                     ChunkedSpectrogram.computeRegion(segment, 0f, end)
                 }
                 zoomedData = zoomed
@@ -182,7 +185,7 @@ fun ReferenceEditorScreen(
     fun recomputeZoom() {
         val seg = audioSegment ?: return
         scope.launch {
-            val zoomed = withContext(Dispatchers.Default) {
+            val zoomed = withContext(AmselDispatchers.Compute) {
                 var data = ChunkedSpectrogram.computeRegion(seg, viewStartSec, viewEndSec)
                 if (filterConfig.isActive) {
                     data = FilterPipeline.apply(data, filterConfig)
@@ -220,7 +223,7 @@ fun ReferenceEditorScreen(
                     sampleRate = seg.sampleRate
                 )
 
-                val success = withContext(Dispatchers.Default) {
+                val success = withContext(AmselDispatchers.Compute) {
                     ReferenceGenerator.generateFromSegment(
                         segment = subSegment,
                         outputFile = sonoPng,
@@ -440,8 +443,8 @@ fun ReferenceEditorScreen(
                                                             audioPlayer.stop()
                                                             playingFile = file
                                                             audioPlayer.play(seg)
-                                                        } catch (_: Exception) {
-                                                            // Audio-Fehler ignorieren
+                                                        } catch (e: Exception) {
+                                                            logger.warn("Audio-Wiedergabe fehlgeschlagen: {}", e.message, e)
                                                         }
                                                     }
                                                 }
@@ -712,7 +715,7 @@ fun ReferenceEditorScreen(
                                         try {
                                             val sub = seg.subRangeSec(viewStartSec, viewEndSec)
                                             val samples = if (filterConfig.isActive) {
-                                                withContext(Dispatchers.Default) {
+                                                withContext(AmselDispatchers.Compute) {
                                                     FilteredAudio.apply(sub, filterConfig)
                                                 }
                                             } else {

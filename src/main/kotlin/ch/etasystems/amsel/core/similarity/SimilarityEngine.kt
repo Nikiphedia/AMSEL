@@ -3,10 +3,13 @@ package ch.etasystems.amsel.core.similarity
 import ch.etasystems.amsel.core.audio.AudioDecoder
 import ch.etasystems.amsel.core.audio.AudioResampler
 import ch.etasystems.amsel.core.audio.AudioSegment
+import ch.etasystems.amsel.core.AmselDispatchers
 import ch.etasystems.amsel.core.annotation.MatchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+
+private val logger = org.slf4j.LoggerFactory.getLogger(SimilarityEngine::class.java)
 
 /**
  * Vergleicht einen markierten Audio-Ausschnitt mit Referenz-Aufnahmen.
@@ -33,7 +36,7 @@ class SimilarityEngine(
         maxCandidates: Int = 30,
         topN: Int = 10,
         onProgress: (Float) -> Unit = {}
-    ): List<MatchResult> = withContext(Dispatchers.Default) {
+    ): List<MatchResult> = withContext(AmselDispatchers.Compute) {
 
         onProgress(0f)
 
@@ -243,8 +246,8 @@ class SimilarityEngine(
                         type = recording.type
                     )
                 )
-            } catch (_: Exception) {
-                // Kandidat ueberspringen
+            } catch (e: Exception) {
+                logger.warn("Online-Kandidat uebersprungen ({}): {}", recording.recordingId, e.message, e)
             }
 
             onProgress(0.2f + (index + 1) * progressPerCandidate)

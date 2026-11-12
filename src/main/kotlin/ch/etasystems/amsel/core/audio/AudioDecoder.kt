@@ -20,6 +20,8 @@ import javax.sound.sampled.spi.AudioFileReader
  */
 object AudioDecoder {
 
+    private val logger = org.slf4j.LoggerFactory.getLogger(AudioDecoder::class.java)
+
     // 1 MB Buffer — groß genug für MP3-Header und WAV-Metadaten
     private const val BUFFER_SIZE = 1024 * 1024
 
@@ -136,16 +138,16 @@ object AudioDecoder {
         // Versuch 1: File-basierte API (kein mark/reset nötig)
         try {
             return AudioSystem.getAudioInputStream(file)
-        } catch (_: Exception) {
-            // Fallthrough zu Versuch 2
+        } catch (e: Exception) {
+            logger.warn("AudioSystem konnte {} nicht oeffnen: {}", file.name, e.message)
         }
 
         // Versuch 2: BufferedInputStream mit großem Buffer
         try {
             val bis = BufferedInputStream(file.inputStream(), BUFFER_SIZE)
             return AudioSystem.getAudioInputStream(bis)
-        } catch (_: Exception) {
-            // Fallthrough zu Versuch 3
+        } catch (e: Exception) {
+            logger.warn("BufferedInputStream-Fallback fehlgeschlagen fuer {}: {}", file.name, e.message)
         }
 
         // Versuch 3: Datei komplett in den Speicher laden (letzter Ausweg)

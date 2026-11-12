@@ -1,6 +1,7 @@
 package ch.etasystems.amsel.core.filter
 
 import ch.etasystems.amsel.core.spectrogram.SpectrogramData
+import kotlinx.coroutines.yield
 
 object FilterPipeline {
 
@@ -21,7 +22,7 @@ object FilterPipeline {
      * @param volumeGainsLog10 Optionale Volume-Envelope Gains pro Frame (in log10).
      *   Wird als allererster Schritt angewendet (vor Bandpass).
      */
-    fun apply(data: SpectrogramData, config: FilterConfig, volumeGainsLog10: FloatArray? = null): SpectrogramData {
+    suspend fun apply(data: SpectrogramData, config: FilterConfig, volumeGainsLog10: FloatArray? = null): SpectrogramData {
         // Eine einzige Arbeitskopie — Punkt-Operationen arbeiten in-place darauf
         val workMatrix = data.matrix.copyOf()
         var result = data.copy(matrix = workMatrix)
@@ -30,6 +31,7 @@ object FilterPipeline {
         if (volumeGainsLog10 != null) {
             val nFrames = result.nFrames
             for (mel in 0 until result.nMels) {
+                if (mel % 32 == 0) yield()  // Alle 32 Mel-Bins suspenden
                 val baseIdx = mel * nFrames
                 for (frame in 0 until nFrames) {
                     val gain = if (frame < volumeGainsLog10.size) volumeGainsLog10[frame] else 0f

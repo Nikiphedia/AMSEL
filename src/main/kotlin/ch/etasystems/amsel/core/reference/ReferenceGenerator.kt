@@ -15,6 +15,8 @@ import javax.imageio.ImageIO
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
+private val logger = org.slf4j.LoggerFactory.getLogger(ReferenceGenerator::class.java)
+
 /**
  * Generiert wissenschaftliche Referenz-Sonogramme im Feldfuehrer-Stil (Glutz, Svensson).
  *
@@ -104,7 +106,8 @@ object ReferenceGenerator {
             val segment = AudioDecoder.decode(audioFile)
             val result = generateFromSegment(segment, outputFile, config)
             result
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logger.warn("Referenz-Generierung aus Datei fehlgeschlagen: {}", e.message, e)
             false
         }
     }
@@ -151,7 +154,8 @@ object ReferenceGenerator {
             metaFile.writeText(metadataToJson(metadata))
 
             return true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logger.warn("Referenz-Generierung aus Segment fehlgeschlagen: {}", e.message, e)
             return false
         }
     }
