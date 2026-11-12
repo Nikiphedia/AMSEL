@@ -134,10 +134,11 @@ class OnnxBirdNetV3(
             }
             val chunkRanges = splitIntoChunkRanges(resampled.size, chunkSamples, hopSamples)
 
-            // 2b. Stille-Detektion: Chunks unter Schwelle ueberspringen
+            // 2b. Stille-Detektion: Chunks unter Schwelle ueberspringen (nur wenn in den Einstellungen aktiviert)
+            val skipSilence = SettingsStore.load().birdnetSkipSilence
             var skippedChunks = 0
             val activeRanges = chunkRanges.mapIndexedNotNull { index, range ->
-                if (SilenceDetector.isSilent(resampled, range.first, range.last - range.first + 1)) {
+                if (skipSilence && SilenceDetector.isSilent(resampled, range.first, range.last - range.first + 1)) {
                     skippedChunks++
                     null
                 } else {

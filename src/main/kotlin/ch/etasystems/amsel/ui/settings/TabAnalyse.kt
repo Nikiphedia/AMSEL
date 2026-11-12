@@ -54,6 +54,8 @@ internal fun TabAnalyse(
     onShortFileStartChanged: (Float) -> Unit,
     birdnetUseFiltered: Boolean = true,
     onBirdnetUseFilteredChanged: (Boolean) -> Unit = {},
+    birdnetSkipSilence: Boolean = false,
+    onBirdnetSkipSilenceChanged: (Boolean) -> Unit = {},
     sliceLengthMin: Float = 10f,
     onSliceLengthChanged: (Float) -> Unit = {},
     sliceOverlapSec: Float = 5f,
@@ -127,6 +129,21 @@ internal fun TabAnalyse(
                 Text("Bearbeitetes Material analysieren", style = MaterialTheme.typography.bodyMedium)
                 Text(
                     "Filter + Volume Envelope werden vor BirdNET-Analyse angewendet. Verbessert Erkennung bei verrauschtem Material.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = birdnetSkipSilence,
+                onCheckedChange = { onBirdnetSkipSilenceChanged(it) }
+            )
+            Column {
+                Text("Stille Abschnitte ueberspringen", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Abschnitte unter -50 dBFS werden nicht analysiert. Spart Zeit, verwirft aber leise Feldaufnahmen ganz. Empfohlen: aus.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

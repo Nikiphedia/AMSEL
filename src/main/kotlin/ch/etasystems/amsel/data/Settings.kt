@@ -170,6 +170,8 @@ data class AppSettings(
     val birdnetMinConf: Float = 0.1f,
     /** BirdNET: Bearbeitetes Material analysieren (Filter + Volume Envelope angewendet) */
     val birdnetUseFiltered: Boolean = true,
+    /** BirdNET: Fenster unter -50 dBFS ueberspringen. Aus = alle Fenster rechnen (noetig fuer leise Feldaufnahmen). */
+    val birdnetSkipSilence: Boolean = false,
     /** Event-Klick: Vorlauf in Sekunden (wie viel vor dem Event angezeigt wird) */
     val eventPrerollSec: Float = 10f,
     /** Event-Klick: Nachlauf in Sekunden (wie viel nach dem Event angezeigt wird) */

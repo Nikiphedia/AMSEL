@@ -100,6 +100,7 @@ fun UnifiedSettingsDialog(
     var selectedAlgorithm by remember { mutableStateOf(settings.comparisonAlgorithm) }
     var confText by remember { mutableStateOf("%.2f".format(settings.birdnetMinConf)) }
     var birdnetUseFiltered by remember { mutableStateOf(settings.birdnetUseFiltered) }
+    var birdnetSkipSilence by remember { mutableStateOf(settings.birdnetSkipSilence) }
     var prerollStr by remember { mutableStateOf("%.0f".format(settings.eventPrerollSec)) }
     var postrollStr by remember { mutableStateOf("%.0f".format(settings.eventPostrollSec)) }
     var soloPrerollStr by remember { mutableStateOf("%.0f".format(settings.soloPrerollSec)) }
@@ -246,6 +247,8 @@ fun UnifiedSettingsDialog(
                             onShortFileStartChanged = { shortFileStartPct = it },
                             birdnetUseFiltered = birdnetUseFiltered,
                             onBirdnetUseFilteredChanged = { birdnetUseFiltered = it },
+                            birdnetSkipSilence = birdnetSkipSilence,
+                            onBirdnetSkipSilenceChanged = { birdnetSkipSilence = it },
                             sliceLengthMin = sliceLengthMin,
                             onSliceLengthChanged = { sliceLengthMin = it },
                             sliceOverlapSec = sliceOverlapSec,
@@ -384,6 +387,7 @@ fun UnifiedSettingsDialog(
                             comparisonAlgorithm = selectedAlgorithm,
                             birdnetMinConf = conf,
                             birdnetUseFiltered = birdnetUseFiltered,
+                            birdnetSkipSilence = birdnetSkipSilence,
                             eventPrerollSec = preroll.coerceIn(0f, 60f),
                             eventPostrollSec = postroll.coerceIn(0f, 120f),
                             soloPrerollSec = soloPreroll.coerceIn(0f, 60f),
