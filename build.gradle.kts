@@ -51,6 +51,14 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// Messlauf fuer Import, Scan und Suche: gradlew benchmark --args="<langdatei> [<kurz-ordner>]"
+tasks.register<JavaExec>("benchmark") {
+    group = "verification"
+    description = "Misst Dekodierung, Uebersicht, BirdNET-Scan und Aehnlichkeitssuche an einer Audiodatei"
+    mainClass.set("ch.etasystems.amsel.benchmark.BenchmarkKt")
+    classpath = sourceSets["test"].runtimeClasspath
+}
+
 compose.desktop {
     application {
         mainClass = "ch.etasystems.amsel.MainKt"
