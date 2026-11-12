@@ -129,8 +129,8 @@ class EmbeddingExtractor(
 
             try {
                 val inputName = session.inputNames.first()
-                val result = session.run(mapOf(inputName to tensor))
-                val output = result[0].value
+                // Das Result haelt nativen Speicher und muss geschlossen werden; value ist eine Java-Kopie.
+                val output = session.run(mapOf(inputName to tensor)).use { it[0].value }
 
                 // Output als Float-Array lesen (Logits = Embedding)
                 val logits = when (output) {

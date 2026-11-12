@@ -110,8 +110,8 @@ object OnnxSimilarityMetric : SimilarityMetric {
 
         return try {
             val inputName = session.inputNames.first()
-            val result = session.run(mapOf(inputName to tensor))
-            val output = result[0].value
+            // Das Result haelt nativen Speicher und muss geschlossen werden; value ist eine Java-Kopie.
+            val output = session.run(mapOf(inputName to tensor)).use { it[0].value }
 
             // Output als Float-Array lesen
             val embedding = when (output) {

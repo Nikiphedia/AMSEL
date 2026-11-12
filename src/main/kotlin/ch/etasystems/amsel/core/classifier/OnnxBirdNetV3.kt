@@ -199,10 +199,11 @@ class OnnxBirdNetV3(
 
         return try {
             val inputName = session.inputNames.first()
-            val result = session.run(mapOf(inputName to tensor))
-
-            // Output: (embeddings, predictions) oder nur predictions
-            val scores = extractPredictions(result, session)
+            // Output: (embeddings, predictions) oder nur predictions.
+            // Das Result haelt nativen Speicher und muss geschlossen werden; die Scores sind eine Java-Kopie.
+            val scores = session.run(mapOf(inputName to tensor)).use { result ->
+                extractPredictions(result, session)
+            }
 
             val endTimeSec = startTimeSec + chunkDurationSec
 
