@@ -159,20 +159,58 @@ object AudioDecoder {
     private fun lautesterKanal(pcmStream: AudioInputStream): Int {
         val converter = MonoConverter(pcmStream.format)
         val n = pcmStream.format.channels
-        val energie = DoubleArray(n)
         val vorher = FloatArray(n)
-        val buffer = ByteArray(65_536 * converter.frameSize)
+        val bloecke = ArrayList<DoubleArray>()  // Energie je Kanal fuer jeden Block
+        val buffer = ByteArray(KANAL_BLOCK_FRAMES * converter.frameSize)
         pcmStream.use { stream ->
             while (true) {
                 val frames = readFully(stream, buffer) / converter.frameSize
                 if (frames <= 0) break
-                converter.energieJeKanal(buffer, frames, energie, vorher)
+                val block = DoubleArray(n)
+                converter.energieJeKanal(buffer, frames, block, vorher)
+                // Ein kuerzerer letzter Block wuerde das Grundrauschen verfaelschen
+                if (frames == KANAL_BLOCK_FRAMES || bloecke.isEmpty()) bloecke.add(block)
             }
         }
-        var bester = 0
-        for (k in 1 until n) if (energie[k] > energie[bester]) bester = k
-        return bester
+        val gestoert = gestoerteKanaele(bloecke, n)
+        if (gestoert.any { it }) {
+            logger.warn(
+                "Kanal {} hat ein deutlich hoeheres Grundrauschen als die uebrigen und wird bei der Kanalwahl ausgelassen",
+                gestoert.indices.filter { gestoert[it] }.joinToString(", ") { "${it + 1}" }
+            )
+        }
+        var bester = -1
+        var besteEnergie = -1.0
+        for (k in 0 until n) {
+            if (gestoert[k]) continue
+            val energie = bloecke.sumOf { it[k] }
+            if (energie > besteEnergie) { bester = k; besteEnergie = energie }
+        }
+        return bester.coerceAtLeast(0)
     }
+
+    /**
+     * Erkennt Kanaele mit Stoerung (Einstreuung, defektes Mikrofon): ihr Grundrauschen liegt
+     * deutlich ueber dem der uebrigen. Grundrauschen = Energie der leisesten 10 % der Bloecke.
+     * Ein Ruf hebt nur einzelne Bloecke und zaehlt deshalb nicht als Stoerung.
+     *
+     * Braucht mindestens 3 Kanaele (sonst ist unklar, welcher abweicht) und genug Bloecke.
+     */
+    internal fun gestoerteKanaele(bloecke: List<DoubleArray>, kanaele: Int): BooleanArray {
+        val gestoert = BooleanArray(kanaele)
+        if (kanaele < 3 || bloecke.size < KANAL_MIN_BLOECKE) return gestoert
+        val grund = DoubleArray(kanaele) { k -> bloecke.map { it[k] }.sorted()[bloecke.size / 10] }
+        val median = grund.sorted().let { (it[(kanaele - 1) / 2] + it[kanaele / 2]) / 2.0 }
+        for (k in 0 until kanaele) gestoert[k] = grund[k] > median * KANAL_STOER_FAKTOR
+        return gestoert
+    }
+
+    /** Blocklaenge fuer die Kanalwahl: 8192 Frames, bei 48 kHz rund 0,17 s. */
+    private const val KANAL_BLOCK_FRAMES = 8192
+    /** Unter dieser Blockzahl (bei 48 kHz rund 3,4 s) wird kein Kanal als gestoert gewertet. */
+    private const val KANAL_MIN_BLOECKE = 20
+    /** Grundrauschen ueber dem 4-fachen (6 dB) des Medians der Kanaele gilt als Stoerung. */
+    private const val KANAL_STOER_FAKTOR = 4.0
 
     // --- Robuste Stream-Öffnung ---
 

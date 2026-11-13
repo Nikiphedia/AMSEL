@@ -87,6 +87,56 @@ class KanalwahlTest {
         assertEquals(2, stereo.kanaele)
     }
 
+    /** 6 s, 4 Kanaele: Rufe (Sinus 2 kHz) nur in jeder dritten halben Sekunde, dazu leises Rauschen. */
+    private fun wavMitRufen(rufAmplitude: DoubleArray, rauschen: DoubleArray): File {
+        val n = rate * 6
+        val zufall = java.util.Random(1)
+        val bytes = ByteArray(n * 4 * 2)
+        for (i in 0 until n) {
+            val ruf = (i / (rate / 2)) % 3 == 0
+            for (k in 0 until 4) {
+                val v = (if (ruf) rufAmplitude[k] * sin(2.0 * PI * 2000.0 * i / rate) else 0.0) +
+                    rauschen[k] * zufall.nextGaussian()
+                val w = (v.coerceIn(-1.0, 1.0) * 32767.0).toInt()
+                val o = (i * 4 + k) * 2
+                bytes[o] = (w and 0xFF).toByte()
+                bytes[o + 1] = ((w shr 8) and 0xFF).toByte()
+            }
+        }
+        val datei = File.createTempFile("kanalstoerung", ".wav").apply { deleteOnExit() }
+        AudioSystem.write(
+            AudioInputStream(ByteArrayInputStream(bytes), AudioFormat(rate.toFloat(), 16, 4, true, false), n.toLong()),
+            AudioFileFormat.Type.WAVE, datei
+        )
+        return datei
+    }
+
+    @Test
+    fun `gestoerter Kanal wird ausgelassen, danach der lauteste genommen`() {
+        // Kanal 2 rauscht stark und waere nach Energie der lauteste; Kanal 4 hat die lautesten Rufe
+        val datei = wavMitRufen(doubleArrayOf(0.1, 0.1, 0.2, 0.4), doubleArrayOf(0.001, 0.2, 0.001, 0.001))
+        assertEquals(4, AudioDecoder.decodeStreaming(datei) { _, _ -> }.kanal)
+    }
+
+    @Test
+    fun `lauter Ruf allein gilt nicht als Stoerung`() {
+        // Kanal 4 ist viel lauter, aber nur waehrend der Rufe: Grundrauschen gleich, also nicht gestoert
+        val datei = wavMitRufen(doubleArrayOf(0.02, 0.02, 0.02, 0.8), doubleArrayOf(0.001, 0.001, 0.001, 0.001))
+        assertEquals(4, AudioDecoder.decodeStreaming(datei) { _, _ -> }.kanal)
+    }
+
+    @Test
+    fun `Grundrauschen innerhalb 6 dB gilt nicht als Stoerung`() {
+        // Kanal 2 rauscht 1,5-fach (3,5 dB) staerker und bleibt waehlbar
+        val bloecke = List(30) { i -> doubleArrayOf(1.0, 2.25, 1.0, 1.0).map { it * (1 + i % 3) }.toDoubleArray() }
+        assertTrue(AudioDecoder.gestoerteKanaele(bloecke, 4).none { it })
+        val stark = List(30) { i -> doubleArrayOf(1.0, 5.0, 1.0, 1.0).map { it * (1 + i % 3) }.toDoubleArray() }
+        assertEquals(listOf(false, true, false, false), AudioDecoder.gestoerteKanaele(stark, 4).toList())
+        // Zu wenige Bloecke oder nur zwei Kanaele: keine Aussage
+        assertTrue(AudioDecoder.gestoerteKanaele(stark.take(5), 4).none { it })
+        assertTrue(AudioDecoder.gestoerteKanaele(List(30) { doubleArrayOf(1.0, 9.0) }, 2).none { it })
+    }
+
     @Test
     fun `Automatik mittelt Stereo wie bisher`() {
         assertSignal({ i -> (wert(0, i) + wert(1, i)) / 2.0 }, AudioDecoder.decode(wavDatei(2)).samples)
