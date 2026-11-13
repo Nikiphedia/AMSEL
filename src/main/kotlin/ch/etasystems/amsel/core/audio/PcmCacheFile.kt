@@ -23,7 +23,9 @@ class PcmCacheFile private constructor(
     /** Geladener Kanal der Quelldatei (ab 1), 0 = Mittelwert aller Kanaele bzw. Mono-Datei. */
     val quellKanal: Int = 0,
     /** Kanalzahl der Quelldatei. */
-    val quellKanaele: Int = 1
+    val quellKanaele: Int = 1,
+    /** Bei der Kanalwahl als gestoert ausgelassene Kanaele (ab 1). */
+    val gestoerteKanaele: List<Int> = emptyList()
 ) : AutoCloseable {
 
     private var raf: RandomAccessFile? = RandomAccessFile(cacheFile, "r")
@@ -137,7 +139,7 @@ class PcmCacheFile private constructor(
 
             onProgress?.invoke(1.0f)
 
-            return PcmCacheFile(cacheFile, result.sampleRate, result.totalSamples, result.kanal, result.kanaele)
+            return PcmCacheFile(cacheFile, result.sampleRate, result.totalSamples, result.kanal, result.kanaele, result.gestoerteKanaele)
         }
 
         /** Oeffnet eine bestehende PCM-Cache-Datei */

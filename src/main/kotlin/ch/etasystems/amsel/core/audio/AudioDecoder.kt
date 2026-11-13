@@ -40,7 +40,7 @@ object AudioDecoder {
      * @param kanal [KANAL_AUTO], [KANAL_MITTEL], [KANAL_LAUTESTER] oder eine Kanalnummer ab 1
      */
     fun decode(file: File, kanal: Int = KANAL_AUTO): AudioSegment {
-        val (stream, index) = oeffnenMitKanal(file, kanal)
+        val (stream, index, _) = oeffnenMitKanal(file, kanal)
         return decodeStream(stream, index)
     }
 
@@ -54,7 +54,7 @@ object AudioDecoder {
         kanal: Int = KANAL_AUTO,
         onChunk: (samples: FloatArray, offsetSamples: Long) -> Unit
     ): StreamingResult {
-        val (pcmStream, index) = oeffnenMitKanal(file, kanal)
+        val (pcmStream, index, gestoert) = oeffnenMitKanal(file, kanal)
         val converter = MonoConverter(pcmStream.format, index)
         val buffer = ByteArray(chunkSizeSamples * converter.frameSize)
         var totalSamples = 0L
@@ -77,7 +77,8 @@ object AudioDecoder {
             sampleRate = pcmStream.format.sampleRate.toInt(),
             totalSamples = totalSamples,
             kanal = if (index >= 0) index + 1 else 0,
-            kanaele = pcmStream.format.channels
+            kanaele = pcmStream.format.channels,
+            gestoerteKanaele = gestoert
         )
     }
 
@@ -110,12 +111,15 @@ object AudioDecoder {
     /**
      * @property kanal tatsaechlich geladener Kanal (ab 1), 0 = Mittelwert aller Kanaele bzw. Mono-Datei
      * @property kanaele Kanalzahl der Quelldatei
+     * @property gestoerteKanaele Kanaele (ab 1), die bei der Wahl des lautesten Kanals als gestoert
+     *   ausgelassen wurden; leer, wenn der Kanal vorgegeben war (dann wird nicht gemessen)
      */
     data class StreamingResult(
         val sampleRate: Int,
         val totalSamples: Long,
         val kanal: Int = 0,
-        val kanaele: Int = 1
+        val kanaele: Int = 1,
+        val gestoerteKanaele: List<Int> = emptyList()
     ) {
         val durationSec: Float get() = totalSamples.toFloat() / sampleRate
     }
@@ -124,12 +128,13 @@ object AudioDecoder {
 
     /**
      * Oeffnet die Datei und loest die Kanalwahl auf.
-     * @return PCM-Stream am Dateianfang und der zu nehmende Kanal (0-basiert) oder -1 fuer den Mittelwert
+     * @return PCM-Stream am Dateianfang, der zu nehmende Kanal (0-basiert) oder -1 fuer den Mittelwert,
+     *   und die als gestoert ausgelassenen Kanaele (ab 1, nur bei der Wahl des lautesten Kanals)
      */
-    private fun oeffnenMitKanal(file: File, kanal: Int): Pair<AudioInputStream, Int> {
+    private fun oeffnenMitKanal(file: File, kanal: Int): Triple<AudioInputStream, Int, List<Int>> {
         val stream = openPcmStream(file)
         val n = stream.format.channels
-        if (n <= 1) return stream to -1
+        if (n <= 1) return Triple(stream, -1, emptyList())
 
         var wahl = kanal
         if (wahl > n) {
@@ -137,26 +142,27 @@ object AudioDecoder {
             wahl = KANAL_AUTO
         }
         if (wahl == KANAL_AUTO) wahl = if (n > 2) KANAL_LAUTESTER else KANAL_MITTEL
-        if (wahl >= 1) return stream to wahl - 1
-        if (wahl == KANAL_MITTEL) return stream to -1
+        if (wahl >= 1) return Triple(stream, wahl - 1, emptyList())
+        if (wahl == KANAL_MITTEL) return Triple(stream, -1, emptyList())
 
         // Lautester Kanal: ein Durchgang ueber die ganze Datei, danach neu oeffnen
-        val laut = try {
+        val (laut, gestoert) = try {
             lautesterKanal(stream)
         } catch (e: Exception) {
             stream.close()
             throw e
         }
         logger.info("{}: {} Kanaele, lautester ist Kanal {}", file.name, n, laut + 1)
-        return openPcmStream(file) to laut
+        return Triple(openPcmStream(file), laut, gestoert)
     }
 
     /**
-     * Bestimmt den lautesten Kanal (0-basiert) und schliesst den Stream.
+     * Bestimmt den lautesten Kanal (0-basiert) samt den ausgelassenen gestoerten Kanaelen (ab 1)
+     * und schliesst den Stream.
      * Gemessen wird die Energie der Differenz benachbarter Samples: das daempft tiefes Rumpeln
      * (Wind, Trittschall) stark, damit nicht der Kanal mit dem meisten Wind gewinnt.
      */
-    private fun lautesterKanal(pcmStream: AudioInputStream): Int {
+    private fun lautesterKanal(pcmStream: AudioInputStream): Pair<Int, List<Int>> {
         val converter = MonoConverter(pcmStream.format)
         val n = pcmStream.format.channels
         val vorher = FloatArray(n)
@@ -186,7 +192,7 @@ object AudioDecoder {
             val energie = bloecke.sumOf { it[k] }
             if (energie > besteEnergie) { bester = k; besteEnergie = energie }
         }
-        return bester.coerceAtLeast(0)
+        return bester.coerceAtLeast(0) to gestoert.indices.filter { gestoert[it] }.map { it + 1 }
     }
 
     /**

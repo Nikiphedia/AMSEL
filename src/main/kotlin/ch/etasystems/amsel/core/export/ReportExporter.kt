@@ -26,8 +26,19 @@ object ReportExporter {
         val fileName: String,
         val durationSec: Float,
         val recordingDate: String = "",
-        val recordingTime: String = ""
-    )
+        val recordingTime: String = "",
+        /** Geladener Kanal (ab 1), 0 = Mittelwert bzw. Mono-Datei */
+        val kanal: Int = 0,
+        /** Kanalzahl der Quelldatei */
+        val kanaele: Int = 1
+    ) {
+        /** Fuer Exporte: Kanalnummer, "Mittel" oder leer bei einer Mono-Datei. */
+        val kanalText: String get() = when {
+            kanaele <= 1 -> ""
+            kanal >= 1 -> "$kanal"
+            else -> "Mittel"
+        }
+    }
 
     data class ReportConfig(
         val title: String = "AMSEL Analysebericht",
@@ -55,7 +66,7 @@ object ReportExporter {
         } else emptyList()
 
         val bom = "\uFEFF"
-        val header = "Nr;Datei;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung;Peak (Hz);Center (Hz);LowFreq-3dB (Hz);HighFreq-3dB (Hz);Bandwidth-3dB (Hz);SNR (dB);Modell" + ortungsSpalten.joinToString("") { ";Sitta $it" }
+        val header = "Nr;Datei;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung;Peak (Hz);Center (Hz);LowFreq-3dB (Hz);HighFreq-3dB (Hz);Bandwidth-3dB (Hz);SNR (dB);Modell;Kanal" + ortungsSpalten.joinToString("") { ";Sitta $it" }
 
         val lines = sorted.mapIndexed { idx, ann ->
             val fileInfo = fileInfoMap[ann.audioFileId]
@@ -102,7 +113,8 @@ object ReportExporter {
                 String.format(java.util.Locale.US, "%.0f", ann.highFreqHz),
                 confidence, source, status, verifiedBy, verifiedAt, notes,
                 peakHz, centerHz, lowHz3db, highHz3db, bw3db, snrDb,
-                bestCandidate?.modell ?: ""
+                bestCandidate?.modell ?: "",
+                fileInfo?.kanalText ?: ""
             ).plus(ortungsSpalten.map { ann.ortung?.spalten?.get(it)?.replace(";", ",") ?: "" })
                 .joinToString(";")
         }
@@ -175,7 +187,7 @@ object ReportExporter {
             val headerLines = mutableListOf("Datum: $now")
             if (config.audioFiles.isNotEmpty()) {
                 val fileList = config.audioFiles.joinToString(", ") { af ->
-                    "${af.fileName} (${formatDuration(af.durationSec)})"
+                    "${af.fileName} (${formatDuration(af.durationSec)}${if (af.kanalText.isEmpty()) "" else ", Kanal ${af.kanalText}"})"
                 }
                 headerLines.add("Dateien: $fileList")
             }

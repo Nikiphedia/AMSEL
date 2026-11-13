@@ -41,7 +41,9 @@ class AudioManager(
         /** Geladener Kanal der Quelldatei (ab 1), 0 = Mittelwert aller Kanaele bzw. Mono-Datei. */
         val kanal: Int = 0,
         /** Kanalzahl der Quelldatei. */
-        val kanaele: Int = 1
+        val kanaele: Int = 1,
+        /** Bei der Kanalwahl als gestoert ausgelassene Kanaele (ab 1). */
+        val gestoerteKanaele: List<Int> = emptyList()
     )
 
     data class State(
@@ -96,7 +98,9 @@ class AudioManager(
         specFftSize: FftSize = FftSize.FFT_4096,
         specHopFraction: HopFraction = HopFraction.HOP_1_8,
         fileId: String = java.util.UUID.randomUUID().toString(),
-        kanal: Int = ch.etasystems.amsel.core.audio.AudioDecoder.KANAL_AUTO
+        kanal: Int = ch.etasystems.amsel.core.audio.AudioDecoder.KANAL_AUTO,
+        /** Aus dem Projekt bekannte gestoerte Kanaele: bei vorgegebenem Kanal wird nicht neu gemessen */
+        gestoertBekannt: List<Int> = emptyList()
     ): ImportResult {
         // 1. Dekodieren: streaming direkt in den PCM-Cache. Die Aufnahme liegt dabei nie als
         //    Ganzes im Speicher (2 h bei 48 kHz waeren rund 1,4 GB). Erst danach ist die Dauer
@@ -193,7 +197,11 @@ class AudioManager(
             sliceManager = sliceManager,
             activeSliceIndex = 0,
             kanal = geladenerKanal,
-            kanaele = quellKanaele
+            kanaele = quellKanaele,
+            // Bei vorgegebenem Kanal (Projekt, Neuaufbau) wird nicht gemessen: bisherige Angabe behalten
+            gestoerteKanaele = dekodiert.gestoerteKanaele.ifEmpty {
+                _state.value.loadedFiles[fileId]?.gestoerteKanaele ?: gestoertBekannt
+            }
         )
         // Neuaufbau einer schon geladenen Datei (z.B. nach "Einstellungen speichern"):
         // deren alter PCM-Cache wird ersetzt und muss von der Platte, sonst bleibt er liegen.

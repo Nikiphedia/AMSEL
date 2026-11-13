@@ -241,6 +241,8 @@ class ClassificationManager(
                                     topN = 5
                                 )
                             } else { null }
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             logger.warn("ONNX Quick-ID fehlgeschlagen: {}", e.message)
                             null
@@ -350,6 +352,11 @@ class ClassificationManager(
                 onStateChanged()
                 onStatusUpdate(audioData.audioFile()?.name ?: "", null)
 
+            } catch (e: CancellationException) {
+                // Abbruch ist kein Fehler: Zustand zuruecksetzen und weiterreichen
+                _state.update { it.copy(isSearching = false, searchProgress = 0f) }
+                onStateChanged()
+                throw e
             } catch (e: Exception) {
                 _state.update { it.copy(isSearching = false, searchProgress = 0f) }
                 onStateChanged()

@@ -620,7 +620,8 @@ class CompareViewModel {
                     fileState.kanaele <= 1 -> null
                     fileState.kanal >= 1 -> fileState.kanal
                     else -> ch.etasystems.amsel.core.audio.AudioDecoder.KANAL_MITTEL
-                }
+                },
+                gestoerteKanaele = fileState.gestoerteKanaele
             )
         }
 
@@ -688,7 +689,10 @@ class CompareViewModel {
                             continue
                         }
                     }
-                    importAudioSuspend(resolved, fileId = audioRef.id, kanal = audioRef.geladenerKanal, projektAnlegen = false)
+                    importAudioSuspend(
+                        resolved, fileId = audioRef.id, kanal = audioRef.geladenerKanal,
+                        projektAnlegen = false, gestoertBekannt = audioRef.gestoerteKanaele
+                    )
                 }
 
                 // Volume wiederherstellen
@@ -924,7 +928,9 @@ class CompareViewModel {
         /** Kanal aus dem Projekt; null = Einstellung verwenden */
         kanal: Int? = null,
         /** false beim Laden eines Projekts: dessen Datei darf nicht durch ein leeres Projekt ersetzt werden */
-        projektAnlegen: Boolean = true
+        projektAnlegen: Boolean = true,
+        /** Aus dem Projekt bekannte gestoerte Kanaele */
+        gestoertBekannt: List<Int> = emptyList()
     ) {
         _localState.update { it.copy(isProcessing = true, sidebarStatus = "Dekodiere Audio...") }
 
@@ -944,7 +950,8 @@ class CompareViewModel {
                 specFftSize = settings.specFftSize,
                 specHopFraction = settings.specHopFraction,
                 fileId = fileId,
-                kanal = kanal ?: settings.importKanal
+                kanal = kanal ?: settings.importKanal,
+                gestoertBekannt = gestoertBekannt
             )
 
             // Spektrogramm setzen (immer fuer die aktive Datei)
@@ -1454,7 +1461,9 @@ class CompareViewModel {
                     fileName = fileState.audioFile.name,
                     durationSec = fileState.durationSec,
                     recordingDate = meta?.date ?: "",
-                    recordingTime = meta?.time ?: ""
+                    recordingTime = meta?.time ?: "",
+                    kanal = fileState.kanal,
+                    kanaele = fileState.kanaele
                 )
             }
             val totalDuration = audioFileInfos.sumOf { it.durationSec.toDouble() }.toFloat()

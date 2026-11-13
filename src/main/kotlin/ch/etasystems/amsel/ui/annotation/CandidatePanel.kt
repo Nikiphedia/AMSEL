@@ -383,9 +383,14 @@ private fun CandidateRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (displayName != sciName.replace('_', ' ')) {
+            // Zweite Zeile: wissenschaftlicher Name (wenn abweichend) und das Modell, das den Kandidaten geliefert hat
+            val zweiteZeile = listOf(
+                sciName.replace('_', ' ').takeIf { it != displayName } ?: "",
+                ch.etasystems.amsel.core.classifier.ModellAdapterTabelle.anzeigeName(candidate.modell)
+            ).filter { it.isNotEmpty() }.joinToString("  -  ")
+            if (zweiteZeile.isNotEmpty()) {
                 Text(
-                    sciName.replace('_', ' '),
+                    zweiteZeile,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     maxLines = 1,

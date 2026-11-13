@@ -64,7 +64,9 @@ data class AudioReference(
      * Beim Oeffnen des Projekts wird derselbe Kanal wieder geladen, damit Annotationen und
      * Treffer zum angezeigten Signal passen.
      */
-    val geladenerKanal: Int? = null
+    val geladenerKanal: Int? = null,
+    /** Kanaele (ab 1), die beim ersten Laden als gestoert erkannt und ausgelassen wurden. */
+    val gestoerteKanaele: List<Int> = emptyList()
 )
 
 /**

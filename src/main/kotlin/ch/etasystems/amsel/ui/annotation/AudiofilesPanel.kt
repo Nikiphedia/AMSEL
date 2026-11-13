@@ -216,7 +216,7 @@ private fun AudiofileItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    formatDuration(fileState.durationSec) + kanalHinweis(fileState.kanal, fileState.kanaele),
+                    formatDuration(fileState.durationSec) + kanalHinweis(fileState.kanal, fileState.kanaele, fileState.gestoerteKanaele),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -320,11 +320,11 @@ private fun SliceSubItem(
 }
 
 /** Hinweis auf den geladenen Kanal einer Mehrkanal-Datei, sonst leer. */
-internal fun kanalHinweis(kanal: Int, kanaele: Int): String = when {
+internal fun kanalHinweis(kanal: Int, kanaele: Int, gestoert: List<Int> = emptyList()): String = when {
     kanaele <= 1 -> ""
     kanal >= 1 -> "  -  Kanal $kanal von $kanaele"
     else -> "  -  Mittel aus $kanaele Kanaelen"
-}
+} + if (kanaele > 1 && gestoert.isNotEmpty()) " (Kanal ${gestoert.joinToString(", ")} gestoert)" else ""
 
 private fun formatDuration(sec: Float): String {
     val m = (sec / 60).toInt()

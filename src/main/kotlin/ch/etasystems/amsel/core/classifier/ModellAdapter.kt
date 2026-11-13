@@ -68,6 +68,15 @@ object ModellAdapterTabelle {
     /** Herkunft fuer Treffer der Python-Bridge. */
     const val ART_BIRDNET_PYTHON = "birdnet-v2.4"
 
+    /** Lesbarer Name einer Modellart fuer die Anzeige; unbekannte Angaben (z.B. aus einer Sitta-Tabelle) unveraendert. */
+    fun anzeigeName(art: String): String = when (art) {
+        "" -> ""
+        BIRDNET_V3.art -> BIRDNET_V3.name
+        PERCH_V2.art -> "${PERCH_V2.name} ${PERCH_V2.version}"
+        ART_BIRDNET_PYTHON -> "BirdNET 2.4"
+        else -> art
+    }
+
     /** Modellart anhand des Dateinamens. Unbekannte Dateien gelten als BirdNET V3 (bisheriges Verhalten). */
     fun fuerDatei(dateiname: String): ModellAdapter =
         if (dateiname.contains("perch", ignoreCase = true)) PERCH_V2 else BIRDNET_V3

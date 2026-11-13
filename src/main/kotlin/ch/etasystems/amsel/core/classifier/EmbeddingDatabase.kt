@@ -127,9 +127,9 @@ class EmbeddingDatabase(
             return emptyList()
         }
 
-        // Indizes bestimmen (Vorfilterung nach Art bei grossen DBs)
-        val indicesToSearch: List<Int> = if (speciesFilter != null && entries.size > 100_000) {
-            // Partitionierte Suche: nur relevante Arten
+        // Indizes bestimmen: mit Art-Filter nur die Eintraege dieser Arten.
+        // (Frueher galt der Filter erst ab 100000 Eintraegen und war darunter wirkungslos.)
+        val indicesToSearch: List<Int> = if (speciesFilter != null) {
             speciesFilter.flatMap { species ->
                 speciesIndex[species] ?: emptyList()
             }

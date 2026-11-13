@@ -91,7 +91,10 @@ object RavenSelectionExporter {
             val pflichtWerte = listOf(
                 "${idx + 1}",
                 "Spectrogram 1",
-                ann.ortung?.spalten?.get(OrtungsDaten.KANAL) ?: "1",
+                // Kanal: aus der Sitta-Ortung, sonst der in AMSEL geladene Kanal der Datei
+                ann.ortung?.spalten?.get(OrtungsDaten.KANAL)
+                    ?: config.audioFiles.firstOrNull { it.fileId == ann.audioFileId }?.kanal?.takeIf { it >= 1 }?.toString()
+                    ?: "1",
                 String.format(Locale.US, "%.4f", ann.startTimeSec),
                 String.format(Locale.US, "%.4f", ann.endTimeSec),
                 String.format(Locale.US, "%.0f", ann.lowFreqHz),
