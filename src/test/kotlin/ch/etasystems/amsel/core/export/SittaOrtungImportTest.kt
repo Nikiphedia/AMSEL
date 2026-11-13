@@ -31,7 +31,7 @@ class SittaOrtungImportTest {
 
     @Test
     fun `nur Zeilen der geladenen Datei, Zeit ab Dateianfang`() {
-        val e = RavenSelectionImporter.importiere(tabelle(), "id", chunk)
+        val e = RavenSelectionImporter.importiere(tabelle(), "id", mapOf(chunk to "id"))
         assertEquals(3, e.annotationen.size)
         assertEquals(2, e.andereDatei)  // eine vor Aufnahmebeginn, eine aus anderem Chunk
         assertTrue(e.fehler.isEmpty())
@@ -45,8 +45,20 @@ class SittaOrtungImportTest {
     }
 
     @Test
+    fun `mehrere geladene Dateien, jede Zeile geht an ihre Datei`() {
+        val e = RavenSelectionImporter.importiere(
+            tabelle(), "aktiv",
+            mapOf(chunk to "a", "20261111T040156Z-401005.WAV" to "b", "nicht_in_tabelle.wav" to "c")
+        )
+        assertEquals(1, e.andereDatei)  // nur die Zeile vor Aufnahmebeginn
+        assertEquals(listOf("a", "a", "a", "b"), e.annotationen.map { it.audioFileId })
+        nah(388.681396f, e.annotationen[3].startTimeSec)
+        assertEquals("Erithacus rubecula", e.annotationen[3].label)
+    }
+
+    @Test
     fun `alle Zusatzspalten kommen an`() {
-        val ann = RavenSelectionImporter.importiere(tabelle(), "id", chunk).annotationen
+        val ann = RavenSelectionImporter.importiere(tabelle(), "id", mapOf(chunk to "id")).annotationen
         val o = assertNotNull(ann[0].ortung)
         assertEquals("T3157", o.tier)
         assertEquals(2, o.kanal)
@@ -80,7 +92,7 @@ class SittaOrtungImportTest {
 
     @Test
     fun `Import, Export, Import ergibt dieselben Werte`() {
-        val erst = RavenSelectionImporter.importiere(tabelle(), "id", chunk).annotationen
+        val erst = RavenSelectionImporter.importiere(tabelle(), "id", mapOf(chunk to "id")).annotationen
         val ziel = File.createTempFile("sitta_export", ".txt").apply { deleteOnExit() }
         RavenSelectionExporter.export(
             ziel,
@@ -93,7 +105,7 @@ class SittaOrtungImportTest {
         val kopf = ziel.readLines().first().split('\t')
         assertEquals(kopf.size, kopf.toSet().size, "doppelte Spaltennamen im Export")
 
-        val zweit = RavenSelectionImporter.importiere(ziel, "id", chunk)
+        val zweit = RavenSelectionImporter.importiere(ziel, "id", mapOf(chunk to "id"))
         assertEquals(0, zweit.andereDatei)
         assertEquals(erst.size, zweit.annotationen.size)
         for ((a, b) in erst.zip(zweit.annotationen)) {
@@ -103,7 +115,7 @@ class SittaOrtungImportTest {
             nah(a.endTimeSec, b.endTimeSec)
         }
         // Die exportierte Tabelle gehoert zu genau einer Datei: fuer eine andere kommt nichts an
-        assertEquals(0, RavenSelectionImporter.importiere(ziel, "id", "andere.wav").annotationen.size)
+        assertEquals(0, RavenSelectionImporter.importiere(ziel, "id", mapOf("andere.wav" to "x")).annotationen.size)
     }
 
     @Test
@@ -115,7 +127,7 @@ class SittaOrtungImportTest {
                     "1\tSpectrogram 1\t1\t12.5\t14.0\t2000\t6000\tKohlmeise\tirgendwas.wav\n"
             )
         }
-        val e = RavenSelectionImporter.importiere(datei, "id", chunk)
+        val e = RavenSelectionImporter.importiere(datei, "id", mapOf(chunk to "id"))
         assertEquals(1, e.annotationen.size)
         assertEquals(0, e.andereDatei)
         nah(12.5f, e.annotationen[0].startTimeSec)
@@ -129,7 +141,7 @@ class SittaOrtungImportTest {
         val alt = """{"startTimeSec":1.0,"endTimeSec":2.0,"lowFreqHz":100.0,"highFreqHz":200.0}"""
         assertNull(json.decodeFromString(Annotation.serializer(), alt).ortung)
 
-        val mit = RavenSelectionImporter.importiere(tabelle(), "id", chunk).annotationen[0]
+        val mit = RavenSelectionImporter.importiere(tabelle(), "id", mapOf(chunk to "id")).annotationen[0]
         val zurueck = json.decodeFromString(Annotation.serializer(), json.encodeToString(Annotation.serializer(), mit))
         assertEquals(mit.ortung, zurueck.ortung)
     }

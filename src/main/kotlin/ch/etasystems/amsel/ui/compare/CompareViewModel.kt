@@ -1097,10 +1097,11 @@ class CompareViewModel {
                 return@launch
             }
 
-            val aktiverName = audioManager.state.value.loadedFiles[aktiveId]?.audioFile?.name
+            // Sitta-Tabellen decken mehrere Dateien ab: jede Zeile geht an ihre geladene Datei
+            val geladen = audioManager.state.value.loadedFiles.values.associate { it.audioFile.name to it.fileId }
 
             val ergebnis = try {
-                ch.etasystems.amsel.core.export.RavenSelectionImporter.importiere(datei, aktiveId, aktiverName)
+                ch.etasystems.amsel.core.export.RavenSelectionImporter.importiere(datei, aktiveId, geladen)
             } catch (e: Exception) {
                 _localState.update { it.copy(statusText = "Raven-Lesefehler: ${e.message}") }
                 return@launch
@@ -1112,7 +1113,7 @@ class CompareViewModel {
             }
             if (ergebnis.annotationen.isEmpty() && ergebnis.andereDatei > 0) {
                 _localState.update {
-                    it.copy(statusText = "Raven-Import: keine der ${ergebnis.andereDatei} Zeilen gehoert zu $aktiverName")
+                    it.copy(statusText = "Raven-Import: keine der ${ergebnis.andereDatei} Zeilen gehoert zu einer geladenen Datei")
                 }
                 return@launch
             }
@@ -1148,9 +1149,11 @@ class CompareViewModel {
 
             val gpsHinweis = if (ergebnis.gpsMetadata != null) " (GPS gesetzt)" else ""
             val fehlerHinweis = if (ergebnis.fehler.isNotEmpty()) ", ${ergebnis.fehler.size} Zeile(n) uebersprungen" else ""
-            val dateiHinweis = if (ergebnis.andereDatei > 0) ", ${ergebnis.andereDatei} Zeile(n) anderer Dateien ausgelassen" else ""
+            val dateiHinweis = if (ergebnis.andereDatei > 0) ", ${ergebnis.andereDatei} Zeile(n) nicht geladener Dateien ausgelassen" else ""
+            val anzahlDateien = ergebnis.annotationen.map { it.audioFileId }.distinct().size
+            val verteilHinweis = if (anzahlDateien > 1) " in $anzahlDateien Dateien" else ""
             _localState.update {
-                it.copy(statusText = "Raven-Import: ${ergebnis.annotationen.size} Annotationen$gpsHinweis$fehlerHinweis$dateiHinweis")
+                it.copy(statusText = "Raven-Import: ${ergebnis.annotationen.size} Annotationen$verteilHinweis$gpsHinweis$fehlerHinweis$dateiHinweis")
             }
         }
     }

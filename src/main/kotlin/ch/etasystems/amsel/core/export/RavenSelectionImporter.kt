@@ -33,8 +33,8 @@ data class RavenImportResult(
  *   - GPS: Latitude, Longitude, Altitude (m)
  *
  * Sitta-Tabellen (Spalten "Begin File" und "File Offset (s)"): Eine Tabelle deckt die ganze
- * Mission ab, "Begin Time (s)" zaehlt ab Missionsbeginn. Uebernommen werden nur die Zeilen der
- * angegebenen Audiodatei, mit "File Offset (s)" als Startzeit. Die uebrigen Spalten
+ * Mission ab, "Begin Time (s)" zaehlt ab Missionsbeginn. Jede Zeile geht an die
+ * geladene Audiodatei aus "Begin File", mit "File Offset (s)" als Startzeit. Die uebrigen Spalten
  * ([OrtungsDaten.SPALTEN]) bleiben in [Annotation.ortung] erhalten.
  *
  * Float-Parsing akzeptiert sowohl "." als auch "," als Dezimaltrenner (Locale-tolerant).
@@ -60,11 +60,13 @@ object RavenSelectionImporter {
      * nicht zum Abbruch.
      *
      * @param datei  Die Raven .txt Datei.
-     * @param fileId AudioFileId, die allen erstellten Annotationen zugewiesen wird.
-     * @param audioDateiName Name der Audiodatei, fuer die importiert wird. Bei einer Sitta-Tabelle
-     *                       werden nur deren Zeilen uebernommen. null = alle Zeilen.
+     * @param fileId AudioFileId fuer die Annotationen einer gewoehnlichen Raven-Tabelle.
+     * @param audioDateien Geladene Audiodateien: Dateiname -> AudioFileId. Bei einer Sitta-Tabelle
+     *                     wird jede Zeile der Datei aus "Begin File" zugewiesen; Zeilen anderer
+     *                     Dateien werden ausgelassen. Leer = alle Zeilen an [fileId].
      */
-    fun importiere(datei: File, fileId: String, audioDateiName: String? = null): RavenImportResult {
+    fun importiere(datei: File, fileId: String, audioDateien: Map<String, String> = emptyMap()): RavenImportResult {
+        val idJeDatei = audioDateien.mapKeys { it.key.lowercase() }
         val zeilen = datei.bufferedReader(Charsets.UTF_8).readLines()
         if (zeilen.isEmpty()) {
             return RavenImportResult(emptyList(), null, listOf("Datei ist leer"))
@@ -125,13 +127,13 @@ object RavenSelectionImporter {
                 continue
             }
 
+            var zielId: String? = fileId
             if (istSitta) {
                 // Dateiname ohne Ordner; die Tabelle schreibt "2026/1110/<Name>.wav"
                 val zeilenDatei = feld(idxDatei).trim().substringAfterLast('/').substringAfterLast('\\')
                 val offset = parseFloat(feld(idxOffset))
-                if (zeilenDatei.isEmpty() || offset == null ||
-                    (audioDateiName != null && !zeilenDatei.equals(audioDateiName, ignoreCase = true))
-                ) {
+                zielId = if (idJeDatei.isEmpty()) fileId else idJeDatei[zeilenDatei.lowercase()]
+                if (zeilenDatei.isEmpty() || offset == null || zielId == null) {
                     andereDatei++
                     continue
                 }
@@ -150,7 +152,7 @@ object RavenSelectionImporter {
 
             annotationen.add(
                 Annotation(
-                    audioFileId  = fileId,
+                    audioFileId  = zielId ?: fileId,
                     startTimeSec = begin,
                     endTimeSec   = end,
                     lowFreqHz    = low,
