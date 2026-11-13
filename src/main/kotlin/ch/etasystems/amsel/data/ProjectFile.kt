@@ -103,12 +103,48 @@ object ProjectStore {
         encodeDefaults = true
     }
 
-    /** Speichert Projekt als .amsel.json im gegebenen Verzeichnis. */
+    /** Projektdateien, deren vorige Fassung in dieser Sitzung schon gesichert wurde (absolute Pfade). */
+    private val gesichert = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** Sicherungskopie einer Projektdatei: projekt.amsel.json -> projekt.amsel.json.bak */
+    fun backupFileFor(projectFile: File): File =
+        File(projectFile.absoluteFile.parentFile, projectFile.name + ".bak")
+
+    /**
+     * Speichert das Projekt als .amsel.json.
+     *
+     * Vor dem ersten Schreiben einer Datei in dieser Sitzung wird ihre vorige Fassung als .bak
+     * daneben gelegt: die Sicherung zeigt also den Stand vor Beginn der Sitzung, nicht den vor
+     * der letzten Aenderung. Geschrieben wird in eine Hilfsdatei, die dann die Projektdatei
+     * ersetzt; ein Abbruch mitten im Schreiben hinterlaesst so keine halbe Projektdatei.
+     */
     fun save(project: AmselProject, projectFile: File) {
         val updated = project.copy(
             metadata = project.metadata.copy(lastModifiedAt = System.currentTimeMillis())
         )
-        projectFile.writeText(json.encodeToString(AmselProject.serializer(), updated))
+        val text = json.encodeToString(AmselProject.serializer(), updated)
+        val ziel = projectFile.absoluteFile
+        if (gesichert.add(ziel.path) && ziel.isFile && ziel.length() > 0) {
+            try {
+                java.nio.file.Files.copy(
+                    ziel.toPath(), backupFileFor(ziel).toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (e: Exception) {
+                // Eine fehlgeschlagene Sicherung darf das Speichern nicht verhindern
+                System.err.println("[ProjectStore] Sicherungskopie fehlgeschlagen: ${e.message}")
+            }
+        }
+        val hilfsdatei = File(ziel.parentFile, ziel.name + ".tmp")
+        hilfsdatei.writeText(text)
+        try {
+            java.nio.file.Files.move(
+                hilfsdatei.toPath(), ziel.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            java.nio.file.Files.move(hilfsdatei.toPath(), ziel.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        }
     }
 
     /** Laedt Projekt aus .amsel.json Datei. Migriert v1 → v2 automatisch (mit Backup). */

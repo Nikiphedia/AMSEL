@@ -195,12 +195,16 @@ class AudioManager(
             kanal = geladenerKanal,
             kanaele = quellKanaele
         )
+        // Neuaufbau einer schon geladenen Datei (z.B. nach "Einstellungen speichern"):
+        // deren alter PCM-Cache wird ersetzt und muss von der Platte, sonst bleibt er liegen.
+        val ersetzterCache = _state.value.loadedFiles[fileId]?.pcmCache
         _state.update { s ->
             s.copy(
                 loadedFiles = s.loadedFiles + (fileId to newFileState),
                 activeFileId = fileId
             )
         }
+        if (ersetzterCache != null && ersetzterCache !== pcmCache) ersetzterCache.delete()
         onStateChanged()
 
         return ImportResult(

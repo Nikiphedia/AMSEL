@@ -602,11 +602,11 @@ class CompareViewModel {
         if (loadedFiles.isEmpty()) return
 
         val settings = SettingsStore.load()
-        // Bestehende Metadaten aus Projektdatei laden, damit recordingMeta nicht verloren geht
-        val existingMeta = try {
-            proj.projectFile?.let { ProjectStore.load(it) }?.audioFiles
-                ?.associateBy { it.id } ?: emptyMap()
-        } catch (_: Exception) { emptyMap() }
+        // Bestehende Projektdatei lesen, damit recordingMeta und Projekt-Metadaten nicht verloren gehen
+        val vorhanden = try {
+            proj.projectFile.takeIf { it.isFile }?.let { ProjectStore.load(it) }
+        } catch (_: Exception) { null }
+        val existingMeta = vorhanden?.audioFiles?.associateBy { it.id } ?: emptyMap()
         val audioFileRefs = loadedFiles.map { (fileId, fileState) ->
             AudioReference(
                 id = fileId,
@@ -626,13 +626,7 @@ class CompareViewModel {
 
         val project = AmselProject(
             version = 2,
-            metadata = ProjectMetadata(
-                location = settings.locationName,
-                latitude = settings.locationLat,
-                longitude = settings.locationLon,
-                operator = settings.operatorName,
-                device = settings.deviceName
-            ),
+            metadata = projectManager.metadatenFuerSpeichern(vorhanden, settings),
             audioFiles = audioFileRefs,
             annotations = annotationManager.state.value.annotations,  // ALLE Annotations (nicht gefiltert)
             volumeEnvelope = state.volumeEnvelope,
@@ -899,9 +893,25 @@ class CompareViewModel {
         }
     }
 
-    fun importAudio(file: File, existingFileId: String? = null) {
+    /**
+     * @param existingFileId beim Neuaufbau einer schon geladenen Datei: deren Id
+     * @param kanal beim Neuaufbau: der bisher geladene Kanal; null = Einstellung verwenden
+     */
+    fun importAudio(file: File, existingFileId: String? = null, kanal: Int? = null) {
         playbackManager.stopPlayback()
-        scope.launch { importAudioSuspend(file, fileId = existingFileId ?: java.util.UUID.randomUUID().toString()) }
+        // Liegt neben der Datei schon ihr Projekt, wird es geoeffnet statt die Datei ohne Projekt zu laden:
+        // sonst blieben die vorhandenen Annotationen unsichtbar und neue wuerden nicht gespeichert.
+        if (existingFileId == null && audioManager.isFirstFile()) {
+            val vorhanden = projectManager.vorhandenesProjektFuer(file)
+            if (vorhanden != null) {
+                _localState.update { it.copy(statusText = "Oeffne vorhandenes Projekt: ${vorhanden.name}...") }
+                loadProject(vorhanden)
+                return
+            }
+        }
+        scope.launch {
+            importAudioSuspend(file, fileId = existingFileId ?: java.util.UUID.randomUUID().toString(), kanal = kanal)
+        }
     }
 
     /**
@@ -1566,7 +1576,14 @@ class CompareViewModel {
         val file = state.audioFile
         val aktiveFileId = state.activeAudioFileId
         if (file != null) {
-            importAudio(file, existingFileId = aktiveFileId)
+            // Den geladenen Kanal behalten: Annotationen und Treffer gehoeren zu diesem Signal
+            val geladen = aktiveFileId?.let { audioManager.state.value.loadedFiles[it] }
+            val kanal = when {
+                geladen == null || geladen.kanaele <= 1 -> null
+                geladen.kanal >= 1 -> geladen.kanal
+                else -> ch.etasystems.amsel.core.audio.AudioDecoder.KANAL_MITTEL
+            }
+            importAudio(file, existingFileId = aktiveFileId, kanal = kanal)
         } else {
             _localState.update {
                 it.copy(statusText = "Einstellungen geladen (${newMetric.displayName}, max ${settings.maxFrequencyHz} Hz)")

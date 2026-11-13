@@ -100,6 +100,36 @@ class ProjectManager(
         }
     }
 
+    /**
+     * Projektdatei, die neben der Audiodatei liegt (aufnahme.amsel.json) und diese Audiodatei
+     * auch enthaelt. null, wenn es keine gibt, sie nicht lesbar ist oder zu einer anderen Datei gehoert.
+     */
+    fun vorhandenesProjektFuer(audioFile: File): File? {
+        val projectFile = ProjectStore.projectFileFor(audioFile)
+        if (!projectFile.isFile) return null
+        return try {
+            val project = ProjectStore.load(projectFile)
+            projectFile.takeIf { project.audioFiles.any { it.originalFileName.equals(audioFile.name, ignoreCase = true) } }
+        } catch (e: Exception) {
+            System.err.println("[ProjectManager] Vorhandenes Projekt nicht lesbar: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Metadaten fuer das Speichern: die eines schon gespeicherten Projekts bleiben erhalten
+     * (Erstelldatum, Notizen, Angaben aus "Neues Projekt"). Nur ein Projekt ohne Datei
+     * bekommt neue aus den Einstellungen.
+     */
+    fun metadatenFuerSpeichern(vorhanden: AmselProject?, settings: AppSettings): ProjectMetadata =
+        vorhanden?.metadata ?: ProjectMetadata(
+            location = settings.locationName,
+            latitude = settings.locationLat,
+            longitude = settings.locationLon,
+            operator = settings.operatorName,
+            device = settings.deviceName
+        )
+
     /** Erstellt ein neues Projekt in einem dedizierten Ordner. */
     fun createProject(projectDir: File, projectName: String, metadata: ProjectMetadata): File {
         projectDir.mkdirs()
