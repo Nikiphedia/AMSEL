@@ -57,6 +57,8 @@ tasks.register<JavaExec>("benchmark") {
     description = "Misst Dekodierung, Uebersicht, BirdNET-Scan und Aehnlichkeitssuche an einer Audiodatei"
     mainClass.set("ch.etasystems.amsel.benchmark.BenchmarkKt")
     classpath = sourceSets["test"].runtimeClasspath
+    // Optional: Heap begrenzen, z.B. -PbenchHeap=256m (zeigt, ob der Import mit wenig Speicher auskommt)
+    (findProperty("benchHeap") as String?)?.let { maxHeapSize = it }
 }
 
 compose.desktop {

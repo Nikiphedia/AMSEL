@@ -1,6 +1,5 @@
 package ch.etasystems.amsel.ui.compare
 
-import ch.etasystems.amsel.core.audio.AudioDecoder
 import ch.etasystems.amsel.core.audio.AudioSegment
 import ch.etasystems.amsel.core.audio.SliceManager
 import ch.etasystems.amsel.core.audio.PcmCacheFile
@@ -94,11 +93,22 @@ class AudioManager(
         specHopFraction: HopFraction = HopFraction.HOP_1_8,
         fileId: String = java.util.UUID.randomUUID().toString()
     ): ImportResult {
-        // 1. Dekodieren
+        // 1. Dekodieren: streaming direkt in den PCM-Cache. Die Aufnahme liegt dabei nie als
+        //    Ganzes im Speicher (2 h bei 48 kHz waeren rund 1,4 GB). Erst danach ist die Dauer
+        //    bekannt: kurze Aufnahmen werden aus dem Cache in den Speicher geholt, der Cache geloescht.
         onProgressUpdate("Dekodiere Audio...")
-        val rawSegment = AudioDecoder.decode(file)
-        var duration = rawSegment.durationSec
+        val dekodiert = PcmCacheFile.createFromAudioFile(file) { p ->
+            onProgressUpdate("Dekodiere Audio: ${(p * 100).toInt()}%")
+        }
+        var duration = dekodiert.durationSec
         val isLargeFile = duration > 60f
+        val pcmCache: PcmCacheFile? = if (isLargeFile) dekodiert else null
+        // Nur bei kurzen Aufnahmen belegt; grosse Dateien laufen ausschliesslich ueber den Cache
+        val rawSegment: AudioSegment = if (isLargeFile) {
+            AudioSegment(FloatArray(0), dekodiert.sampleRate)
+        } else {
+            try { dekodiert.readAll() } finally { dekodiert.delete() }
+        }
 
         // 2. Kurze Aufnahmen: mit Mikro-Rauschen auffuellen
         val startPct = shortFileStartPct.coerceIn(0f, 1f)
@@ -125,19 +135,15 @@ class AudioManager(
             segment = rawSegment
         }
 
-        // 3. Overview-Spektrogramm berechnen (liefert auch audioSegment)
-        val actualOverview = ChunkedSpectrogram.computeOverview(segment, targetFrames = 4000, maxFreqHz = maxFreqHz)
-        val mode = actualOverview.mode
-
-        // 4. Grosse Dateien: PCM-Cache erstellen (einmalig, danach Random Access).
-        //    Aus dem bereits dekodierten Segment — kein zweites Dekodieren der Datei.
-        var pcmCache: PcmCacheFile? = null
-        if (isLargeFile) {
-            onProgressUpdate("Erstelle Audio-Cache...")
-            pcmCache = PcmCacheFile.createFromSegment(rawSegment, file.nameWithoutExtension) { p ->
-                onProgressUpdate("Audio-Cache: ${(p * 100).toInt()}%")
-            }
+        // 3. Overview-Spektrogramm berechnen. Grosse Dateien: blockweise aus dem PCM-Cache
+        //    (audioSegment im Ergebnis ist dann null). Kurze: aus dem Segment im Speicher.
+        onProgressUpdate("Berechne Uebersicht...")
+        val actualOverview = if (pcmCache != null) {
+            ChunkedSpectrogram.computeOverview(pcmCache, targetFrames = 4000, maxFreqHz = maxFreqHz)
+        } else {
+            ChunkedSpectrogram.computeOverview(segment, targetFrames = 4000, maxFreqHz = maxFreqHz)
         }
+        val mode = actualOverview.mode
 
         // 5. Slice-Manager erstellen wenn Datei laenger als eingestellte Slice-Laenge
         val sliceLengthSec = sliceLengthMin * 60f

@@ -24,6 +24,11 @@ class PcmCacheFile private constructor(
 
     private var raf: RandomAccessFile? = RandomAccessFile(cacheFile, "r")
 
+    // Beim Beenden der JVM aufraeumen: ohne das bleiben die Cache-Dateien liegen, wenn AMSEL
+    // geschlossen wird, ohne vorher die Audiodatei zu schliessen. deleteOnExit() reicht nicht,
+    // weil Windows eine noch geoeffnete Datei nicht loescht.
+    private val aufraeumen = Thread { delete() }.also { Runtime.getRuntime().addShutdownHook(it) }
+
     companion object {
         private const val MAGIC = "BSPC"
         private const val HEADER_SIZE = 16L  // 4 (magic) + 4 (sampleRate) + 8 (totalSamples)
@@ -106,17 +111,22 @@ class PcmCacheFile private constructor(
 
             onProgress?.invoke(0.0f)
             val buf = ByteBuffer.allocate(CHUNK_SAMPLES * 4).order(ByteOrder.LITTLE_ENDIAN)
-            val result = RandomAccessFile(cacheFile, "rw").use { raf ->
-                // Header mit Platzhalter, Laenge wird am Ende nachgetragen
-                writeHeader(raf, 0, 0L)
-                val streaming = AudioDecoder.decodeStreaming(audioFile) { chunk, offset ->
-                    writeSamples(raf, chunk, 0, chunk.size, buf)
-                    if (expectedSamples > 0) {
-                        onProgress?.invoke(((offset + chunk.size).toFloat() / expectedSamples).coerceAtMost(0.99f))
+            val result = try {
+                RandomAccessFile(cacheFile, "rw").use { raf ->
+                    // Header mit Platzhalter, Laenge wird am Ende nachgetragen
+                    writeHeader(raf, 0, 0L)
+                    val streaming = AudioDecoder.decodeStreaming(audioFile) { chunk, offset ->
+                        writeSamples(raf, chunk, 0, chunk.size, buf)
+                        if (expectedSamples > 0) {
+                            onProgress?.invoke(((offset + chunk.size).toFloat() / expectedSamples).coerceAtMost(0.99f))
+                        }
                     }
+                    writeHeader(raf, streaming.sampleRate, streaming.totalSamples)
+                    streaming
                 }
-                writeHeader(raf, streaming.sampleRate, streaming.totalSamples)
-                streaming
+            } catch (e: Exception) {
+                cacheFile.delete()  // halb geschriebene Datei nicht liegen lassen
+                throw e
             }
 
             onProgress?.invoke(1.0f)
@@ -155,25 +165,35 @@ class PcmCacheFile private constructor(
         val endSample = (endSec * sampleRate).toLong().coerceIn(startSample, totalSamples)
         val count = (endSample - startSample).toInt()
 
-        if (count <= 0) return AudioSegment(FloatArray(0), sampleRate)
+        return AudioSegment(readSamples(startSample, count), sampleRate)
+    }
 
-        val samples = FloatArray(count)
+    /**
+     * Liest [count] Samples ab [startSample], samplegenau (ohne Umweg ueber Float-Sekunden).
+     * Ueber das Dateiende hinaus wird gekuerzt.
+     */
+    fun readSamples(startSample: Long, count: Int): FloatArray {
+        val start = startSample.coerceIn(0, totalSamples)
+        val n = minOf(count.toLong(), totalSamples - start).toInt()
+        if (n <= 0) return FloatArray(0)
+
+        val samples = FloatArray(n)
         val file = raf ?: RandomAccessFile(cacheFile, "r").also { raf = it }
 
         synchronized(file) {
-            file.seek(HEADER_SIZE + startSample * 4)
-            val bytes = ByteArray(count * 4)
+            file.seek(HEADER_SIZE + start * 4)
+            val bytes = ByteArray(n * 4)
             file.readFully(bytes)
             ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(samples)
         }
 
-        return AudioSegment(samples, sampleRate)
+        return samples
     }
 
     /**
      * Liest ALLE Samples (nur fuer kurze Dateien oder Export verwenden!)
      */
-    fun readAll(): AudioSegment = readRange(0f, durationSec)
+    fun readAll(): AudioSegment = AudioSegment(readSamples(0L, totalSamples.toInt()), sampleRate)
 
     override fun close() {
         raf?.close()
@@ -184,5 +204,8 @@ class PcmCacheFile private constructor(
     fun delete() {
         close()
         cacheFile.delete()
+        // Hook wieder abmelden, sonst sammeln sie sich ueber eine lange Sitzung an.
+        // Waehrend des Herunterfahrens ist Abmelden nicht erlaubt und auch nicht noetig.
+        try { Runtime.getRuntime().removeShutdownHook(aufraeumen) } catch (_: IllegalStateException) { }
     }
 }
