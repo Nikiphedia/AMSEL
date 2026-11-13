@@ -79,6 +79,9 @@ class ModellAdapterTest {
         assertTrue(abs(ModellAdapterTabelle.PERCH_V2.wert(10.309f) - 0.5f) < 0.001f)
         assertTrue(ModellAdapterTabelle.PERCH_V2.wert(0f) < 0.001f)
         assertEquals(0.42f, ModellAdapterTabelle.BIRDNET_V3.wert(0.42f))
+        // Perch braucht den Resampler mit Uebergang um Nyquist, BirdNET bleibt bei der Vorgabe
+        assertTrue(ModellAdapterTabelle.PERCH_V2.resamplerUmNyquist)
+        assertTrue(!ModellAdapterTabelle.BIRDNET_V3.resamplerUmNyquist)
         assertSame(ModellAdapterTabelle.PERCH_V2, ModellAdapterTabelle.fuerDatei("Perch_V2.onnx"))
         assertSame(ModellAdapterTabelle.BIRDNET_V3, ModellAdapterTabelle.fuerDatei("irgendwas.onnx"))
     }

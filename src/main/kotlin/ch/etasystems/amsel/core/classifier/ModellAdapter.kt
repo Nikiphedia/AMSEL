@@ -19,6 +19,8 @@ enum class LabelFormat {
  * @property fensterFest true: das Modell verlangt genau [fensterSek]; false: der Aufrufer darf die Laenge waehlen
  * @property spitze jedes Fenster wird auf diesen Spitzenwert normiert; null = Eingang unveraendert
  * @property wert Umrechnung des Modellausgangs in einen Wert 0..1
+ * @property resamplerUmNyquist Tiefpass des Resamplers mit Mitte auf der Nyquist-Frequenz statt darunter
+ *           (siehe AudioResampler). Noetig, wenn das Modell mit so umgetaktetem Audio trainiert wurde.
  */
 data class ModellAdapter(
     val art: String,
@@ -29,7 +31,8 @@ data class ModellAdapter(
     val fensterFest: Boolean,
     val labelFormat: LabelFormat,
     val spitze: Float?,
-    val wert: (Float) -> Float
+    val wert: (Float) -> Float,
+    val resamplerUmNyquist: Boolean = false
 )
 
 /** Labels eines Modells in der Reihenfolge des Modellausgangs. */
@@ -56,7 +59,10 @@ object ModellAdapterTabelle {
         art = "perch-v2", name = "Perch", version = "2.0",
         sampleRate = 32_000, fensterSek = 5.0f, fensterFest = true,
         labelFormat = LabelFormat.NAMENSLISTE, spitze = 0.25f,
-        wert = { logit -> (1.0 / (1.0 + exp(-(0.97 * logit - 10.0)))).toFloat() }
+        wert = { logit -> (1.0 / (1.0 + exp(-(0.97 * logit - 10.0)))).toFloat() },
+        // Perch-Referenz (chirp/audio_utils.py) taktet mit res_type "polyphase" um. Gemessen am
+        // 13.11.2026: ohne diese Auslegung liegen schwache Rufe bis 18 Prozentpunkte unter Sitta.
+        resamplerUmNyquist = true
     )
 
     /** Herkunft fuer Treffer der Python-Bridge. */

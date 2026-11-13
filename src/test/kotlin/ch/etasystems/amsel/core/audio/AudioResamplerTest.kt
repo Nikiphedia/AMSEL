@@ -41,6 +41,18 @@ class AudioResamplerTest {
     }
 
     @Test
+    fun `Uebergang um Nyquist laesst 15 kHz durch und sperrt 20 kHz weiterhin`() {
+        val eingang = sinus(15_000.0, 48_000)
+        val normal = pegelDb(eingang) - pegelDb(AudioResampler.resample(eingang, 48_000, 32_000))
+        val umNyquist = pegelDb(eingang) - pegelDb(AudioResampler.resample(eingang, 48_000, 32_000, uebergangUmNyquist = true))
+        assertTrue(normal >= 3.0, "Vorgabe daempft 15 kHz nur um ${"%.1f".format(normal)} dB")
+        assertTrue(umNyquist <= 0.5, "um Nyquist: 15 kHz um ${"%.1f".format(umNyquist)} dB gedaempft")
+        val hoch = sinus(20_000.0, 48_000)
+        val sperre = pegelDb(hoch) - pegelDb(AudioResampler.resample(hoch, 48_000, 32_000, uebergangUmNyquist = true))
+        assertTrue(sperre >= 60.0, "Daempfung bei 20 kHz nur ${"%.1f".format(sperre)} dB")
+    }
+
+    @Test
     fun `1 kHz bleibt beim Heruntertakten 48 auf 32 kHz in Pegel und Frequenz erhalten`() {
         val eingang = sinus(1_000.0, 48_000)
         val ausgang = AudioResampler.resample(eingang, 48_000, 32_000)

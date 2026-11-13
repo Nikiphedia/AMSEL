@@ -18,6 +18,11 @@ import kotlin.math.sqrt
  *
  * Auslegung: Sperrdaempfung 70 dB, Uebergangsband = 12 % der kleineren Nyquist-Frequenz
  * (48 -> 32 kHz: Durchlass bis ca. 14 kHz, Sperrbereich ab 16 kHz).
+ *
+ * Mit uebergangUmNyquist liegt die Mitte des Uebergangsbands auf der Nyquist-Frequenz
+ * (48 -> 32 kHz: Durchlass bis ca. 15 kHz, Sperrbereich ab ca. 17 kHz). So rechnet die
+ * Referenz von Perch (scipy resample_poly); das Modell reagiert messbar auf das Band 15-16 kHz.
+ * Preis: Anteile zwischen 16 und 17 kHz spiegeln sich nach 15-16 kHz.
  */
 object AudioResampler {
 
@@ -27,7 +32,7 @@ object AudioResampler {
     private const val MAX_PHASEN = 2048
     private const val BLOCK = 65_536
 
-    fun resample(samples: FloatArray, fromRate: Int, toRate: Int): FloatArray {
+    fun resample(samples: FloatArray, fromRate: Int, toRate: Int, uebergangUmNyquist: Boolean = false): FloatArray {
         if (fromRate == toRate) return samples.copyOf()
 
         val outputLength = (samples.size.toLong() * toRate / fromRate).toInt()
@@ -37,7 +42,7 @@ object AudioResampler {
         // --- Filterentwurf (alle Groessen bezogen auf die Eingangsrate) ---
         val nyquistTief = min(fromRate, toRate) / 2.0
         val uebergangHz = UEBERGANG_ANTEIL * nyquistTief
-        val grenzHz = nyquistTief - uebergangHz / 2.0
+        val grenzHz = if (uebergangUmNyquist) nyquistTief else nyquistTief - uebergangHz / 2.0
         val deltaOmega = 2.0 * PI * uebergangHz / fromRate
         val halb = ceil((SPERRDAEMPFUNG_DB - 8.0) / (2.285 * deltaOmega) / 2.0).toInt()
         val beta = 0.1102 * (SPERRDAEMPFUNG_DB - 8.7)

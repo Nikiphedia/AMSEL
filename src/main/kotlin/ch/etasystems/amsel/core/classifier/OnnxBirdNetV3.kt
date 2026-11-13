@@ -172,7 +172,7 @@ class OnnxBirdNetV3(
         return try {
             // 1. Resample auf 32 kHz
             val resampled = if (sampleRate != zielRate) {
-                AudioResampler.resample(samples, sampleRate, zielRate)
+                AudioResampler.resample(samples, sampleRate, zielRate, adapter.resamplerUmNyquist)
             } else {
                 samples
             }
