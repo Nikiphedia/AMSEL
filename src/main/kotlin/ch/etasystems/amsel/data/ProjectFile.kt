@@ -57,7 +57,14 @@ data class AudioReference(
     val sliceLengthMin: Float = 10f,
     val sliceOverlapSec: Float = 5f,
     /** Aufnahme-Metadaten (null = nicht gesetzt) */
-    val recordingMeta: RecordingMetadata? = null
+    val recordingMeta: RecordingMetadata? = null,
+    /**
+     * Kanal, mit dem diese Mehrkanal-Datei geladen wurde: 1..n = dieser Kanal, -1 = Mittelwert.
+     * null = nicht gespeichert (Mono-Datei oder aelteres Projekt): dann gilt die Einstellung.
+     * Beim Oeffnen des Projekts wird derselbe Kanal wieder geladen, damit Annotationen und
+     * Treffer zum angezeigten Signal passen.
+     */
+    val geladenerKanal: Int? = null
 )
 
 /**

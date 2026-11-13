@@ -37,7 +37,11 @@ class AudioManager(
         val sampleRate: Int = 0,
         val audioOffsetSec: Float = 0f,
         val sliceManager: SliceManager? = null,
-        val activeSliceIndex: Int = 0
+        val activeSliceIndex: Int = 0,
+        /** Geladener Kanal der Quelldatei (ab 1), 0 = Mittelwert aller Kanaele bzw. Mono-Datei. */
+        val kanal: Int = 0,
+        /** Kanalzahl der Quelldatei. */
+        val kanaele: Int = 1
     )
 
     data class State(
@@ -101,6 +105,8 @@ class AudioManager(
         val dekodiert = PcmCacheFile.createFromAudioFile(file, kanal) { p ->
             onProgressUpdate("Dekodiere Audio: ${(p * 100).toInt()}%")
         }
+        val geladenerKanal = dekodiert.quellKanal
+        val quellKanaele = dekodiert.quellKanaele
         var duration = dekodiert.durationSec
         val isLargeFile = duration > 60f
         val pcmCache: PcmCacheFile? = if (isLargeFile) dekodiert else null
@@ -185,7 +191,9 @@ class AudioManager(
             sampleRate = actualOverview.sampleRate,
             audioOffsetSec = audioOffsetSec,
             sliceManager = sliceManager,
-            activeSliceIndex = 0
+            activeSliceIndex = 0,
+            kanal = geladenerKanal,
+            kanaele = quellKanaele
         )
         _state.update { s ->
             s.copy(

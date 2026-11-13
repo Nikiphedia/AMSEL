@@ -75,7 +75,9 @@ object AudioDecoder {
 
         return StreamingResult(
             sampleRate = pcmStream.format.sampleRate.toInt(),
-            totalSamples = totalSamples
+            totalSamples = totalSamples,
+            kanal = if (index >= 0) index + 1 else 0,
+            kanaele = pcmStream.format.channels
         )
     }
 
@@ -105,7 +107,16 @@ object AudioDecoder {
         }
     }
 
-    data class StreamingResult(val sampleRate: Int, val totalSamples: Long) {
+    /**
+     * @property kanal tatsaechlich geladener Kanal (ab 1), 0 = Mittelwert aller Kanaele bzw. Mono-Datei
+     * @property kanaele Kanalzahl der Quelldatei
+     */
+    data class StreamingResult(
+        val sampleRate: Int,
+        val totalSamples: Long,
+        val kanal: Int = 0,
+        val kanaele: Int = 1
+    ) {
         val durationSec: Float get() = totalSamples.toFloat() / sampleRate
     }
 

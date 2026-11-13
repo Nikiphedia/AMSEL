@@ -615,7 +615,12 @@ class CompareViewModel {
                 sampleRate = fileState.sampleRate,
                 sliceLengthMin = settings.sliceLengthMin,
                 sliceOverlapSec = settings.sliceOverlapSec,
-                recordingMeta = existingMeta[fileId]?.recordingMeta
+                recordingMeta = existingMeta[fileId]?.recordingMeta,
+                geladenerKanal = when {
+                    fileState.kanaele <= 1 -> null
+                    fileState.kanal >= 1 -> fileState.kanal
+                    else -> ch.etasystems.amsel.core.audio.AudioDecoder.KANAL_MITTEL
+                }
             )
         }
 
@@ -689,7 +694,7 @@ class CompareViewModel {
                             continue
                         }
                     }
-                    importAudioSuspend(resolved, fileId = audioRef.id)
+                    importAudioSuspend(resolved, fileId = audioRef.id, kanal = audioRef.geladenerKanal)
                 }
 
                 // Volume wiederherstellen
@@ -903,7 +908,12 @@ class CompareViewModel {
      * Suspend-Variante des Audio-Imports. Wird direkt von loadProject() aufgerufen
      * damit kein separater scope.launch die Reihenfolge mit restoreFromProject() zerstoert.
      */
-    private suspend fun importAudioSuspend(file: File, fileId: String = java.util.UUID.randomUUID().toString()) {
+    private suspend fun importAudioSuspend(
+        file: File,
+        fileId: String = java.util.UUID.randomUUID().toString(),
+        /** Kanal aus dem Projekt; null = Einstellung verwenden */
+        kanal: Int? = null
+    ) {
         _localState.update { it.copy(isProcessing = true, sidebarStatus = "Dekodiere Audio...") }
 
         try {
@@ -922,7 +932,7 @@ class CompareViewModel {
                 specFftSize = settings.specFftSize,
                 specHopFraction = settings.specHopFraction,
                 fileId = fileId,
-                kanal = settings.importKanal
+                kanal = kanal ?: settings.importKanal
             )
 
             // Spektrogramm setzen (immer fuer die aktive Datei)

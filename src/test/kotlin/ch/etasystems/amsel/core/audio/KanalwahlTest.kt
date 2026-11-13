@@ -78,6 +78,16 @@ class KanalwahlTest {
     }
 
     @Test
+    fun `Streaming meldet den gewaehlten Kanal`() {
+        val vier = wavDatei(4)
+        assertEquals(3, AudioDecoder.decodeStreaming(vier) { _, _ -> }.kanal)  // Automatik: lautester
+        assertEquals(0, AudioDecoder.decodeStreaming(vier, kanal = AudioDecoder.KANAL_MITTEL) { _, _ -> }.kanal)
+        val stereo = AudioDecoder.decodeStreaming(wavDatei(2)) { _, _ -> }
+        assertEquals(0, stereo.kanal)
+        assertEquals(2, stereo.kanaele)
+    }
+
+    @Test
     fun `Automatik mittelt Stereo wie bisher`() {
         assertSignal({ i -> (wert(0, i) + wert(1, i)) / 2.0 }, AudioDecoder.decode(wavDatei(2)).samples)
     }
@@ -91,7 +101,9 @@ class KanalwahlTest {
     fun `Streaming liefert denselben Kanal wie decode`() {
         val datei = wavDatei(4)
         val teile = mutableListOf<FloatArray>()
-        AudioDecoder.decodeStreaming(datei, chunkSizeSamples = 10_000, kanal = 4) { chunk, _ -> teile.add(chunk) }
+        val ergebnis = AudioDecoder.decodeStreaming(datei, chunkSizeSamples = 10_000, kanal = 4) { chunk, _ -> teile.add(chunk) }
+        assertEquals(4, ergebnis.kanal)
+        assertEquals(4, ergebnis.kanaele)
         val alle = FloatArray(teile.sumOf { it.size })
         var pos = 0
         for (t in teile) { t.copyInto(alle, pos); pos += t.size }

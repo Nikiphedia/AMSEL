@@ -19,7 +19,11 @@ import java.nio.ByteOrder
 class PcmCacheFile private constructor(
     val cacheFile: File,
     val sampleRate: Int,
-    val totalSamples: Long
+    val totalSamples: Long,
+    /** Geladener Kanal der Quelldatei (ab 1), 0 = Mittelwert aller Kanaele bzw. Mono-Datei. */
+    val quellKanal: Int = 0,
+    /** Kanalzahl der Quelldatei. */
+    val quellKanaele: Int = 1
 ) : AutoCloseable {
 
     private var raf: RandomAccessFile? = RandomAccessFile(cacheFile, "r")
@@ -133,7 +137,7 @@ class PcmCacheFile private constructor(
 
             onProgress?.invoke(1.0f)
 
-            return PcmCacheFile(cacheFile, result.sampleRate, result.totalSamples)
+            return PcmCacheFile(cacheFile, result.sampleRate, result.totalSamples, result.kanal, result.kanaele)
         }
 
         /** Oeffnet eine bestehende PCM-Cache-Datei */
