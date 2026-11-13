@@ -194,6 +194,11 @@ data class AppSettings(
     val minExportDurationSec: Float = 10f,
     /** Kurze Aufnahmen: Startposition der Datei im Fenster (0.0=links, 0.5=mitte, 1.0=rechts) */
     val shortFileStartPct: Float = 0.1f,
+    /**
+     * Kanalwahl beim Import von Mehrkanal-Aufnahmen: 0 = automatisch (mehr als 2 Kanaele: lautester,
+     * sonst Mittelwert), -1 = Mittelwert, -2 = lautester Kanal, 1..n = dieser Kanal.
+     */
+    val importKanal: Int = 0,
     /** UI: Seitenleisten-Breite in dp */
     val sidebarWidth: Float = 280f,
     /** UI: Galerie-Hoehe in dp */

@@ -91,13 +91,14 @@ class AudioManager(
         specWindowType: WindowFunction = WindowFunction.HANN,
         specFftSize: FftSize = FftSize.FFT_4096,
         specHopFraction: HopFraction = HopFraction.HOP_1_8,
-        fileId: String = java.util.UUID.randomUUID().toString()
+        fileId: String = java.util.UUID.randomUUID().toString(),
+        kanal: Int = ch.etasystems.amsel.core.audio.AudioDecoder.KANAL_AUTO
     ): ImportResult {
         // 1. Dekodieren: streaming direkt in den PCM-Cache. Die Aufnahme liegt dabei nie als
         //    Ganzes im Speicher (2 h bei 48 kHz waeren rund 1,4 GB). Erst danach ist die Dauer
         //    bekannt: kurze Aufnahmen werden aus dem Cache in den Speicher geholt, der Cache geloescht.
         onProgressUpdate("Dekodiere Audio...")
-        val dekodiert = PcmCacheFile.createFromAudioFile(file) { p ->
+        val dekodiert = PcmCacheFile.createFromAudioFile(file, kanal) { p ->
             onProgressUpdate("Dekodiere Audio: ${(p * 100).toInt()}%")
         }
         var duration = dekodiert.durationSec

@@ -921,7 +921,8 @@ class CompareViewModel {
                 specWindowType = settings.specWindowType,
                 specFftSize = settings.specFftSize,
                 specHopFraction = settings.specHopFraction,
-                fileId = fileId
+                fileId = fileId,
+                kanal = settings.importKanal
             )
 
             // Spektrogramm setzen (immer fuer die aktive Datei)

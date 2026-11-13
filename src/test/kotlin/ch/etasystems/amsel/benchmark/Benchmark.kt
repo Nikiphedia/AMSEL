@@ -24,6 +24,7 @@ import kotlin.system.exitProcess
  *
  * Aufruf: gradlew benchmark --args="<langdatei> [<ordner mit kurzausschnitten>] [--gain-db=<dB>]"
  * --nur-import beendet nach dem Import (fuer Laeufe mit begrenztem Heap, -PbenchHeap=256m).
+ * --kanal=<n> waehlt den Kanal der Langdatei: 0 automatisch, -1 Mittelwert, -2 lautester, 1..n Kanal n.
  * --gain-db verstaerkt die Langdatei vor dem Scan. Noetig fuer leise Feldaufnahmen: ohne Verstaerkung
  * ueberspringt der Stille-Filter des Klassifikators (-50 dBFS) alle Fenster, und es wird nichts gemessen.
  * Ausgabe: build/benchmark/benchmark.csv (eine Zeile je Lauf) und
@@ -110,6 +111,7 @@ private fun trefferSchreiben(datei: File, treffer: List<ClassifierResult>) {
 
 fun main(args: Array<String>) {
     val gainDb = args.firstOrNull { it.startsWith("--gain-db=") }?.substringAfter("=")?.toFloatOrNull() ?: 0f
+    val kanal = args.firstOrNull { it.startsWith("--kanal=") }?.substringAfter("=")?.toIntOrNull() ?: AudioDecoder.KANAL_AUTO
     val pfade = args.filterNot { it.startsWith("--") }
     if (pfade.isEmpty()) {
         System.err.println("Aufruf: benchmark <langdatei> [<ordner mit kurzausschnitten>] [--gain-db=<dB>]")
@@ -148,7 +150,7 @@ fun main(args: Array<String>) {
             runBlocking {
                 audioManager.importAudio(
                     file = langdatei, maxFreqHz = 16000f, minDisplayDurationSec = 10f, shortFileStartPct = 0.5f,
-                    sliceLengthMin = 10f, sliceOverlapSec = 5f, initialZoomDurationSec = 30f
+                    sliceLengthMin = 10f, sliceOverlapSec = 5f, initialZoomDurationSec = 30f, kanal = kanal
                 )
             }
         }
@@ -160,7 +162,7 @@ fun main(args: Array<String>) {
         System.gc()
 
         // --- Langtest ---
-        val (segment, decodeNs) = gemessen { AudioDecoder.decode(langdatei) }
+        val (segment, decodeNs) = gemessen { AudioDecoder.decode(langdatei, kanal) }
         println("Dekodiert: ${segment.durationSec} s bei ${segment.sampleRate} Hz in ${ms(decodeNs)} ms")
 
         val (_, overviewNs) = gemessen { runBlocking { ChunkedSpectrogram.computeOverview(segment) } }
@@ -178,7 +180,7 @@ fun main(args: Array<String>) {
         val stats = classifier.lastClassifyStats
         println("Scan: ${ms(scanNs)} ms, RTF ${String.format(Locale.US, "%.1f", rtf)}, ${treffer.size} Treffer, " +
             "${stats?.classifiedChunks} von ${stats?.totalChunks} Fenstern gerechnet (Rest als Stille uebersprungen)")
-        trefferSchreiben(File(ausgabe, "treffer_${langdatei.nameWithoutExtension}_gain${gainDb.toInt()}.csv"), treffer)
+        trefferSchreiben(File(ausgabe, "treffer_${langdatei.nameWithoutExtension}_gain${gainDb.toInt()}_kanal$kanal.csv"), treffer)
 
         // --- Aehnlichkeitssuche (nur offline, nur wenn lokale Features vorhanden) ---
         val provider = ReferenceLibraryFeatureProvider(ReferenceLibrary())
@@ -238,13 +240,13 @@ fun main(args: Array<String>) {
         val csv = File(ausgabe, "benchmark.csv")
         if (!csv.exists()) {
             csv.writeText(
-                "datei,dauer_s,samplerate,gain_db,import_ms,import_heap_max_mb,decode_ms,overview_ms,scan_ms,scan_rtf,scan_fenster,scan_gerechnet," +
+                "datei,dauer_s,samplerate,kanal,gain_db,import_ms,import_heap_max_mb,decode_ms,overview_ms,scan_ms,scan_rtf,scan_fenster,scan_gerechnet," +
                     "scan_treffer,suche_ms,suche2_ms,kurz_erkannt,kurz_top1,heap_max_mb,prozess_ende_mb\n"
             )
         }
         csv.appendText(String.format(
-            Locale.US, "%s,%.1f,%d,%.0f,%s,%s,%s,%s,%s,%.2f,%s,%s,%d,%s,%s,%s,%s,%s,%s\n",
-            langdatei.name, segment.durationSec, segment.sampleRate, gainDb, ms(importNs), importHeapMb, ms(decodeNs), ms(overviewNs), ms(scanNs),
+            Locale.US, "%s,%.1f,%d,%d,%.0f,%s,%s,%s,%s,%s,%.2f,%s,%s,%d,%s,%s,%s,%s,%s,%s\n",
+            langdatei.name, segment.durationSec, segment.sampleRate, kanal, gainDb, ms(importNs), importHeapMb, ms(decodeNs), ms(overviewNs), ms(scanNs),
             rtf, stats?.totalChunks ?: "", stats?.classifiedChunks ?: "", treffer.size, sucheErst, sucheZweit,
             kurzErkannt, kurzTop1, mb(waechter.maxBytes), prozessMb
         ))

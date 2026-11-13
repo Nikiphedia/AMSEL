@@ -108,6 +108,7 @@ fun UnifiedSettingsDialog(
     var minDisplayStr by remember { mutableStateOf("%.0f".format(settings.minDisplayDurationSec)) }
     var minExportStr by remember { mutableStateOf("%.0f".format(settings.minExportDurationSec)) }
     var shortFileStartPct by remember { mutableFloatStateOf(settings.shortFileStartPct) }
+    var importKanal by remember { mutableIntStateOf(settings.importKanal) }
     var sliceLengthMin by remember { mutableFloatStateOf(settings.sliceLengthMin) }
     var sliceOverlapSec by remember { mutableFloatStateOf(settings.sliceOverlapSec) }
     var onnxAvailable by remember { mutableStateOf(false) }
@@ -245,6 +246,8 @@ fun UnifiedSettingsDialog(
                             onMinExportChanged = { minExportStr = it },
                             shortFileStartPct = shortFileStartPct,
                             onShortFileStartChanged = { shortFileStartPct = it },
+                            importKanal = importKanal,
+                            onImportKanalChanged = { importKanal = it },
                             birdnetUseFiltered = birdnetUseFiltered,
                             onBirdnetUseFilteredChanged = { birdnetUseFiltered = it },
                             birdnetSkipSilence = birdnetSkipSilence,
@@ -395,6 +398,7 @@ fun UnifiedSettingsDialog(
                             minDisplayDurationSec = minDisp.coerceIn(1f, 60f),
                             minExportDurationSec = minExp.coerceIn(1f, 60f),
                             shortFileStartPct = shortFileStartPct.coerceIn(0f, 1f),
+                            importKanal = importKanal,
                             // Slices
                             sliceLengthMin = sliceLengthMin.coerceIn(1f, 30f),
                             sliceOverlapSec = sliceOverlapSec.coerceIn(0f, 30f),

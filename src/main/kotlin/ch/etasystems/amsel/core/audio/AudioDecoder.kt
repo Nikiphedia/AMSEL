@@ -28,9 +28,20 @@ object AudioDecoder {
     /** Container, die die JDK-eigenen Reader zuverlaessig lesen. */
     private val PCM_CONTAINER_EXTENSIONS = setOf("wav", "wave", "aif", "aiff", "aifc", "au")
 
-    /** Komplett in den Speicher dekodieren. */
-    fun decode(file: File): AudioSegment {
-        return decodeStream(openPcmStream(file))
+    /** Kanalwahl fuer Mehrkanal-Dateien: bei mehr als 2 Kanaelen der lauteste, sonst der Mittelwert. */
+    const val KANAL_AUTO = 0
+    /** Kanalwahl: Mittelwert aller Kanaele. */
+    const val KANAL_MITTEL = -1
+    /** Kanalwahl: der ueber die ganze Datei lauteste Kanal. */
+    const val KANAL_LAUTESTER = -2
+
+    /**
+     * Komplett in den Speicher dekodieren.
+     * @param kanal [KANAL_AUTO], [KANAL_MITTEL], [KANAL_LAUTESTER] oder eine Kanalnummer ab 1
+     */
+    fun decode(file: File, kanal: Int = KANAL_AUTO): AudioSegment {
+        val (stream, index) = oeffnenMitKanal(file, kanal)
+        return decodeStream(stream, index)
     }
 
     /**
@@ -40,10 +51,11 @@ object AudioDecoder {
     fun decodeStreaming(
         file: File,
         chunkSizeSamples: Int = 1_000_000,
+        kanal: Int = KANAL_AUTO,
         onChunk: (samples: FloatArray, offsetSamples: Long) -> Unit
     ): StreamingResult {
-        val pcmStream = openPcmStream(file)
-        val converter = MonoConverter(pcmStream.format)
+        val (pcmStream, index) = oeffnenMitKanal(file, kanal)
+        val converter = MonoConverter(pcmStream.format, index)
         val buffer = ByteArray(chunkSizeSamples * converter.frameSize)
         var totalSamples = 0L
 
@@ -68,7 +80,8 @@ object AudioDecoder {
     }
 
     /**
-     * Dekodiert nur einen Zeitbereich der Datei.
+     * Dekodiert nur einen Zeitbereich der Datei. Mehrkanal: immer der Mittelwert
+     * (die Suche nach dem lautesten Kanal braeuchte einen Durchgang ueber die ganze Datei).
      */
     fun decodeRange(file: File, startSec: Float, endSec: Float): AudioSegment {
         val pcmStream = openPcmStream(file)
@@ -94,6 +107,60 @@ object AudioDecoder {
 
     data class StreamingResult(val sampleRate: Int, val totalSamples: Long) {
         val durationSec: Float get() = totalSamples.toFloat() / sampleRate
+    }
+
+    // --- Kanalwahl ---
+
+    /**
+     * Oeffnet die Datei und loest die Kanalwahl auf.
+     * @return PCM-Stream am Dateianfang und der zu nehmende Kanal (0-basiert) oder -1 fuer den Mittelwert
+     */
+    private fun oeffnenMitKanal(file: File, kanal: Int): Pair<AudioInputStream, Int> {
+        val stream = openPcmStream(file)
+        val n = stream.format.channels
+        if (n <= 1) return stream to -1
+
+        var wahl = kanal
+        if (wahl > n) {
+            logger.warn("{} hat nur {} Kanaele, Kanal {} gibt es nicht - nehme die Automatik", file.name, n, wahl)
+            wahl = KANAL_AUTO
+        }
+        if (wahl == KANAL_AUTO) wahl = if (n > 2) KANAL_LAUTESTER else KANAL_MITTEL
+        if (wahl >= 1) return stream to wahl - 1
+        if (wahl == KANAL_MITTEL) return stream to -1
+
+        // Lautester Kanal: ein Durchgang ueber die ganze Datei, danach neu oeffnen
+        val laut = try {
+            lautesterKanal(stream)
+        } catch (e: Exception) {
+            stream.close()
+            throw e
+        }
+        logger.info("{}: {} Kanaele, lautester ist Kanal {}", file.name, n, laut + 1)
+        return openPcmStream(file) to laut
+    }
+
+    /**
+     * Bestimmt den lautesten Kanal (0-basiert) und schliesst den Stream.
+     * Gemessen wird die Energie der Differenz benachbarter Samples: das daempft tiefes Rumpeln
+     * (Wind, Trittschall) stark, damit nicht der Kanal mit dem meisten Wind gewinnt.
+     */
+    private fun lautesterKanal(pcmStream: AudioInputStream): Int {
+        val converter = MonoConverter(pcmStream.format)
+        val n = pcmStream.format.channels
+        val energie = DoubleArray(n)
+        val vorher = FloatArray(n)
+        val buffer = ByteArray(65_536 * converter.frameSize)
+        pcmStream.use { stream ->
+            while (true) {
+                val frames = readFully(stream, buffer) / converter.frameSize
+                if (frames <= 0) break
+                converter.energieJeKanal(buffer, frames, energie, vorher)
+            }
+        }
+        var bester = 0
+        for (k in 1 until n) if (energie[k] > energie[bester]) bester = k
+        return bester
     }
 
     // --- Robuste Stream-Öffnung ---
@@ -428,8 +495,8 @@ object AudioDecoder {
         )
     }
 
-    private fun decodeStream(pcmStream: AudioInputStream): AudioSegment {
-        val converter = MonoConverter(pcmStream.format)
+    private fun decodeStream(pcmStream: AudioInputStream, kanalIndex: Int = -1): AudioSegment {
+        val converter = MonoConverter(pcmStream.format, kanalIndex)
         val frameSize = converter.frameSize
 
         // Chunk-weise lesen und direkt in Floats wandeln — kein ByteArrayOutputStream
@@ -464,9 +531,10 @@ object AudioDecoder {
 
     /**
      * Interleaved PCM (8/16/24/32 Bit signed/unsigned, 32/64 Bit Float, beliebige
-     * Kanalzahl und Byte-Reihenfolge) → Float-Mono [-1..1]. Mehrkanal: Mittelwert.
+     * Kanalzahl und Byte-Reihenfolge) → Float-Mono [-1..1].
+     * Mehrkanal: Mittelwert, oder genau ein Kanal wenn [kanalIndex] >= 0 (0-basiert).
      */
-    private class MonoConverter(format: AudioFormat) {
+    private class MonoConverter(format: AudioFormat, private val kanalIndex: Int = -1) {
         private val channels = format.channels
         private val bytesPerSample = (format.sampleSizeInBits + 7) / 8
         val frameSize = if (format.frameSize > 0) format.frameSize else channels * bytesPerSample
@@ -495,6 +563,9 @@ object AudioDecoder {
         fun convert(bytes: ByteArray, frames: Int, dst: FloatArray, dstOffset: Int) {
             if (channels == 1) {
                 for (f in 0 until frames) dst[dstOffset + f] = sample(bytes, f * frameSize)
+            } else if (kanalIndex >= 0) {
+                val versatz = kanalIndex * bytesPerSample
+                for (f in 0 until frames) dst[dstOffset + f] = sample(bytes, f * frameSize + versatz)
             } else {
                 for (f in 0 until frames) {
                     val base = f * frameSize
@@ -502,6 +573,26 @@ object AudioDecoder {
                     for (ch in 0 until channels) sum += sample(bytes, base + ch * bytesPerSample)
                     dst[dstOffset + f] = sum / channels
                 }
+            }
+        }
+
+        /**
+         * Addiert je Kanal die Energie der Differenz zum vorigen Sample auf [energie].
+         * [vorher] traegt das letzte Sample je Kanal ueber Blockgrenzen.
+         */
+        fun energieJeKanal(bytes: ByteArray, frames: Int, energie: DoubleArray, vorher: FloatArray) {
+            for (ch in 0 until channels) {
+                val versatz = ch * bytesPerSample
+                var letzter = vorher[ch]
+                var summe = 0.0
+                for (f in 0 until frames) {
+                    val v = sample(bytes, f * frameSize + versatz)
+                    val d = v - letzter
+                    summe += d * d
+                    letzter = v
+                }
+                energie[ch] += summe
+                vorher[ch] = letzter
             }
         }
 

@@ -56,6 +56,8 @@ internal fun TabAnalyse(
     onBirdnetUseFilteredChanged: (Boolean) -> Unit = {},
     birdnetSkipSilence: Boolean = false,
     onBirdnetSkipSilenceChanged: (Boolean) -> Unit = {},
+    importKanal: Int = 0,
+    onImportKanalChanged: (Int) -> Unit = {},
     sliceLengthMin: Float = 10f,
     onSliceLengthChanged: (Float) -> Unit = {},
     sliceOverlapSec: Float = 5f,
@@ -347,6 +349,45 @@ internal fun TabAnalyse(
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        Text("Mehrkanal-Aufnahmen", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        val kanalOptionen = listOf(
+            0 to "Automatisch — ab 3 Kanaelen der lauteste, sonst Mittelwert",
+            -2 to "Lautester Kanal",
+            -1 to "Mittelwert aller Kanaele"
+        ) + (1..8).map { it to "Kanal $it" }
+        var kanalExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = kanalExpanded,
+            onExpandedChange = { kanalExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = kanalOptionen.firstOrNull { it.first == importKanal }?.second ?: "Kanal $importKanal",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Kanal beim Import") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = kanalExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+            )
+            ExposedDropdownMenu(
+                expanded = kanalExpanded,
+                onDismissRequest = { kanalExpanded = false }
+            ) {
+                kanalOptionen.forEach { (wert, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = { onImportKanalChanged(wert); kanalExpanded = false }
+                    )
+                }
+            }
+        }
+        Text(
+            "Gilt beim naechsten Laden einer Datei. Der Mittelwert raeumlich getrennter Mikrofone loescht Frequenzen aus.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(8.dp))
 
         Text("Kurze Aufnahmen", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

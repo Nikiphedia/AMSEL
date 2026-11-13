@@ -96,11 +96,13 @@ class PcmCacheFile private constructor(
          * das gesamte Audio liegt nie komplett im Speicher.
          *
          * @param audioFile Quell-Audiodatei (WAV, MP3, FLAC, M4A etc.)
+         * @param kanal Kanalwahl fuer Mehrkanal-Dateien, siehe [AudioDecoder.decode]
          * @param onProgress Fortschritts-Callback (0.0 .. 1.0)
          * @return PcmCacheFile mit Random-Access-Zugriff
          */
         fun createFromAudioFile(
             audioFile: File,
+            kanal: Int = AudioDecoder.KANAL_AUTO,
             onProgress: ((Float) -> Unit)? = null
         ): PcmCacheFile {
             val cacheFile = newCacheFile(audioFile.nameWithoutExtension)
@@ -115,7 +117,7 @@ class PcmCacheFile private constructor(
                 RandomAccessFile(cacheFile, "rw").use { raf ->
                     // Header mit Platzhalter, Laenge wird am Ende nachgetragen
                     writeHeader(raf, 0, 0L)
-                    val streaming = AudioDecoder.decodeStreaming(audioFile) { chunk, offset ->
+                    val streaming = AudioDecoder.decodeStreaming(audioFile, kanal = kanal) { chunk, offset ->
                         writeSamples(raf, chunk, 0, chunk.size, buf)
                         if (expectedSamples > 0) {
                             onProgress?.invoke(((offset + chunk.size).toFloat() / expectedSamples).coerceAtMost(0.99f))
