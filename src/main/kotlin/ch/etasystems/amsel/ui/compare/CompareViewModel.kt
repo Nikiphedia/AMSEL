@@ -1097,8 +1097,10 @@ class CompareViewModel {
                 return@launch
             }
 
+            val aktiverName = audioManager.state.value.loadedFiles[aktiveId]?.audioFile?.name
+
             val ergebnis = try {
-                ch.etasystems.amsel.core.export.RavenSelectionImporter.importiere(datei, aktiveId)
+                ch.etasystems.amsel.core.export.RavenSelectionImporter.importiere(datei, aktiveId, aktiverName)
             } catch (e: Exception) {
                 _localState.update { it.copy(statusText = "Raven-Lesefehler: ${e.message}") }
                 return@launch
@@ -1106,6 +1108,12 @@ class CompareViewModel {
 
             if (ergebnis.annotationen.isEmpty() && ergebnis.fehler.isNotEmpty()) {
                 _localState.update { it.copy(statusText = "Raven-Import: ${ergebnis.fehler.first()}") }
+                return@launch
+            }
+            if (ergebnis.annotationen.isEmpty() && ergebnis.andereDatei > 0) {
+                _localState.update {
+                    it.copy(statusText = "Raven-Import: keine der ${ergebnis.andereDatei} Zeilen gehoert zu $aktiverName")
+                }
                 return@launch
             }
 
@@ -1140,8 +1148,9 @@ class CompareViewModel {
 
             val gpsHinweis = if (ergebnis.gpsMetadata != null) " (GPS gesetzt)" else ""
             val fehlerHinweis = if (ergebnis.fehler.isNotEmpty()) ", ${ergebnis.fehler.size} Zeile(n) uebersprungen" else ""
+            val dateiHinweis = if (ergebnis.andereDatei > 0) ", ${ergebnis.andereDatei} Zeile(n) anderer Dateien ausgelassen" else ""
             _localState.update {
-                it.copy(statusText = "Raven-Import: ${ergebnis.annotationen.size} Annotationen$gpsHinweis$fehlerHinweis")
+                it.copy(statusText = "Raven-Import: ${ergebnis.annotationen.size} Annotationen$gpsHinweis$fehlerHinweis$dateiHinweis")
             }
         }
     }

@@ -473,6 +473,15 @@ private fun AnnotationItem(
                         color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
                     )
                 }
+                // Ortung aus einer Sitta-Tabelle (Tier, Kurs, Entfernung, Pegel, Kanal)
+                val ortungsZeile = annotation.ortung?.anzeigeZeile().orEmpty()
+                if (ortungsZeile.isNotEmpty()) {
+                    Text(
+                        ortungsZeile,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
+                    )
+                }
                 // Konfidenz
                 val conf = extractConfidence(annotation.label)
                 if (conf > 0f) {

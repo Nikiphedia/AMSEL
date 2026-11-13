@@ -49,8 +49,13 @@ object ReportExporter {
 
         val sorted = sortAnnotations(filteredAnnotations, fileInfoMap, config.sortOrder)
 
+        // Sitta-Ortung: alle Spalten anhaengen, wenn mindestens eine Annotation sie traegt
+        val ortungsSpalten = if (sorted.any { it.ortung != null }) {
+            ch.etasystems.amsel.core.annotation.OrtungsDaten.SPALTEN
+        } else emptyList()
+
         val bom = "\uFEFF"
-        val header = "Nr;Datei;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung;Peak (Hz);Center (Hz);LowFreq-3dB (Hz);HighFreq-3dB (Hz);Bandwidth-3dB (Hz);SNR (dB)"
+        val header = "Nr;Datei;Art;Wissenschaftlich;Start (s);Ende (s);Dauer (s);Freq. tief (Hz);Freq. hoch (Hz);BirdNET Konfidenz;Quelle;Status;Verifiziert von;Verifiziert am;Bemerkung;Peak (Hz);Center (Hz);LowFreq-3dB (Hz);HighFreq-3dB (Hz);Bandwidth-3dB (Hz);SNR (dB)" + ortungsSpalten.joinToString("") { ";Sitta $it" }
 
         val lines = sorted.mapIndexed { idx, ann ->
             val fileInfo = fileInfoMap[ann.audioFileId]
@@ -97,7 +102,8 @@ object ReportExporter {
                 String.format(java.util.Locale.US, "%.0f", ann.highFreqHz),
                 confidence, source, status, verifiedBy, verifiedAt, notes,
                 peakHz, centerHz, lowHz3db, highHz3db, bw3db, snrDb
-            ).joinToString(";")
+            ).plus(ortungsSpalten.map { ann.ortung?.spalten?.get(it)?.replace(";", ",") ?: "" })
+                .joinToString(";")
         }
 
         file.writeText(bom + header + "\n" + lines.joinToString("\n"), Charsets.UTF_8)

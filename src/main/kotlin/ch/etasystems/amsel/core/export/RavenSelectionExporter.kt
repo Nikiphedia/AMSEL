@@ -1,5 +1,6 @@
 package ch.etasystems.amsel.core.export
 
+import ch.etasystems.amsel.core.annotation.OrtungsDaten
 import ch.etasystems.amsel.data.AudioReference
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -41,7 +42,14 @@ object RavenSelectionExporter {
             "High-3dB (Hz)", "Bandwidth-3dB (Hz)", "SNR (dB)"
         )
         val gpsSpalten = if (hatGps) listOf("Latitude", "Longitude", "Altitude (m)") else emptyList()
-        val header = (pflichtSpalten + amselSpalten + metrikSpalten + gpsSpalten).joinToString("\t")
+        // Sitta-Ortung: Spalten unveraendert anhaengen, dazu die Zeit je Datei, damit ein
+        // erneuter Import die Tabelle als Sitta-Tabelle erkennt (Hin und Zurueck ohne Verlust).
+        val hatOrtung = sorted.any { it.ortung != null }
+        val ortungsSpalten = if (hatOrtung) {
+            listOf(RavenSelectionImporter.SPALTE_OFFSET) +
+                (OrtungsDaten.SPALTEN - pflichtSpalten.toSet() - metrikSpalten.toSet())
+        } else emptyList()
+        val header = (pflichtSpalten + amselSpalten + metrikSpalten + gpsSpalten + ortungsSpalten).joinToString("\t")
 
         val zeilen = sorted.mapIndexed { idx, ann ->
             val fileInfo = fileInfoMap[ann.audioFileId]
@@ -83,7 +91,7 @@ object RavenSelectionExporter {
             val pflichtWerte = listOf(
                 "${idx + 1}",
                 "Spectrogram 1",
-                "1",
+                ann.ortung?.spalten?.get(OrtungsDaten.KANAL) ?: "1",
                 String.format(Locale.US, "%.4f", ann.startTimeSec),
                 String.format(Locale.US, "%.4f", ann.endTimeSec),
                 String.format(Locale.US, "%.0f", ann.lowFreqHz),
@@ -95,12 +103,14 @@ object RavenSelectionExporter {
             )
             val mu = ann.metrics
             val metrikWerte = listOf(
-                if (mu.isComputed) String.format(Locale.US, "%.0f", mu.peakFreqHz) else "",
+                if (mu.isComputed) String.format(Locale.US, "%.0f", mu.peakFreqHz)
+                else ann.ortung?.spalten?.get(OrtungsDaten.SPITZENFREQUENZ) ?: "",
                 if (mu.isComputed) String.format(Locale.US, "%.0f", mu.centerFreqHz) else "",
                 if (mu.isComputed) String.format(Locale.US, "%.0f", mu.lowFreq3dbHz) else "",
                 if (mu.isComputed) String.format(Locale.US, "%.0f", mu.highFreq3dbHz) else "",
                 if (mu.isComputed) String.format(Locale.US, "%.0f", mu.bandwidth3dbHz) else "",
-                if (mu.isComputed) String.format(Locale.US, "%.1f", mu.snrDb) else ""
+                if (mu.isComputed) String.format(Locale.US, "%.1f", mu.snrDb)
+                else ann.ortung?.spalten?.get(OrtungsDaten.SNR) ?: ""
             )
             val gpsWerte = if (hatGps) {
                 val meta = audioRefs[ann.audioFileId]?.recordingMeta
@@ -111,7 +121,12 @@ object RavenSelectionExporter {
                 )
             } else emptyList()
 
-            (pflichtWerte + amselWerte + metrikWerte + gpsWerte).joinToString("\t")
+            val ortungsWerte = ortungsSpalten.map { name ->
+                if (name == RavenSelectionImporter.SPALTE_OFFSET) String.format(Locale.US, "%.6f", ann.startTimeSec)
+                else ann.ortung?.spalten?.get(name)?.replace('\t', ' ') ?: ""
+            }
+
+            (pflichtWerte + amselWerte + metrikWerte + gpsWerte + ortungsWerte).joinToString("\t")
         }
 
         // UTF-8 ohne BOM, \n als Zeilenende (Raven-Kompatibilitaet)

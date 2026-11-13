@@ -30,7 +30,9 @@ data class Annotation(
     // Freitext-Bemerkung (z.B. bei Fehlbestimmung: "BirdNET sagt Kohlmeise, ist aber Blaumeise")
     val notes: String = "",
     /** Akustische Messwerte (Peak, Bandbreite, SNR). Default = nicht berechnet. */
-    val metrics: AnnotationMetrics = AnnotationMetrics()
+    val metrics: AnnotationMetrics = AnnotationMetrics(),
+    /** Ortung und Zusatzangaben aus einer Sitta-Tabelle. null = nicht vorhanden. */
+    val ortung: OrtungsDaten? = null
 ) {
     val durationSec: Float get() = endTimeSec - startTimeSec
     val freqRangeHz: Float get() = highFreqHz - lowFreqHz

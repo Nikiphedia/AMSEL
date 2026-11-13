@@ -1,6 +1,7 @@
 package ch.etasystems.amsel.core.export
 
 import ch.etasystems.amsel.core.annotation.Annotation
+import ch.etasystems.amsel.core.annotation.OrtungsDaten
 import ch.etasystems.amsel.data.RecordingMetadata
 import java.io.File
 
@@ -10,11 +11,14 @@ import java.io.File
  * @property annotationen Die erfolgreich geparsten Annotationen.
  * @property gpsMetadata  Erste gueltige GPS-Zeile als RecordingMetadata (null wenn keine GPS-Daten vorhanden).
  * @property fehler       Hinweise zu uebersprungenen Zeilen bzw. fehlenden Pflichtspalten.
+ * @property andereDatei  Zeilen einer Sitta-Tabelle, die zu einer anderen Audiodatei gehoeren
+ *                        oder keiner Datei zugeordnet sind (Ruf vor Aufnahmebeginn). Kein Fehler.
  */
 data class RavenImportResult(
     val annotationen: List<Annotation>,
     val gpsMetadata: RecordingMetadata?,
-    val fehler: List<String>
+    val fehler: List<String>,
+    val andereDatei: Int = 0
 )
 
 /**
@@ -28,6 +32,11 @@ data class RavenImportResult(
  *   - Species, Scientific Name, Confidence, Status, Notes
  *   - GPS: Latitude, Longitude, Altitude (m)
  *
+ * Sitta-Tabellen (Spalten "Begin File" und "File Offset (s)"): Eine Tabelle deckt die ganze
+ * Mission ab, "Begin Time (s)" zaehlt ab Missionsbeginn. Uebernommen werden nur die Zeilen der
+ * angegebenen Audiodatei, mit "File Offset (s)" als Startzeit. Die uebrigen Spalten
+ * ([OrtungsDaten.SPALTEN]) bleiben in [Annotation.ortung] erhalten.
+ *
  * Float-Parsing akzeptiert sowohl "." als auch "," als Dezimaltrenner (Locale-tolerant).
  */
 object RavenSelectionImporter {
@@ -40,6 +49,8 @@ object RavenSelectionImporter {
     private const val SPALTE_LAT     = "Latitude"
     private const val SPALTE_LON     = "Longitude"
     private const val SPALTE_ALT     = "Altitude (m)"
+    internal const val SPALTE_DATEI  = "Begin File"
+    internal const val SPALTE_OFFSET = "File Offset (s)"
 
     /**
      * Parst die angegebene Datei und gibt Annotationen + optionale GPS-Daten zurueck.
@@ -50,8 +61,10 @@ object RavenSelectionImporter {
      *
      * @param datei  Die Raven .txt Datei.
      * @param fileId AudioFileId, die allen erstellten Annotationen zugewiesen wird.
+     * @param audioDateiName Name der Audiodatei, fuer die importiert wird. Bei einer Sitta-Tabelle
+     *                       werden nur deren Zeilen uebernommen. null = alle Zeilen.
      */
-    fun importiere(datei: File, fileId: String): RavenImportResult {
+    fun importiere(datei: File, fileId: String, audioDateiName: String? = null): RavenImportResult {
         val zeilen = datei.bufferedReader(Charsets.UTF_8).readLines()
         if (zeilen.isEmpty()) {
             return RavenImportResult(emptyList(), null, listOf("Datei ist leer"))
@@ -81,10 +94,18 @@ object RavenSelectionImporter {
         val idxLat     = header.indexOf(SPALTE_LAT)
         val idxLon     = header.indexOf(SPALTE_LON)
         val idxAlt     = header.indexOf(SPALTE_ALT)
+        val idxDatei   = header.indexOf(SPALTE_DATEI)
+        val idxOffset  = header.indexOf(SPALTE_OFFSET)
+        // Sitta-Tabelle: Zeit je Datei vorhanden, Zusatzspalten durchreichen
+        val istSitta   = idxDatei >= 0 && idxOffset >= 0
+        val ortungsSpalten = if (istSitta) {
+            OrtungsDaten.SPALTEN.mapNotNull { name -> header.indexOf(name).takeIf { it >= 0 }?.let { name to it } }
+        } else emptyList()
 
         val annotationen = mutableListOf<Annotation>()
         val fehler       = mutableListOf<String>()
         var gpsMetadata: RecordingMetadata? = null
+        var andereDatei = 0
 
         for (zeilenIndex in 1 until zeilen.size) {
             val roh = zeilen[zeilenIndex]
@@ -94,8 +115,8 @@ object RavenSelectionImporter {
 
             val feld = { idx: Int -> if (idx in werte.indices) werte[idx] else "" }
 
-            val begin = parseFloat(feld(idxBegin))
-            val end   = parseFloat(feld(idxEnd))
+            var begin = parseFloat(feld(idxBegin))
+            var end   = parseFloat(feld(idxEnd))
             val low   = parseFloat(feld(idxLow))
             val high  = parseFloat(feld(idxHigh))
 
@@ -103,6 +124,25 @@ object RavenSelectionImporter {
                 fehler.add("Zeile ${zeilenIndex + 1}: ungueltige Pflichtwerte")
                 continue
             }
+
+            if (istSitta) {
+                // Dateiname ohne Ordner; die Tabelle schreibt "2026/1110/<Name>.wav"
+                val zeilenDatei = feld(idxDatei).trim().substringAfterLast('/').substringAfterLast('\\')
+                val offset = parseFloat(feld(idxOffset))
+                if (zeilenDatei.isEmpty() || offset == null ||
+                    (audioDateiName != null && !zeilenDatei.equals(audioDateiName, ignoreCase = true))
+                ) {
+                    andereDatei++
+                    continue
+                }
+                end = offset + (end - begin)
+                begin = offset
+            }
+
+            val ortung = ortungsSpalten
+                .mapNotNull { (name, idx) -> feld(idx).trim().takeIf { it.isNotEmpty() }?.let { name to it } }
+                .takeIf { it.isNotEmpty() }
+                ?.let { OrtungsDaten(it.toMap()) }
 
             val label = if (idxSpecies >= 0) {
                 feld(idxSpecies).trim().ifEmpty { "Unbekannt" }
@@ -115,7 +155,8 @@ object RavenSelectionImporter {
                     endTimeSec   = end,
                     lowFreqHz    = low,
                     highFreqHz   = high,
-                    label        = label
+                    label        = label,
+                    ortung       = ortung
                 )
             )
 
@@ -134,7 +175,7 @@ object RavenSelectionImporter {
             }
         }
 
-        return RavenImportResult(annotationen, gpsMetadata, fehler)
+        return RavenImportResult(annotationen, gpsMetadata, fehler, andereDatei)
     }
 
     /** Akzeptiert "." und "," als Dezimaltrenner. Leere oder ungueltige Werte -> null. */
