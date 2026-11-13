@@ -51,7 +51,11 @@ object ModellAdapterTabelle {
         art = "birdnet-v3", name = "BirdNET V3.0", version = "preview3",
         sampleRate = 32_000, fensterSek = 3.0f, fensterFest = false,
         labelFormat = LabelFormat.BIRDNET_CSV, spitze = null,
-        wert = { it }  // das Modell gibt bereits Werte 0..1
+        wert = { it },  // das Modell gibt bereits Werte 0..1
+        // Die Referenz (birdnet-V3.0-dev, birdnet_v3.py: load_audio) taktet mit scipy resample_poly um,
+        // also wie Perch. Gemessen am 13.11.2026: fuer BirdNET V3 macht die Auslegung kaum einen
+        // Unterschied (1800 Werte einer 30-min-Aufnahme: groesste Abweichung 0,4 Prozentpunkte).
+        resamplerUmNyquist = true
     )
 
     /** Quelle der Zahlen: Sitta, birdnet/SCHNITTSTELLEN.md Abschnitt 4. */
