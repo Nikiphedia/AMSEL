@@ -70,7 +70,7 @@ object RavenSelectionExporter {
             val wissenschaftlicherName = gewaehlterKandidat?.scientificName ?: ""
             val konfidenz = gewaehlterKandidat?.confidence
                 ?.let { String.format(Locale.US, "%.2f", it) } ?: ""
-            val quelle = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
+            val quelle = ReportExporter.quelle(ann, gewaehlterKandidat)
 
             // Status analog zu ReportExporter.exportCsv
             val verifiedCandidate = ann.candidates.find { it.verified }

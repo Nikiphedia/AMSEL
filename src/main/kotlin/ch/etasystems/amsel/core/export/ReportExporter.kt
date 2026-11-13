@@ -40,6 +40,16 @@ object ReportExporter {
         }
     }
 
+    /**
+     * Spalte "Quelle": "Manuell" oder die Modellfamilie des Kandidaten. Treffer ohne Modellangabe
+     * (aeltere Projekte) stammen von BirdNET.
+     */
+    internal fun quelle(ann: Annotation, kandidat: ch.etasystems.amsel.core.annotation.SpeciesCandidate?): String = when {
+        !ann.isBirdNetDetection -> "Manuell"
+        kandidat?.modell?.contains("perch", ignoreCase = true) == true -> "Perch"
+        else -> "BirdNET"
+    }
+
     data class ReportConfig(
         val title: String = "AMSEL Analysebericht",
         val audioFiles: List<AudioFileInfo> = emptyList(),
@@ -73,7 +83,7 @@ object ReportExporter {
             val fileName = fileInfo?.fileName ?: ""
             val bestCandidate = ann.candidates.maxByOrNull { it.confidence }
             val confidence = bestCandidate?.confidence?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: ""
-            val source = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
+            val source = quelle(ann, bestCandidate)
 
             val verifiedCandidate = ann.candidates.find { it.verified }
             val rejectedAll = ann.candidates.isNotEmpty() && ann.candidates.all { it.rejected }
@@ -290,7 +300,7 @@ object ReportExporter {
                 val shortFileName = (fileInfo?.fileName ?: "").take(12)
                 val bestCandidate = ann.candidates.maxByOrNull { it.confidence }
                 val conf = bestCandidate?.confidence?.let { String.format(Locale.US, "%.0f%%", it * 100) } ?: ""
-                val source = if (ann.isBirdNetDetection) "BirdNET" else "Manuell"
+                val source = quelle(ann, bestCandidate)
 
                 val verifiedCandidate = ann.candidates.find { it.verified }
                 val rejectedAll = ann.candidates.isNotEmpty() && ann.candidates.all { it.rejected }

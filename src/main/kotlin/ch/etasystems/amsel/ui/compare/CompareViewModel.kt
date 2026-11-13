@@ -593,8 +593,12 @@ class CompareViewModel {
     // Projekt — Auto-Save + Laden (Orchestrierung im ViewModel, Serialisierung im ProjectManager)
     // ====================================================================
 
-    /** Speichert den aktuellen Zustand in die Projektdatei (wenn vorhanden). */
-    fun autoSaveProject() {
+    /**
+     * Speichert den aktuellen Zustand in die Projektdatei (wenn vorhanden).
+     * @param vorlage bei "Speichern unter": die bisherige Projektdatei, aus der Projekt-Metadaten und
+     *   Aufnahme-Metadaten uebernommen werden (die neue Datei gibt es noch nicht oder sie ist ein anderes Projekt)
+     */
+    fun autoSaveProject(vorlage: File? = null) {
         val proj = projectManager.state.value
         if (proj.projectFile == null || !proj.projectDirty) return
         val state = _uiState.value
@@ -604,7 +608,7 @@ class CompareViewModel {
         val settings = SettingsStore.load()
         // Bestehende Projektdatei lesen, damit recordingMeta und Projekt-Metadaten nicht verloren gehen
         val vorhanden = try {
-            proj.projectFile.takeIf { it.isFile }?.let { ProjectStore.load(it) }
+            (vorlage ?: proj.projectFile).takeIf { it.isFile }?.let { ProjectStore.load(it) }
         } catch (_: Exception) { null }
         val existingMeta = vorhanden?.audioFiles?.associateBy { it.id } ?: emptyMap()
         val audioFileRefs = loadedFiles.map { (fileId, fileState) ->
@@ -652,8 +656,9 @@ class CompareViewModel {
             _localState.update { it.copy(statusText = "Kein Audio -- zuerst Datei importieren") }
             return
         }
+        val bisher = projectManager.state.value.projectFile
         val pf = projectManager.prepareManualSave(chosenFile, audioFile) ?: return
-        autoSaveProject()
+        autoSaveProject(vorlage = bisher?.takeIf { it.absoluteFile != pf.absoluteFile })
         _localState.update { it.copy(statusText = "Projekt gespeichert: ${pf.name}") }
     }
 
@@ -937,6 +942,7 @@ class CompareViewModel {
         try {
             val settings = SettingsStore.load()
             val isFirstFile = audioManager.isFirstFile()
+            aufbauStand = aufbauSchluessel(settings)
 
             val result = audioManager.importAudio(
                 file = file,
@@ -1568,6 +1574,9 @@ class CompareViewModel {
         exportManager.exportAudio(outputFile, _uiState.value, format, timeStretch)
     }
 
+    /** Einstellungen, mit denen die geladene Datei zuletzt aufgebaut wurde, siehe [aufbauSchluessel]. */
+    private var aufbauStand: String? = null
+
     /** Settings neu laden (z.B. nach Export-Settings- oder Algorithmus-Aenderung) */
     fun reloadSettings() {
         val settings = SettingsStore.load()
@@ -1580,11 +1589,12 @@ class CompareViewModel {
             classificationManager.similarityEngine = similarityEngine
         }
 
-        // Wenn Datei geladen: bei geaenderter Mindestdauer neu aufbauen
+        // Wenn Datei geladen: nur neu aufbauen, wenn sich eine Einstellung geaendert hat, von der der
+        // Aufbau abhaengt. Sonst wuerde jedes "Einstellungen speichern" die ganze Aufnahme neu dekodieren.
         val state = _uiState.value
         val file = state.audioFile
         val aktiveFileId = state.activeAudioFileId
-        if (file != null) {
+        if (file != null && aufbauSchluessel(settings) != aufbauStand) {
             // Den geladenen Kanal behalten: Annotationen und Treffer gehoeren zu diesem Signal
             val geladen = aktiveFileId?.let { audioManager.state.value.loadedFiles[it] }
             val kanal = when {
@@ -1937,3 +1947,15 @@ class CompareViewModel {
     }
 
 }
+
+/**
+ * Die Einstellungen, von denen der Aufbau einer geladenen Audiodatei abhaengt (Dekodierung, Auffuellen
+ * kurzer Aufnahmen, Slices, Uebersichts- und Zoom-Spektrogramm). Aendert sich keine davon, muss die
+ * Datei nach "Einstellungen speichern" nicht neu geladen werden. Die Kanalwahl gehoert nicht dazu:
+ * eine geladene Datei behaelt ihren Kanal.
+ */
+internal fun aufbauSchluessel(settings: ch.etasystems.amsel.data.AppSettings): String = listOf(
+    settings.maxFrequencyHz, settings.minDisplayDurationSec, settings.shortFileStartPct,
+    settings.sliceLengthMin, settings.sliceOverlapSec,
+    settings.specWindowType, settings.specFftSize, settings.specHopFraction
+).joinToString("|")
