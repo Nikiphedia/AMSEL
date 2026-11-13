@@ -64,9 +64,16 @@ class ProjectManager(
     // Projekt erstellen
     // ====================================================================
 
-    /** Erstellt automatisch eine Projektdatei fuer lange Audio-Dateien. */
+    /**
+     * Erstellt automatisch eine Projektdatei fuer lange Audio-Dateien.
+     * Eine vorhandene Projektdatei wird nie ueberschrieben: sie kann Annotationen enthalten.
+     */
     fun autoCreateProject(audioFile: File, durationSec: Float, sampleRate: Int, settings: AppSettings) {
         val projectFile = ProjectStore.projectFileFor(audioFile)
+        if (projectFile.exists()) {
+            onStatusUpdate("Projekt ${projectFile.name} existiert bereits und bleibt unveraendert - zum Weiterarbeiten das Projekt oeffnen")
+            return
+        }
         val project = AmselProject(
             metadata = ProjectMetadata(
                 location = settings.locationName,

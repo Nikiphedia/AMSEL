@@ -694,7 +694,7 @@ class CompareViewModel {
                             continue
                         }
                     }
-                    importAudioSuspend(resolved, fileId = audioRef.id, kanal = audioRef.geladenerKanal)
+                    importAudioSuspend(resolved, fileId = audioRef.id, kanal = audioRef.geladenerKanal, projektAnlegen = false)
                 }
 
                 // Volume wiederherstellen
@@ -912,7 +912,9 @@ class CompareViewModel {
         file: File,
         fileId: String = java.util.UUID.randomUUID().toString(),
         /** Kanal aus dem Projekt; null = Einstellung verwenden */
-        kanal: Int? = null
+        kanal: Int? = null,
+        /** false beim Laden eines Projekts: dessen Datei darf nicht durch ein leeres Projekt ersetzt werden */
+        projektAnlegen: Boolean = true
     ) {
         _localState.update { it.copy(isProcessing = true, sidebarStatus = "Dekodiere Audio...") }
 
@@ -958,7 +960,7 @@ class CompareViewModel {
                 )
             }
 
-            if (result.hasSlices && isFirstFile) {
+            if (result.hasSlices && isFirstFile && projektAnlegen) {
                 projectManager.autoCreateProject(file, result.duration, result.sampleRate, settings)
             }
         } catch (e: Exception) {
