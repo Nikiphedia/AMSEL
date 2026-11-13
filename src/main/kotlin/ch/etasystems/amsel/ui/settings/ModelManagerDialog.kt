@@ -32,7 +32,9 @@ fun ModelManagerDialog(
     onDismiss: () -> Unit,
     knownModels: List<DownloadableModel> = emptyList(),
     modelsDir: File? = null,
-    onDownloadModel: ((DownloadableModel) -> Unit)? = null
+    onDownloadModel: ((DownloadableModel) -> Unit)? = null,
+    /** Meldung der Selbstpruefung (laeuft, oder Grund der Ablehnung); null = nichts anzeigen */
+    hinweis: String? = null
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -110,6 +112,16 @@ fun ModelManagerDialog(
                             }
                         }
                     }
+                }
+
+                if (hinweis != null) {
+                    Text(
+                        hinweis,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (hinweis.startsWith("Nicht aktiviert")) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))

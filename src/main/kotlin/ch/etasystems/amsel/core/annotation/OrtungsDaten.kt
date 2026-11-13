@@ -53,6 +53,7 @@ data class OrtungsDaten(val spalten: Map<String, String> = emptyMap()) {
         const val PEGEL_DBSPL = "Level (dB SPL)"
         const val SPITZENFREQUENZ = "Peak Freq (Hz)"
         const val SNR = "SNR (dB)"
+        const val KLASSIFIKATOR = "Classifier"
 
         /**
          * Spalten einer Sitta-Tabelle, die AMSEL unveraendert durchreicht, in der Reihenfolge
@@ -66,7 +67,7 @@ data class OrtungsDaten(val spalten: Map<String, String> = emptyMap()) {
             "Range Determined", "Ambiguous", "Multipath",
             PEGEL_DBFS, PEGEL_DBSPL, "Source Level (dB SPL 1m)", SNR,
             "Loudest Channel", "TDOA Residual (us)", "Pairs Used", "GCC Uniqueness", "c (m/s)",
-            "UTC", "Classifier", "Species Source", "Pitch Check", "Rejected Species"
+            "UTC", KLASSIFIKATOR, "Species Source", "Pitch Check", "Rejected Species"
         )
     }
 }

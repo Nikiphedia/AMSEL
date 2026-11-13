@@ -6,6 +6,7 @@ import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import ch.etasystems.amsel.core.audio.AudioResampler
 import ch.etasystems.amsel.data.SettingsStore
+import ch.etasystems.amsel.data.SpeciesRegistry
 import ch.etasystems.amsel.data.resolvedModelDir
 import ch.etasystems.amsel.core.audio.SilenceDetector
 import ch.etasystems.amsel.core.AmselDispatchers
@@ -14,18 +15,17 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import org.slf4j.LoggerFactory
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStreamReader
 import java.nio.FloatBuffer
+import kotlin.math.abs
 
 /**
- * BirdNET V3.0 ONNX-Classifier.
+ * ONNX-Classifier fuer Roh-Audio-Modelle (kein Mel-Spektrogramm noetig).
+ * Der Klassenname ist historisch: was das Modell erwartet (Rate, Fensterlaenge, Normierung,
+ * Umrechnung, Label-Format), steht im [ModellAdapter]. BirdNET V3 ist die Vorgabe, Perch v2
+ * die zweite Zeile der Tabelle.
  *
- * Laedt das BirdNET V3.0 ONNX-Modell und klassifiziert Audio-Segmente direkt
- * mit Raw-Audio-Input (kein Mel-Spektrogramm noetig).
- *
- * Das Modell erwartet:
+ * BirdNET V3 erwartet:
  * - Input: [batch, samples] Float32, 32 kHz Mono
  * - Output: (embeddings, predictions) — predictions [batch, 11560]
  *
@@ -41,14 +41,11 @@ data class ClassifyStats(
 
 class OnnxBirdNetV3(
     modelPath: String? = null,
-    labelsPath: String? = null
+    labelsPath: String? = null,
+    val adapter: ModellAdapter = ModellAdapterTabelle.BIRDNET_V3
 ) : AudioClassifier {
 
     companion object {
-        private const val TARGET_SAMPLE_RATE = 32000
-        private const val DEFAULT_CHUNK_SEC = 3.0f
-        private const val CHUNK_SAMPLES = (TARGET_SAMPLE_RATE * DEFAULT_CHUNK_SEC).toInt() // 96000
-
         private val logger = LoggerFactory.getLogger(OnnxBirdNetV3::class.java)
 
         /** Standard-Modellverzeichnis */
@@ -66,6 +63,48 @@ class OnnxBirdNetV3(
             ).map { File(dir, it) }.firstOrNull { it.exists() }
         }
 
+        /**
+         * Klassifikator fuer eine ONNX-Datei im Modellordner. Die Modellart ergibt sich aus dem
+         * Dateinamen, die Labels aus "<Name>_labels.csv" (bei BirdNET ersatzweise die bekannten Namen).
+         * @return null wenn die Datei fehlt oder keine ONNX-Datei ist
+         */
+        fun fuerDatei(dateiname: String, ordner: File = defaultModelsDir()): OnnxBirdNetV3? {
+            val datei = File(ordner, dateiname)
+            if (!datei.isFile || datei.extension.lowercase() != "onnx") return null
+            val adapter = ModellAdapterTabelle.fuerDatei(dateiname)
+            val eigeneLabels = File(ordner, datei.nameWithoutExtension + "_labels.csv")
+            val labels = when {
+                eigeneLabels.exists() || adapter !== ModellAdapterTabelle.BIRDNET_V3 -> eigeneLabels.absolutePath
+                else -> null  // BirdNET: bekannte Label-Dateien suchen
+            }
+            return OnnxBirdNetV3(datei.absolutePath, labels, adapter)
+        }
+
+        /**
+         * Klassifikator fuer die Auswahl aus dem Modell-Dialog. Unbekannte, fehlende oder
+         * unvollstaendige Auswahl: BirdNET wie bisher, nie ein Absturz.
+         */
+        fun fuerAuswahl(dateiname: String, ordner: File = defaultModelsDir()): OnnxBirdNetV3 {
+            val gewaehlt = fuerDatei(dateiname, ordner)
+            val brauchbar = gewaehlt != null && gewaehlt.isAvailable() &&
+                (gewaehlt.adapter !== ModellAdapterTabelle.BIRDNET_V3 || dateiname.contains("birdnet", ignoreCase = true))
+            if (brauchbar) return gewaehlt!!
+            if (dateiname != "_python_bridge" && gewaehlt?.isAvailable() != true) {
+                logger.warn("Gewaehltes Modell {} nicht verwendbar (Datei oder Labels fehlen) - nehme BirdNET", dateiname)
+            }
+            return OnnxBirdNetV3()
+        }
+
+        /**
+         * Selbstpruefung fuer die Auswahl im Modell-Dialog.
+         * @return null wenn das Modell aktiviert werden darf, sonst der Grund in Worten
+         */
+        fun pruefeAuswahl(dateiname: String, ordner: File = defaultModelsDir()): String? {
+            if (dateiname == "_python_bridge") return null
+            val klassifikator = fuerDatei(dateiname, ordner) ?: return "Modelldatei fehlt: $dateiname"
+            return try { klassifikator.pruefen() } finally { klassifikator.close() }
+        }
+
         /** Sucht die V3-Labels im Standard-Verzeichnis */
         fun findLabels(): File? {
             val dir = defaultModelsDir()
@@ -76,9 +115,9 @@ class OnnxBirdNetV3(
         }
     }
 
-    override val name: String = "BirdNET V3.0"
-    override val version: String = "preview3"
-    override val inputSampleRate: Int = TARGET_SAMPLE_RATE
+    override val name: String = adapter.name
+    override val version: String = adapter.version
+    override val inputSampleRate: Int = adapter.sampleRate
 
     private val modelFile: File
     private val labelsFile: File
@@ -88,11 +127,11 @@ class OnnxBirdNetV3(
     private var inputName: String = ""
     private var predictionOutput: String? = null
     private var sessionFailed = false
-    private var scientificNames: List<String> = emptyList()
-    private var commonNames: List<String> = emptyList()
+    private var ladeFehler: String? = null
+    private var labels = ModellLabels(emptyList(), emptyList(), BooleanArray(0))
 
     override val speciesCount: Int
-        get() = scientificNames.size
+        get() = labels.istArt.count { it }
 
     /** Statistik des letzten classify()-Aufrufs (Chunk-Zaehler fuer PerformanceLog). */
     var lastClassifyStats: ClassifyStats? = null
@@ -114,30 +153,34 @@ class OnnxBirdNetV3(
         topN: Int
     ): List<ClassifierResult> {
         if (samples.isEmpty()) return emptyList()
+        val zielRate = adapter.sampleRate
+        // Modelle mit festem Eingang bestimmen die Fensterlaenge selbst
+        @Suppress("NAME_SHADOWING")
+        val chunkDurationSec = if (adapter.fensterFest) adapter.fensterSek else chunkDurationSec
 
         // Fehler werden nach aussen gegeben (nicht als leere Liste): sonst sieht ein defektes
         // Modell aus wie "keine Voegel", und der Aufrufer kann nicht auf die Python-Bridge ausweichen.
         if (!isAvailable()) {
             throw IllegalStateException(
-                "BirdNET-Modell oder Labels nicht gefunden: ${modelFile.absolutePath}, ${labelsFile.absolutePath}"
+                "${adapter.name}-Modell oder Labels nicht gefunden: ${modelFile.absolutePath}, ${labelsFile.absolutePath}"
             )
         }
 
         val session = ensureSession()
-            ?: throw IllegalStateException("BirdNET-Modell konnte nicht geladen werden: ${modelFile.absolutePath}")
+            ?: throw IllegalStateException("${adapter.name}-Modell konnte nicht geladen werden: ${modelFile.absolutePath}")
 
         return try {
             // 1. Resample auf 32 kHz
-            val resampled = if (sampleRate != TARGET_SAMPLE_RATE) {
-                AudioResampler.resample(samples, sampleRate, TARGET_SAMPLE_RATE)
+            val resampled = if (sampleRate != zielRate) {
+                AudioResampler.resample(samples, sampleRate, zielRate)
             } else {
                 samples
             }
 
             // 2. Chunk-Ranges berechnen (keine Kopien)
-            val chunkSamples = (TARGET_SAMPLE_RATE * chunkDurationSec).toInt()
+            val chunkSamples = (zielRate * chunkDurationSec).toInt()
             val hopSamples = if (overlap > 0f) {
-                (chunkSamples - (TARGET_SAMPLE_RATE * overlap).toInt()).coerceAtLeast(1)
+                (chunkSamples - (zielRate * overlap).toInt()).coerceAtLeast(1)
             } else {
                 chunkSamples
             }
@@ -175,7 +218,8 @@ class OnnxBirdNetV3(
                         val copyLen = range.last - range.first + 1
                         System.arraycopy(resampled, range.first, chunk, 0, copyLen)
                         // Rest bleibt 0 (Zero-Padding falls letzter Chunk kuerzer)
-                        val startTimeSec = index * hopSamples.toFloat() / TARGET_SAMPLE_RATE
+                        adapter.spitze?.let { aufSpitzeNormieren(chunk, it) }
+                        val startTimeSec = index * hopSamples.toFloat() / zielRate
                         classifyChunk(session, chunk, startTimeSec, chunkDurationSec, minConfidence)
                     }
                 }.awaitAll().flatten()
@@ -212,7 +256,7 @@ class OnnxBirdNetV3(
             // Das Result haelt nativen Speicher und muss geschlossen werden; die Scores sind eine Java-Kopie.
             // Ist der Prediction-Ausgang bekannt, wird nur er angefordert (keine Kopie der Embeddings).
             val predName = predictionOutput
-            val scores = if (predName != null) {
+            val roh = if (predName != null) {
                 session.run(mapOf(inputName to tensor), setOf(predName)).use { result ->
                     flattenOutput(result[0].value) ?: FloatArray(0)
                 }
@@ -224,10 +268,11 @@ class OnnxBirdNetV3(
 
             val endTimeSec = startTimeSec + chunkDurationSec
 
-            // Alle Scores mit Index sammeln und absteigend sortieren
-            val scoredIndices = scores.indices
-                .filter { it < scientificNames.size }
-                .map { Pair(it, scores[it]) }
+            // Alle Arten mit Index sammeln (Geraeuschklassen auslassen), Modellausgang in Wert 0..1
+            // umrechnen und absteigend sortieren
+            val scoredIndices = roh.indices
+                .filter { it < labels.anzahl && labels.istArt[it] }
+                .map { Pair(it, adapter.wert(roh[it])) }
                 .sortedByDescending { it.second }
 
             // Mindestens 3 Kandidaten, aber alle ueber minConfidence
@@ -240,14 +285,19 @@ class OnnxBirdNetV3(
             }
 
             candidates.map { (index, score) ->
-                val sciName = scientificNames[index]
-                val comName = if (index < commonNames.size) commonNames[index] else ""
+                val sciName = labels.wissenschaftlich[index]
+                // Ohne Trivialname im Label (Perch): englischer Name aus dem Artenregister, damit dieselbe
+                // Art bei beiden Modellen gleich beschriftet ist; sonst den wissenschaftlichen Namen wiederholen
+                val comName = labels.trivial[index].ifEmpty {
+                    SpeciesRegistry.getSpecies(sciName)?.commonNames?.get("en") ?: sciName
+                }
                 ClassifierResult(
                     species = "${sciName}_${comName}",
                     confidence = score,
                     startTime = startTimeSec,
                     endTime = endTimeSec,
-                    scientificName = sciName
+                    scientificName = sciName,
+                    modell = adapter.art
                 )
             }
         } finally {
@@ -271,7 +321,7 @@ class OnnxBirdNetV3(
         for (i in outputNames.indices) {
             val output = result[i].value
             val scores = flattenOutput(output)
-            if (scores != null && (scientificNames.isEmpty() || scores.size == scientificNames.size)) {
+            if (scores != null && (labels.anzahl == 0 || scores.size == labels.anzahl)) {
                 return scores
             }
         }
@@ -297,6 +347,15 @@ class OnnxBirdNetV3(
                 null
             }
         }
+    }
+
+    /** Skaliert das Fenster so, dass der groesste Betrag [spitze] ist. Reine Stille bleibt unveraendert. */
+    private fun aufSpitzeNormieren(chunk: FloatArray, spitze: Float) {
+        var max = 0f
+        for (v in chunk) max = maxOf(max, abs(v))
+        if (max <= 0f) return
+        val faktor = spitze / max
+        for (i in chunk.indices) chunk[i] *= faktor
     }
 
     /**
@@ -349,66 +408,59 @@ class OnnxBirdNetV3(
             inputName = session.inputNames.first()
             predictionOutput = session.outputInfo.entries.filter { (_, node) ->
                 val shape = (node.info as? TensorInfo)?.shape
-                shape != null && shape.isNotEmpty() && shape.last() == scientificNames.size.toLong()
+                shape != null && shape.isNotEmpty() && shape.last() == labels.anzahl.toLong()
             }.map { it.key }.singleOrNull()
 
             // Modell-Info loggen
-            logger.info("BirdNET V3.0 geladen: {}", modelFile.name)
+            logger.info("{} geladen: {}", adapter.name, modelFile.name)
             logger.info("  Input: {}", session.inputInfo.entries.joinToString { "${it.key}: ${it.value.info}" })
             logger.info("  Output: {}", session.outputInfo.entries.joinToString { "${it.key}: ${it.value.info}" })
-            logger.info("  Labels: {} Arten", scientificNames.size)
 
             session
         } catch (e: Exception) {
             logger.error("Modell konnte nicht geladen werden: {}", modelFile.absolutePath, e)
             sessionFailed = true
+            ladeFehler = e.message
+            ortSession?.close()
+            ortSession = null
             null
         }
     }
 
-    /**
-     * Labels aus CSV laden.
-     * Format: idx;id;sci_name;com_name;class;order (Semikolon-Delimiter)
-     */
+    /** Labels im Format der Modellart laden. Fehler bleiben nicht still: ohne Labels ist das Modell unbrauchbar. */
     private fun loadLabels() {
-        if (!labelsFile.exists()) {
-            logger.warn("Labels-Datei nicht gefunden: {}", labelsFile.absolutePath)
-            return
+        val synonyme = if (adapter.labelFormat == LabelFormat.NAMENSLISTE) ModellAdapterTabelle.perchSynonyme else emptyMap()
+        labels = ModellAdapterTabelle.labelsLesen(labelsFile, adapter.labelFormat, synonyme)
+        logger.info("Labels geladen: {} Klassen, davon {} Arten", labels.anzahl, labels.istArt.count { it })
+    }
+
+    /**
+     * Selbstpruefung beim Aktivieren eines Modells: laden, Eingang und Ausgang gegen Modellart und
+     * Labels pruefen, ein Fenster Stille rechnen.
+     * @return null wenn alles passt, sonst der Grund in Worten
+     */
+    fun pruefen(): String? {
+        if (!modelFile.exists()) return "Modelldatei fehlt: ${modelFile.name}"
+        if (!labelsFile.exists()) return "Label-Datei fehlt: ${labelsFile.name}"
+        val session = ensureSession() ?: return "Modell laesst sich nicht laden: ${ladeFehler ?: modelFile.name}"
+        if (labels.anzahl == 0) return "Label-Datei ${labelsFile.name} enthaelt keine Namen"
+
+        val fenster = (adapter.sampleRate * adapter.fensterSek).toInt()
+        val eingang = (session.inputInfo[inputName]?.info as? TensorInfo)?.shape
+        val fest = eingang?.lastOrNull()?.takeIf { it > 0 }
+        if (fest != null && fest != fenster.toLong()) {
+            return "Modell erwartet $fest Samples je Fenster, ${adapter.name} rechnet mit $fenster"
         }
-
-        try {
-            val sciNames = mutableListOf<String>()
-            val comNames = mutableListOf<String>()
-
-            BufferedReader(InputStreamReader(labelsFile.inputStream(), Charsets.UTF_8)).use { reader ->
-                val headerLine = reader.readLine() ?: return
-                val headers = headerLine.trimStart('\uFEFF').split(";")
-                val sciIndex = headers.indexOf("sci_name")
-                val comIndex = headers.indexOf("com_name")
-
-                if (sciIndex < 0) {
-                    logger.warn("Labels-CSV hat keine 'sci_name' Spalte. Header: {}", headers)
-                    return
-                }
-
-                reader.forEachLine { line ->
-                    if (line.isBlank()) return@forEachLine
-                    val cols = line.split(";")
-                    val sci = cols.getOrElse(sciIndex) { "" }.trim()
-                    val com = if (comIndex >= 0) cols.getOrElse(comIndex) { "" }.trim() else ""
-
-                    if (sci.isNotEmpty()) {
-                        sciNames.add(sci)
-                        comNames.add(com)
-                    }
-                }
-            }
-
-            scientificNames = sciNames
-            commonNames = comNames
-            logger.info("Labels geladen: {} Arten", scientificNames.size)
+        if (predictionOutput == null) {
+            return "Kein Ausgang des Modells hat ${labels.anzahl} Werte (so viele Namen stehen in ${labelsFile.name})"
+        }
+        return try {
+            val start = System.nanoTime()
+            classifyChunk(session, FloatArray(fenster), 0f, adapter.fensterSek, 0f)
+            logger.info("Selbstpruefung {}: ein Fenster in {} ms", modelFile.name, (System.nanoTime() - start) / 1_000_000)
+            null
         } catch (e: Exception) {
-            logger.error("Fehler beim Laden der Labels", e)
+            "Proberechnung fehlgeschlagen: ${e.message}"
         }
     }
 

@@ -220,6 +220,15 @@ class ModelRegistry(
                 speciesCount = labelsCount ?: 11560,
                 fileSizeMB = sizeMB
             )
+            name.contains("perch", ignoreCase = true) -> ModelEntry(
+                filename = onnxFile.name,
+                labelsFilename = File(modelsDir, "${onnxFile.nameWithoutExtension}_labels.csv").takeIf { it.exists() }?.name,
+                name = "Perch",
+                version = "2.0",
+                type = "custom",
+                speciesCount = File(modelsDir, "${onnxFile.nameWithoutExtension}_labels.csv").takeIf { it.exists() }?.let { countCsvLines(it) },
+                fileSizeMB = sizeMB
+            )
             name.contains("efficientnet", ignoreCase = true) -> ModelEntry(
                 filename = onnxFile.name,
                 labelsFilename = labelsFile?.name,

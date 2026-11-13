@@ -63,7 +63,9 @@ data class SpeciesCandidate(
     val verifiedBy: String = "",
     /** Wann verifiziert/abgelehnt (Epoch-Millis, 0 = nicht gesetzt) */
     val verifiedAt: Long = 0L,
-    val isManual: Boolean = false   // Manuell hinzugefuegt (nicht von BirdNET)
+    val isManual: Boolean = false,  // Manuell hinzugefuegt (nicht von BirdNET)
+    /** Modellart, die den Kandidaten erzeugt hat, z.B. "birdnet-v3", "perch-v2". Leer = unbekannt (aeltere Projekte, manuell). */
+    val modell: String = ""
 )
 
 /**

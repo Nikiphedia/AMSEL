@@ -84,8 +84,25 @@ class ClassificationManager(
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    /** ONNX-first Classifier (BirdNET V3.0) — Fallback auf Python-Bridge */
-    private val onnxClassifier = OnnxBirdNetV3()
+    /**
+     * ONNX-Classifier gemaess Auswahl im Modell-Dialog (BirdNET V3 oder Perch v2).
+     * Wird neu erzeugt, wenn die Auswahl wechselt; waehrend eines Scans bleibt das laufende Modell.
+     * Die Python-Bridge ist Rueckfall nur fuer BirdNET.
+     */
+    private var klassifikator: OnnxBirdNetV3? = null
+    private var klassifikatorDatei: String? = null
+    private val klassifikatorSperre = Any()
+    private val onnxClassifier: OnnxBirdNetV3
+        get() = synchronized(klassifikatorSperre) {
+            val gewaehlt = SettingsStore.load().activeModelFilename
+            val aktuell = klassifikator
+            if (aktuell != null && (gewaehlt == klassifikatorDatei || _isBackgroundScanning.value)) return aktuell
+            aktuell?.close()
+            OnnxBirdNetV3.fuerAuswahl(gewaehlt).also {
+                klassifikator = it
+                klassifikatorDatei = gewaehlt
+            }
+        }
 
     /** Laeuft gerade ein Hintergrund-Scan? */
     private val _isBackgroundScanning = MutableStateFlow(false)
@@ -554,7 +571,7 @@ class ClassificationManager(
 
                 onAuditEntry(
                     "BirdNET Scan",
-                    "${if (onnxClassifier.isAvailable()) "BirdNET V3.0 (ONNX)" else "BirdNET (Python)"} Scan: ${newAnnotations.size} Detektionen, " +
+                    "${if (onnxClassifier.isAvailable()) "${onnxClassifier.name} (ONNX)" else "BirdNET (Python)"} Scan: ${newAnnotations.size} Detektionen, " +
                         "${speciesColorMap.size} Arten" +
                         (if (speciesCounts.isNotEmpty()) " — " +
                             speciesCounts.entries.sortedByDescending { it.value }
@@ -673,18 +690,22 @@ class ClassificationManager(
         } catch (e: CancellationException) {
             throw e  // Abbruch durchreichen, kein Fallback
         } catch (e: Exception) {
+            // Ein anderes Modell als BirdNET wird nicht still durch BirdNET ersetzt
+            if (onnxClassifier.adapter !== ch.etasystems.amsel.core.classifier.ModellAdapterTabelle.BIRDNET_V3) throw e
             if (onnxClassifier.isAvailable()) {
                 logger.warn("ONNX-Klassifikation fehlgeschlagen, Fallback auf Python-Bridge: {}", e.message)
             }
             if (BirdNetBridge.isAvailable()) {
-                BirdNetBridge.classify(
+                (BirdNetBridge.classify(
                     samples = samples,
                     sampleRate = sr,
                     topN = 0,
                     lat = settings.locationLat,
                     lon = settings.locationLon,
                     minConf = settings.birdnetMinConf
-                ) ?: emptyList()
+                ) ?: emptyList()).map {
+                    it.copy(modell = ch.etasystems.amsel.core.classifier.ModellAdapterTabelle.ART_BIRDNET_PYTHON)
+                }
             } else {
                 // Nicht als "keine Treffer" enden lassen: der Aufrufer zeigt die Meldung in der Statuszeile.
                 logger.error("Weder ONNX noch Python-Bridge verfuegbar")
@@ -705,13 +726,7 @@ class ClassificationManager(
 
         // Zeitstempel auf absolute Position verschieben
         return rawResults.map { r ->
-            ClassifierResult(
-                species = r.species,
-                confidence = r.confidence,
-                startTime = r.startTime + startSec,
-                endTime = r.endTime + startSec,
-                scientificName = r.scientificName
-            )
+            r.copy(startTime = r.startTime + startSec, endTime = r.endTime + startSec)
         }
     }
 
@@ -825,7 +840,8 @@ class ClassificationManager(
                         SpeciesCandidate(
                             species = r.species,
                             scientificName = r.scientificName,
-                            confidence = r.confidence
+                            confidence = r.confidence,
+                            modell = r.modell
                         )
                     }
             }
@@ -1125,7 +1141,7 @@ class ClassificationManager(
 
     fun dispose() {
         backgroundScanJob?.cancel()
-        onnxClassifier.close()
+        synchronized(klassifikatorSperre) { klassifikator?.close(); klassifikator = null }
         referenceDownloader.dispose()
         scope.cancel()
         xenoCantoApi.close()

@@ -35,7 +35,7 @@ object RavenSelectionExporter {
         )
         val amselSpalten = listOf(
             "Species", "Scientific Name", "Confidence",
-            "Source", "Status", "Notes", "Begin File"
+            "Source", "Status", "Notes", "Begin File", OrtungsDaten.KLASSIFIKATOR
         )
         val metrikSpalten = listOf(
             "Peak Freq (Hz)", "Center Freq (Hz)", "Low-3dB (Hz)",
@@ -47,7 +47,7 @@ object RavenSelectionExporter {
         val hatOrtung = sorted.any { it.ortung != null }
         val ortungsSpalten = if (hatOrtung) {
             listOf(RavenSelectionImporter.SPALTE_OFFSET) +
-                (OrtungsDaten.SPALTEN - pflichtSpalten.toSet() - metrikSpalten.toSet())
+                (OrtungsDaten.SPALTEN - pflichtSpalten.toSet() - metrikSpalten.toSet() - amselSpalten.toSet())
         } else emptyList()
         val header = (pflichtSpalten + amselSpalten + metrikSpalten + gpsSpalten + ortungsSpalten).joinToString("\t")
 
@@ -99,7 +99,9 @@ object RavenSelectionExporter {
             )
             val amselWerte = listOf(
                 species, wissenschaftlicherName, konfidenz,
-                quelle, status, notes, fileName
+                quelle, status, notes, fileName,
+                // Modellart des gewaehlten Kandidaten, sonst die Angabe aus einer Sitta-Tabelle
+                gewaehlterKandidat?.modell?.ifEmpty { null } ?: ann.ortung?.spalten?.get(OrtungsDaten.KLASSIFIKATOR) ?: ""
             )
             val mu = ann.metrics
             val metrikWerte = listOf(

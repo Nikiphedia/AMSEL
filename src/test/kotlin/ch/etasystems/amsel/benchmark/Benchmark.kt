@@ -14,6 +14,11 @@ import ch.etasystems.amsel.data.reference.ReferenceLibraryFeatureProvider
 import ch.etasystems.amsel.data.resolvedModelDir
 import ch.etasystems.amsel.ui.compare.AudioManager
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.float
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.lang.management.ManagementFactory
 import java.util.Locale
@@ -27,6 +32,9 @@ import kotlin.system.exitProcess
  * --kanal=<n> waehlt den Kanal der Langdatei: 0 automatisch, -1 Mittelwert, -2 lautester, 1..n Kanal n.
  * --gain-db verstaerkt die Langdatei vor dem Scan. Noetig fuer leise Feldaufnahmen: ohne Verstaerkung
  * ueberspringt der Stille-Filter des Klassifikators (-50 dBFS) alle Fenster, und es wird nichts gemessen.
+ * --modell=<datei> rechnet mit dieser ONNX-Datei aus dem Modellordner statt BirdNET V3 (z.B. perch_v2.onnx).
+ * --vergleich=<json> vergleicht die Kurzausschnitte Fenster fuer Fenster mit Sittas Werten
+ *   (ausschnitte-kern-perch.json), schreibt build/benchmark/vergleich.csv und beendet.
  * Ausgabe: build/benchmark/benchmark.csv (eine Zeile je Lauf) und
  *          build/benchmark/treffer_<datei>.csv (sortierte Trefferliste des Scans).
  */
@@ -109,6 +117,57 @@ private fun trefferSchreiben(datei: File, treffer: List<ClassifierResult>) {
     }
 }
 
+/**
+ * Vergleicht je Fenster mit den Werten des Sitta-Kerns. Sitta rechnet 5-s-Fenster im Abstand von 3 s
+ * und nennt je Fenster die fuenf besten Arten in Prozent.
+ */
+private fun mitSittaVergleichen(classifier: OnnxBirdNetV3, kurzOrdner: File, json: File, ausgabe: File) {
+    val wurzel = Json.parseToJsonElement(json.readText()).jsonObject
+    val dateien = wurzel["dateien"]!!.jsonObject
+    val ueberlappung = classifier.adapter.fensterSek - 3f
+    var fenster = 0
+    var gleicheBeste = 0
+    val abweichungen = ArrayList<Float>()
+    File(ausgabe, "vergleich.csv").printWriter().use { out ->
+        out.println("datei,start_s,sitta_art,sitta_prozent,amsel_prozent_dieser_art,abweichung,amsel_beste_art,amsel_beste_prozent")
+        for ((name, jeFenster) in dateien) {
+            val datei = File(kurzOrdner, name)
+            if (!datei.isFile) { println("fehlt: $name"); continue }
+            val seg = AudioDecoder.decode(datei)
+            val res = runBlocking {
+                classifier.classify(seg.samples, seg.sampleRate, overlap = ueberlappung, minConfidence = 0f, topN = 0)
+            }
+            for ((start, liste) in jeFenster.jsonObject) {
+                val startSek = start.toFloat()
+                val erster = liste.jsonArray.firstOrNull()?.jsonArray ?: continue
+                val sittaArt = erster[0].jsonPrimitive.content
+                val sittaProzent = erster[1].jsonPrimitive.float
+                val imFenster = res.filter { kotlin.math.abs(it.startTime - startSek) < 0.01f }
+                val beste = imFenster.maxByOrNull { it.confidence }
+                // Nur die Kandidaten je Fenster sind bekannt (hoechstens 10); fehlt die Art, bleibt das Feld leer
+                val dieselbe = imFenster.firstOrNull { it.scientificName == sittaArt }?.confidence?.times(100f)
+                fenster++
+                if (beste?.scientificName == sittaArt) gleicheBeste++
+                if (dieselbe != null) abweichungen.add(dieselbe - sittaProzent)
+                out.println(String.format(
+                    Locale.US, "%s,%s,%s,%.1f,%s,%s,%s,%s", name, start, sittaArt, sittaProzent,
+                    dieselbe?.let { String.format(Locale.US, "%.1f", it) } ?: "",
+                    dieselbe?.let { String.format(Locale.US, "%+.1f", it - sittaProzent) } ?: "",
+                    beste?.scientificName ?: "", beste?.let { String.format(Locale.US, "%.1f", it.confidence * 100f) } ?: ""
+                ))
+            }
+        }
+    }
+    val betrag = abweichungen.map { kotlin.math.abs(it) }
+    println("Vergleich mit Sitta: $fenster Fenster, gleiche beste Art in $gleicheBeste")
+    if (betrag.isNotEmpty()) {
+        println(String.format(
+            Locale.US, "Sittas beste Art in %d Fenstern auch bei AMSEL unter den Kandidaten: Abweichung im Mittel %.1f, groesste %.1f Prozentpunkte",
+            betrag.size, betrag.average(), betrag.max()
+        ))
+    }
+}
+
 fun main(args: Array<String>) {
     val gainDb = args.firstOrNull { it.startsWith("--gain-db=") }?.substringAfter("=")?.toFloatOrNull() ?: 0f
     val kanal = args.firstOrNull { it.startsWith("--kanal=") }?.substringAfter("=")?.toIntOrNull() ?: AudioDecoder.KANAL_AUTO
@@ -127,19 +186,37 @@ fun main(args: Array<String>) {
         System.err.println("Ordner nicht gefunden: ${kurzOrdner.absolutePath}")
         exitProcess(2)
     }
-    val modell = modellSuchen()
-    if (modell == null) {
-        System.err.println("BirdNET-V3-Modell oder Labels nicht gefunden (Einstellungen und Documents/AMSEL/models geprueft)")
-        exitProcess(2)
+    val modellName = args.firstOrNull { it.startsWith("--modell=") }?.substringAfter("=")
+    val vergleich = args.firstOrNull { it.startsWith("--vergleich=") }?.substringAfter("=")?.let { File(it) }
+    val classifier = if (modellName != null) {
+        val k = OnnxBirdNetV3.fuerDatei(modellName)
+        val grund = if (k == null) "Modelldatei fehlt: $modellName" else k.pruefen()
+        if (k == null || grund != null) {
+            System.err.println("Modell nicht verwendbar: $grund")
+            exitProcess(2)
+        }
+        k
+    } else {
+        val modell = modellSuchen()
+        if (modell == null) {
+            System.err.println("BirdNET-V3-Modell oder Labels nicht gefunden (Einstellungen und Documents/AMSEL/models geprueft)")
+            exitProcess(2)
+        }
+        println("Modell: ${modell.first.absolutePath}")
+        OnnxBirdNetV3(modell.first.absolutePath, modell.second.absolutePath)
     }
-    val (modellDatei, labelsDatei) = modell
-    println("Modell: ${modellDatei.absolutePath}")
+    println("Modellart: ${classifier.adapter.art}, ${classifier.speciesCount} Arten")
+    if (vergleich != null) {
+        if (kurzOrdner == null) { System.err.println("--vergleich braucht den Ordner mit den Kurzausschnitten"); exitProcess(2) }
+        mitSittaVergleichen(classifier, kurzOrdner, vergleich, File("build/benchmark").also { it.mkdirs() })
+        classifier.close()
+        return
+    }
     println("Max. Heap: ${mb(Runtime.getRuntime().maxMemory())} MB")
 
     val ausgabe = File("build/benchmark").also { it.mkdirs() }
     val minConf = SettingsStore.load().birdnetMinConf
     val waechter = HeapWaechter().also { it.start() }
-    val classifier = OnnxBirdNetV3(modellDatei.absolutePath, labelsDatei.absolutePath)
 
     try {
         // --- Import wie in der App (AudioManager.importAudio), mit eigenem Heap-Hoechstwert ---
@@ -180,7 +257,7 @@ fun main(args: Array<String>) {
         val stats = classifier.lastClassifyStats
         println("Scan: ${ms(scanNs)} ms, RTF ${String.format(Locale.US, "%.1f", rtf)}, ${treffer.size} Treffer, " +
             "${stats?.classifiedChunks} von ${stats?.totalChunks} Fenstern gerechnet (Rest als Stille uebersprungen)")
-        trefferSchreiben(File(ausgabe, "treffer_${langdatei.nameWithoutExtension}_gain${gainDb.toInt()}_kanal$kanal.csv"), treffer)
+        trefferSchreiben(File(ausgabe, "treffer_${langdatei.nameWithoutExtension}_gain${gainDb.toInt()}_kanal$kanal${if (modellName != null) "_" + classifier.adapter.art else ""}.csv"), treffer)
 
         // --- Aehnlichkeitssuche (nur offline, nur wenn lokale Features vorhanden) ---
         val provider = ReferenceLibraryFeatureProvider(ReferenceLibrary())

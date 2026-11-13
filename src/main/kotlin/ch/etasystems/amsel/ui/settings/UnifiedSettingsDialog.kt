@@ -143,13 +143,26 @@ fun UnifiedSettingsDialog(
     var cmPerHalfSec by remember { mutableStateOf("%.2f".format(0.5f / settings.exportSecPerCm)) }
     var rowLengthCm by remember { mutableStateOf("%.1f".format(settings.exportRowLengthCm)) }
 
+    var modellHinweis by remember { mutableStateOf<String?>(null) }
+    val modellPruefung = androidx.compose.runtime.rememberCoroutineScope()
     if (showModelDialog) {
         ModelManagerDialog(
             models = modelsConfig.models,
             activeModel = modelsConfig.activeModel,
+            hinweis = modellHinweis,
             onSelectModel = { filename ->
-                modelsConfig = modelsConfig.copy(activeModel = filename)
-                modelRegistry.save(modelsConfig)
+                // Selbstpruefung vor dem Aktivieren: laedt das Modell und rechnet ein Fenster
+                modellPruefung.launch(kotlinx.coroutines.Dispatchers.Default) {
+                    modellHinweis = "Pruefe $filename ..."
+                    val grund = OnnxBirdNetV3.pruefeAuswahl(filename)
+                    if (grund == null) {
+                        modelsConfig = modelsConfig.copy(activeModel = filename)
+                        modelRegistry.save(modelsConfig)
+                        modellHinweis = null
+                    } else {
+                        modellHinweis = "Nicht aktiviert: $grund"
+                    }
+                }
             },
             onAddModel = { onnxFile, labelsFile ->
                 modelRegistry.addModel(onnxFile, labelsFile)

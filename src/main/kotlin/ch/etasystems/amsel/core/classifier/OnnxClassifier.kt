@@ -19,7 +19,9 @@ data class ClassifierResult(
     val confidence: Float,
     val startTime: Float = 0f,
     val endTime: Float = 0f,
-    val scientificName: String = ""
+    val scientificName: String = "",
+    /** Modellart, die den Treffer erzeugt hat, z.B. "birdnet-v3", "perch-v2". Leer = unbekannt. */
+    val modell: String = ""
 )
 
 /**
