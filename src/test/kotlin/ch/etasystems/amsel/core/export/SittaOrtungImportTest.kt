@@ -119,6 +119,55 @@ class SittaOrtungImportTest {
     }
 
     @Test
+    fun `Art mit Konfidenz wird Kandidat, ohne Konfidenz bleibt es beim Label`() {
+        // Aufbau wie Sittas BirdNET-Tabelle
+        val datei = File.createTempFile("sitta_birdnet", ".txt").apply {
+            deleteOnExit()
+            writeText(
+                "Selection\tView\tChannel\tBegin Time (s)\tEnd Time (s)\tLow Freq (Hz)\tHigh Freq (Hz)\tSpecies\tConfidence\tBegin File\tFile Offset (s)\tLevel (dBFS)\n" +
+                    "45\tSpectrogram 1\t2\t6598.263\t6601.263\t1828\t3797\tArdea cinerea\t0.741\t2026/1111/x.wav\t1081.940\t-68.2\n" +
+                    "46\tSpectrogram 1\t2\t6599.763\t6602.763\t1781\t2906\tArdea cinerea\t\t2026/1111/x.wav\t1083.440\t-69.5\n"
+            )
+        }
+        val ann = RavenSelectionImporter.importiere(datei, "id", mapOf("x.wav" to "id")).annotationen
+        val k = ann[0].candidates.single()
+        assertEquals("Ardea cinerea", k.scientificName)
+        assertTrue(abs(k.confidence - 0.741f) < 1e-6f)
+        assertTrue(k.species.startsWith("Ardea cinerea_"))
+        assertEquals("${k.species} (74%)", ann[0].label)
+        assertTrue(ann[0].isBirdNetDetection)
+        nah(1081.94f, ann[0].startTimeSec)
+        // Zweite Zeile ohne Konfidenz: kein Kandidat
+        assertTrue(ann[1].candidates.isEmpty())
+        assertEquals("Ardea cinerea", ann[1].label)
+
+        // Hin und zurueck: Kandidat, Konfidenz (auf 2 Stellen) und Label bleiben
+        val ziel = File.createTempFile("export", ".txt").apply { deleteOnExit() }
+        RavenSelectionExporter.export(
+            ziel,
+            ReportExporter.ReportConfig(audioFiles = listOf(ReportExporter.AudioFileInfo("id", "x.wav", 1800f)), annotations = ann),
+            emptyMap()
+        )
+        val zurueck = RavenSelectionImporter.importiere(ziel, "id", mapOf("x.wav" to "id")).annotationen
+        assertEquals(ann[0].label, zurueck[0].label)
+        assertEquals("Ardea cinerea", zurueck[0].candidates.single().scientificName)
+        assertTrue(abs(zurueck[0].candidates.single().confidence - 0.74f) < 1e-6f)
+    }
+
+    @Test
+    fun `erneuter Import derselben Tabelle legt nichts doppelt an`() {
+        val erst = RavenSelectionImporter.importiere(tabelle(), "id", mapOf(chunk to "id")).annotationen
+        val nochmal = RavenSelectionImporter.importiere(tabelle(), "id", mapOf(chunk to "id")).annotationen
+        assertEquals(3, RavenSelectionImporter.ohneVorhandene(erst, emptyList()).size)
+        assertEquals(0, RavenSelectionImporter.ohneVorhandene(nochmal, erst).size)
+        // Eine vom Nutzer geaenderte Annotation (anderes Label) gilt nicht als dieselbe
+        val geaendert = erst.mapIndexed { i, a -> if (i == 0) a.copy(label = "Waldkauz") else a }
+        assertEquals(1, RavenSelectionImporter.ohneVorhandene(nochmal, geaendert).size)
+        // Dieselbe Zeile fuer eine andere Datei ist kein Doppel
+        assertEquals(3, RavenSelectionImporter.ohneVorhandene(nochmal.map { it.copy(audioFileId = "b") }, erst).size)
+    }
+
+    @Test
     fun `gewoehnliche Raven-Tabelle laedt wie bisher`() {
         val datei = File.createTempFile("raven", ".txt").apply {
             deleteOnExit()

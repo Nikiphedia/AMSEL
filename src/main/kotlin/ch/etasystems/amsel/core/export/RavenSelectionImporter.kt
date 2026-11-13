@@ -2,6 +2,8 @@ package ch.etasystems.amsel.core.export
 
 import ch.etasystems.amsel.core.annotation.Annotation
 import ch.etasystems.amsel.core.annotation.OrtungsDaten
+import ch.etasystems.amsel.core.annotation.SpeciesCandidate
+import ch.etasystems.amsel.data.SpeciesRegistry
 import ch.etasystems.amsel.data.RecordingMetadata
 import java.io.File
 
@@ -46,6 +48,8 @@ object RavenSelectionImporter {
     private const val SPALTE_LOW     = "Low Freq (Hz)"
     private const val SPALTE_HIGH    = "High Freq (Hz)"
     private const val SPALTE_SPECIES = "Species"
+    private const val SPALTE_SCI     = "Scientific Name"
+    private const val SPALTE_KONF    = "Confidence"
     private const val SPALTE_LAT     = "Latitude"
     private const val SPALTE_LON     = "Longitude"
     private const val SPALTE_ALT     = "Altitude (m)"
@@ -93,6 +97,9 @@ object RavenSelectionImporter {
         }
 
         val idxSpecies = header.indexOf(SPALTE_SPECIES)
+        val idxSci     = header.indexOf(SPALTE_SCI)
+        val idxKonf    = header.indexOf(SPALTE_KONF)
+        val idxModell  = header.indexOf(OrtungsDaten.KLASSIFIKATOR)
         val idxLat     = header.indexOf(SPALTE_LAT)
         val idxLon     = header.indexOf(SPALTE_LON)
         val idxAlt     = header.indexOf(SPALTE_ALT)
@@ -150,6 +157,22 @@ object RavenSelectionImporter {
                 feld(idxSpecies).trim().ifEmpty { "Unbekannt" }
             } else "Unbekannt"
 
+            // Art mit Konfidenz (z.B. Sittas BirdNET-Tabelle, AMSEL-Export): als Kandidat uebernehmen,
+            // Label im selben Format wie nach einem Scan ("Art (74%)")
+            val konfidenz = if (idxKonf >= 0) parseFloat(feld(idxKonf))?.takeIf { it > 0f && it <= 1f } else null
+            val kandidat = if (konfidenz != null && label != "Unbekannt") {
+                val wissenschaftlich = (if (idxSci >= 0) feld(idxSci).trim() else "").ifEmpty { label.substringBefore("_") }
+                val art = if (label.contains("_")) label else {
+                    "${label}_${SpeciesRegistry.getSpecies(label)?.commonNames?.get("en") ?: label}"
+                }
+                SpeciesCandidate(
+                    species = art,
+                    scientificName = wissenschaftlich,
+                    confidence = konfidenz,
+                    modell = if (idxModell >= 0) feld(idxModell).trim() else ""
+                )
+            } else null
+
             annotationen.add(
                 Annotation(
                     audioFileId  = zielId ?: fileId,
@@ -157,7 +180,9 @@ object RavenSelectionImporter {
                     endTimeSec   = end,
                     lowFreqHz    = low,
                     highFreqHz   = high,
-                    label        = label,
+                    label        = if (kandidat != null) "${kandidat.species} (${(kandidat.confidence * 100).toInt()}%)" else label,
+                    isBirdNetDetection = kandidat != null,
+                    candidates   = listOfNotNull(kandidat),
                     ortung       = ortung
                 )
             )
@@ -178,6 +203,19 @@ object RavenSelectionImporter {
         }
 
         return RavenImportResult(annotationen, gpsMetadata, fehler, andereDatei)
+    }
+
+    /**
+     * Laesst Annotationen weg, die es schon gibt: gleiche Datei, gleiche Zeit und Frequenz (auf 1 ms
+     * bzw. 1 Hz), gleiches Label und gleiche Ortung. Verhindert Doppel beim erneuten Import derselben Tabelle.
+     */
+    fun ohneVorhandene(neu: List<Annotation>, vorhanden: List<Annotation>): List<Annotation> {
+        fun schluessel(a: Annotation) = listOf(
+            a.audioFileId, Math.round(a.startTimeSec * 1000f), Math.round(a.endTimeSec * 1000f),
+            Math.round(a.lowFreqHz), Math.round(a.highFreqHz), a.label, a.ortung
+        )
+        val bekannt = vorhanden.mapTo(HashSet()) { schluessel(it) }
+        return neu.filter { bekannt.add(schluessel(it)) }
     }
 
     /** Akzeptiert "." und "," als Dezimaltrenner. Leere oder ungueltige Werte -> null. */

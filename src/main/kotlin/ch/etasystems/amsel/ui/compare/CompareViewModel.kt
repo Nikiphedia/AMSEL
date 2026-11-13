@@ -1118,8 +1118,12 @@ class CompareViewModel {
                 return@launch
             }
 
-            if (ergebnis.annotationen.isNotEmpty()) {
-                annotationManager.addAnnotations(ergebnis.annotationen)
+            // Schon vorhandene Zeilen (erneuter Import derselben Tabelle) nicht doppelt anlegen
+            val neue = ch.etasystems.amsel.core.export.RavenSelectionImporter
+                .ohneVorhandene(ergebnis.annotationen, annotationManager.state.value.annotations)
+            val schonDa = ergebnis.annotationen.size - neue.size
+            if (neue.isNotEmpty()) {
+                annotationManager.addAnnotations(neue)
                 projectManager.markDirty()
                 autoSaveProject()
             }
@@ -1150,10 +1154,11 @@ class CompareViewModel {
             val gpsHinweis = if (ergebnis.gpsMetadata != null) " (GPS gesetzt)" else ""
             val fehlerHinweis = if (ergebnis.fehler.isNotEmpty()) ", ${ergebnis.fehler.size} Zeile(n) uebersprungen" else ""
             val dateiHinweis = if (ergebnis.andereDatei > 0) ", ${ergebnis.andereDatei} Zeile(n) nicht geladener Dateien ausgelassen" else ""
-            val anzahlDateien = ergebnis.annotationen.map { it.audioFileId }.distinct().size
+            val anzahlDateien = neue.map { it.audioFileId }.distinct().size
+            val doppeltHinweis = if (schonDa > 0) ", $schonDa schon vorhanden" else ""
             val verteilHinweis = if (anzahlDateien > 1) " in $anzahlDateien Dateien" else ""
             _localState.update {
-                it.copy(statusText = "Raven-Import: ${ergebnis.annotationen.size} Annotationen$verteilHinweis$gpsHinweis$fehlerHinweis$dateiHinweis")
+                it.copy(statusText = "Raven-Import: ${neue.size} Annotationen$verteilHinweis$doppeltHinweis$gpsHinweis$fehlerHinweis$dateiHinweis")
             }
         }
     }
