@@ -3,11 +3,13 @@ package ch.etasystems.amsel.core.classifier
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ai.onnxruntime.TensorInfo
 import ch.etasystems.amsel.core.audio.AudioResampler
 import ch.etasystems.amsel.data.SettingsStore
 import ch.etasystems.amsel.data.resolvedModelDir
 import ch.etasystems.amsel.core.audio.SilenceDetector
 import ch.etasystems.amsel.core.AmselDispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -82,6 +84,9 @@ class OnnxBirdNetV3(
     private val labelsFile: File
 
     private var ortSession: OrtSession? = null
+    /** Name des Eingangs und des Prediction-Ausgangs, einmal beim Laden bestimmt. */
+    private var inputName: String = ""
+    private var predictionOutput: String? = null
     private var sessionFailed = false
     private var scientificNames: List<String> = emptyList()
     private var commonNames: List<String> = emptyList()
@@ -110,12 +115,16 @@ class OnnxBirdNetV3(
     ): List<ClassifierResult> {
         if (samples.isEmpty()) return emptyList()
 
+        // Fehler werden nach aussen gegeben (nicht als leere Liste): sonst sieht ein defektes
+        // Modell aus wie "keine Voegel", und der Aufrufer kann nicht auf die Python-Bridge ausweichen.
         if (!isAvailable()) {
-            logger.warn("Modell oder Labels nicht gefunden: model={}, labels={}", modelFile.absolutePath, labelsFile.absolutePath)
-            return emptyList()
+            throw IllegalStateException(
+                "BirdNET-Modell oder Labels nicht gefunden: ${modelFile.absolutePath}, ${labelsFile.absolutePath}"
+            )
         }
 
-        val session = ensureSession() ?: return emptyList()
+        val session = ensureSession()
+            ?: throw IllegalStateException("BirdNET-Modell konnte nicht geladen werden: ${modelFile.absolutePath}")
 
         return try {
             // 1. Resample auf 32 kHz
@@ -175,9 +184,11 @@ class OnnxBirdNetV3(
             // 4. Sortieren (Filterung passiert bereits in classifyChunk)
             val sorted = allResults.sortedByDescending { it.confidence }
             if (topN > 0) sorted.take(topN) else sorted
+        } catch (e: CancellationException) {
+            throw e  // Abbruch durchreichen, nicht als Fehler behandeln
         } catch (e: Exception) {
             logger.error("Klassifikation fehlgeschlagen", e)
-            emptyList()
+            throw e
         }
     }
 
@@ -198,11 +209,17 @@ class OnnxBirdNetV3(
         val tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(chunk), shape)
 
         return try {
-            val inputName = session.inputNames.first()
-            // Output: (embeddings, predictions) oder nur predictions.
             // Das Result haelt nativen Speicher und muss geschlossen werden; die Scores sind eine Java-Kopie.
-            val scores = session.run(mapOf(inputName to tensor)).use { result ->
-                extractPredictions(result, session)
+            // Ist der Prediction-Ausgang bekannt, wird nur er angefordert (keine Kopie der Embeddings).
+            val predName = predictionOutput
+            val scores = if (predName != null) {
+                session.run(mapOf(inputName to tensor), setOf(predName)).use { result ->
+                    flattenOutput(result[0].value) ?: FloatArray(0)
+                }
+            } else {
+                session.run(mapOf(inputName to tensor)).use { result ->
+                    extractPredictions(result, session)
+                }
             }
 
             val endTimeSec = startTimeSec + chunkDurationSec
@@ -317,12 +334,23 @@ class OnnxBirdNetV3(
             val env = OrtEnvironment.getEnvironment()
             val opts = OrtSession.SessionOptions()
             opts.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+            // Ein Thread je run(): die Parallelitaet kommt aus AmselDispatchers.Inference (viele Fenster
+            // gleichzeitig). Gemessen in B3: schneller als wenige run() mit internem Thread-Pool.
+            opts.setIntraOpNumThreads(1)
 
             val session = env.createSession(modelFile.absolutePath, opts)
             ortSession = session
 
             // Labels laden
             loadLabels()
+
+            // Eingang und Prediction-Ausgang einmal bestimmen: der Ausgang, dessen letzte
+            // Dimension zur Label-Anzahl passt. Nicht eindeutig -> null, dann wird je Fenster gesucht.
+            inputName = session.inputNames.first()
+            predictionOutput = session.outputInfo.entries.filter { (_, node) ->
+                val shape = (node.info as? TensorInfo)?.shape
+                shape != null && shape.isNotEmpty() && shape.last() == scientificNames.size.toLong()
+            }.map { it.key }.singleOrNull()
 
             // Modell-Info loggen
             logger.info("BirdNET V3.0 geladen: {}", modelFile.name)

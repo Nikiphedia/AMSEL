@@ -670,6 +670,8 @@ class ClassificationManager(
             } else {
                 throw IllegalStateException("ONNX nicht verfuegbar")
             }
+        } catch (e: CancellationException) {
+            throw e  // Abbruch durchreichen, kein Fallback
         } catch (e: Exception) {
             if (onnxClassifier.isAvailable()) {
                 logger.warn("ONNX-Klassifikation fehlgeschlagen, Fallback auf Python-Bridge: {}", e.message)
@@ -684,8 +686,9 @@ class ClassificationManager(
                     minConf = settings.birdnetMinConf
                 ) ?: emptyList()
             } else {
+                // Nicht als "keine Treffer" enden lassen: der Aufrufer zeigt die Meldung in der Statuszeile.
                 logger.error("Weder ONNX noch Python-Bridge verfuegbar")
-                emptyList()
+                throw IllegalStateException("Weder BirdNET-ONNX-Modell noch Python-Bridge verfuegbar (${e.message})", e)
             }
         }
 
