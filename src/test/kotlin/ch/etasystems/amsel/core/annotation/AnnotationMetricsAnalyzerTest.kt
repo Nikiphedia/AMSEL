@@ -41,18 +41,31 @@ class AnnotationMetricsAnalyzerTest {
     }
 
     @Test
+    fun `Quantil-Auswahl liefert denselben Wert wie Sortieren`() {
+        val rng = java.util.Random(3)
+        repeat(50) {
+            val n = 1 + rng.nextInt(400)
+            // Wenige verschiedene Werte: viele Gleichstaende
+            val werte = FloatArray(n) { if (rng.nextBoolean()) rng.nextInt(5).toFloat() else rng.nextFloat() }
+            val sortiert = werte.sortedArray()
+            val k = rng.nextInt(n)
+            assertTrue(AnnotationMetricsAnalyzer.kleinstes(werte.copyOf(), k) == sortiert[k])
+        }
+    }
+
+    @Test
     fun `viele Annotationen auf einem langen Spektrogramm bleiben schnell`() {
-        // Groessenordnung eines 10-min-Slices in der Zoom-Ansicht
-        val d = daten(nMels = 128, nFrames = 56_000)
+        // Aufloesung der Zoom-Ansicht fuer Vogelaufnahmen: 256 Mel-Baender, Hop 128 bei 48 kHz (375 Frames/s)
+        val d = daten(nMels = 256, nFrames = 40_000, hop = 128)
         val start = System.nanoTime()
         var gerechnet = 0
         for (i in 0 until 200) {
-            val t = i * 3f
+            val t = i * 0.5f
             if (AnnotationMetricsAnalyzer.compute(d, t, t + 3f, 1500f, 8000f).isComputed) gerechnet++
         }
         val ms = (System.nanoTime() - start) / 1_000_000
         println("Metriken fuer 200 Annotationen: $ms ms, $gerechnet gerechnet")
         assertTrue(gerechnet == 200)
-        assertTrue(ms < 3000, "zu langsam: $ms ms")
+        assertTrue(ms < 2500, "zu langsam: $ms ms")
     }
 }

@@ -211,8 +211,9 @@ object AnnotationMetricsAnalyzer {
         val noiseStart1 = (fStart - contextFrames).coerceAtLeast(0)
         val noiseEnd2 = (fEnd + contextFrames).coerceAtMost(data.nFrames)
 
-        // Primitive Arrays statt Listen: pro Annotation fallen leicht ueber 100000 Werte an, und als
-        // Float-Objekte in einer Liste kostete das beim Scan rund 50 ms je Annotation.
+        // Pro Annotation fallen leicht ueber 100000 Werte an (256 Baender, 375 Frames/s). Deshalb:
+        // primitive Arrays statt Float-Objekten, Log-Werte statt Potenzen (das Quantil ist monoton,
+        // eine Potenz am Ende genuegt) und Auswahl des Quantils statt Sortieren.
         val nBins = mBinEnd - mBinStart + 1
         val kontext = (fStart - noiseStart1).coerceAtLeast(0) + (noiseEnd2 - fEnd).coerceAtLeast(0)
         var noiseEnergies = FloatArray(nBins * kontext)
@@ -220,13 +221,13 @@ object AnnotationMetricsAnalyzer {
         // Vorlauf
         for (m in mBinStart..mBinEnd) {
             for (f in noiseStart1 until fStart) {
-                noiseEnergies[n++] = 10f.pow(data.valueAt(m, f))
+                noiseEnergies[n++] = data.valueAt(m, f)
             }
         }
         // Nachlauf
         for (m in mBinStart..mBinEnd) {
             for (f in fEnd until noiseEnd2) {
-                noiseEnergies[n++] = 10f.pow(data.valueAt(m, f))
+                noiseEnergies[n++] = data.valueAt(m, f)
             }
         }
 
@@ -237,7 +238,7 @@ object AnnotationMetricsAnalyzer {
             n = 0
             for (m in mBinStart..mBinEnd) {
                 for (f in 0 until data.nFrames) {
-                    noiseEnergies[n++] = 10f.pow(data.valueAt(m, f))
+                    noiseEnergies[n++] = data.valueAt(m, f)
                 }
             }
         }
@@ -247,11 +248,31 @@ object AnnotationMetricsAnalyzer {
             return 0f
         }
 
-        noiseEnergies.sort()
         val p10Idx = (noiseEnergies.size * 0.1f).toInt().coerceIn(0, noiseEnergies.size - 1)
-        val noiseFloor = noiseEnergies[p10Idx].coerceAtLeast(1e-20f)
+        val noiseFloor = 10f.pow(kleinstes(noiseEnergies, p10Idx)).coerceAtLeast(1e-20f)
         val noiseDb = 10f * log10(noiseFloor)
 
         return (signalDb - noiseDb).coerceAtLeast(0f)
+    }
+
+    /** Der Wert, der nach dem Sortieren an Stelle [k] stuende (Quickselect; ordnet [werte] um). */
+    internal fun kleinstes(werte: FloatArray, k: Int): Float {
+        var links = 0
+        var rechts = werte.size - 1
+        while (links < rechts) {
+            val pivot = werte[(links + rechts) ushr 1]
+            var i = links
+            var j = rechts
+            while (i <= j) {
+                while (werte[i] < pivot) i++
+                while (werte[j] > pivot) j--
+                if (i <= j) {
+                    val t = werte[i]; werte[i] = werte[j]; werte[j] = t
+                    i++; j--
+                }
+            }
+            if (k <= j) rechts = j else if (k >= i) links = i else return werte[k]
+        }
+        return werte[k]
     }
 }
