@@ -36,7 +36,11 @@ import kotlin.math.abs
 data class ClassifyStats(
     val totalChunks: Int,
     val skippedChunks: Int,
-    val classifiedChunks: Int
+    val classifiedChunks: Int,
+    /** Dauer des Umtaktens auf die Modellrate */
+    val resampleMs: Double = 0.0,
+    /** Dauer der Inferenz ueber alle Fenster (Wanduhr) */
+    val inferenzMs: Double = 0.0
 )
 
 class OnnxBirdNetV3(
@@ -171,11 +175,14 @@ class OnnxBirdNetV3(
 
         return try {
             // 1. Resample auf 32 kHz
+            val resampleStart = System.nanoTime()
             val resampled = if (sampleRate != zielRate) {
                 AudioResampler.resample(samples, sampleRate, zielRate, adapter.resamplerUmNyquist)
             } else {
                 samples
             }
+
+            val resampleMs = (System.nanoTime() - resampleStart) / 1_000_000.0
 
             // 2. Chunk-Ranges berechnen (keine Kopien)
             val chunkSamples = (zielRate * chunkDurationSec).toInt()
@@ -201,7 +208,8 @@ class OnnxBirdNetV3(
             lastClassifyStats = ClassifyStats(
                 totalChunks = chunkRanges.size,
                 skippedChunks = skippedChunks,
-                classifiedChunks = chunkRanges.size - skippedChunks
+                classifiedChunks = chunkRanges.size - skippedChunks,
+                resampleMs = resampleMs
             )
 
             if (skippedChunks > 0) {
@@ -211,6 +219,7 @@ class OnnxBirdNetV3(
 
             // 3. Parallel klassifizieren (nur aktive Chunks)
             // Jede Coroutine kopiert ihren Chunk lokal — vermeidet shared-buffer Konflikte
+            val inferenzStart = System.nanoTime()
             val allResults = coroutineScope {
                 activeRanges.map { (index, range) ->
                     async(AmselDispatchers.Inference) {
@@ -224,6 +233,8 @@ class OnnxBirdNetV3(
                     }
                 }.awaitAll().flatten()
             }
+
+            lastClassifyStats = lastClassifyStats?.copy(inferenzMs = (System.nanoTime() - inferenzStart) / 1_000_000.0)
 
             // 4. Sortieren (Filterung passiert bereits in classifyChunk)
             val sorted = allResults.sortedByDescending { it.confidence }

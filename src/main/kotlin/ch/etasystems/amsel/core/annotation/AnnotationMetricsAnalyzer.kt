@@ -211,27 +211,33 @@ object AnnotationMetricsAnalyzer {
         val noiseStart1 = (fStart - contextFrames).coerceAtLeast(0)
         val noiseEnd2 = (fEnd + contextFrames).coerceAtMost(data.nFrames)
 
-        val noiseEnergies = mutableListOf<Float>()
+        // Primitive Arrays statt Listen: pro Annotation fallen leicht ueber 100000 Werte an, und als
+        // Float-Objekte in einer Liste kostete das beim Scan rund 50 ms je Annotation.
+        val nBins = mBinEnd - mBinStart + 1
+        val kontext = (fStart - noiseStart1).coerceAtLeast(0) + (noiseEnd2 - fEnd).coerceAtLeast(0)
+        var noiseEnergies = FloatArray(nBins * kontext)
+        var n = 0
         // Vorlauf
         for (m in mBinStart..mBinEnd) {
             for (f in noiseStart1 until fStart) {
-                noiseEnergies.add(10f.pow(data.valueAt(m, f)))
+                noiseEnergies[n++] = 10f.pow(data.valueAt(m, f))
             }
         }
         // Nachlauf
         for (m in mBinStart..mBinEnd) {
             for (f in fEnd until noiseEnd2) {
-                noiseEnergies.add(10f.pow(data.valueAt(m, f)))
+                noiseEnergies[n++] = 10f.pow(data.valueAt(m, f))
             }
         }
 
         // Fallback: alle Frames im Mel-Band wenn weniger als 10 Noise-Samples
         if (noiseEnergies.size < 10) {
             logger.debug("AnnotationMetricsAnalyzer: zu wenig Kontext ({} Samples), nutze alle Frames fuer Noise-Floor", noiseEnergies.size)
-            noiseEnergies.clear()
+            noiseEnergies = FloatArray(nBins * data.nFrames)
+            n = 0
             for (m in mBinStart..mBinEnd) {
                 for (f in 0 until data.nFrames) {
-                    noiseEnergies.add(10f.pow(data.valueAt(m, f)))
+                    noiseEnergies[n++] = 10f.pow(data.valueAt(m, f))
                 }
             }
         }

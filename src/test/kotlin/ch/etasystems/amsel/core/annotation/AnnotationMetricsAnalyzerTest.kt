@@ -1,0 +1,58 @@
+package ch.etasystems.amsel.core.annotation
+
+import ch.etasystems.amsel.core.spectrogram.SpectrogramData
+import kotlin.math.abs
+import kotlin.math.log10
+import kotlin.math.pow
+import kotlin.test.Test
+import kotlin.test.assertTrue
+
+/** Messwerte einer Annotation: SNR gegen eine unabhaengige Rechnung, und die Laufzeit fuer viele Annotationen. */
+class AnnotationMetricsAnalyzerTest {
+
+    /** Rauschen mit bekanntem Pegel, darin ein lauteres Band von 2 bis 3 s. */
+    private fun daten(nMels: Int, nFrames: Int, hop: Int = 512, rate: Int = 48_000): SpectrogramData {
+        val rng = java.util.Random(7)
+        val m = FloatArray(nMels * nFrames) { -6f + rng.nextFloat() }  // log10-Energie -6..-5
+        val f0 = 2 * rate / hop
+        val f1 = 3 * rate / hop
+        for (mel in nMels / 2 until nMels / 2 + 4) for (f in f0 until f1.coerceAtMost(nFrames)) m[mel * nFrames + f] = -2f
+        return SpectrogramData(m, nMels, nFrames, rate, hop, 0f, 16_000f)
+    }
+
+    @Test
+    fun `SNR entspricht Spitze gegen das 10-Prozent-Quantil des Umfelds`() {
+        val d = daten(nMels = 64, nFrames = 1000)
+        val metriken = AnnotationMetricsAnalyzer.compute(d, 2f, 3f, 0f, 16_000f)
+        assertTrue(metriken.isComputed)
+        // Unabhaengig gerechnet: Umfeld = je 2 s vor und nach dem Fenster, alle Baender
+        val f0 = (2f * d.sampleRate / d.hopSize).toInt()
+        val f1 = (3f * d.sampleRate / d.hopSize).toInt()
+        val k = (2f * d.sampleRate / d.hopSize).toInt()
+        val umfeld = ArrayList<Float>()
+        for (mel in 0 until d.nMels) {
+            for (f in (f0 - k).coerceAtLeast(0) until f0) umfeld.add(10f.pow(d.valueAt(mel, f)))
+            for (f in f1 until (f1 + k).coerceAtMost(d.nFrames)) umfeld.add(10f.pow(d.valueAt(mel, f)))
+        }
+        umfeld.sort()
+        val boden = umfeld[(umfeld.size * 0.1f).toInt()]
+        val erwartet = 10f * log10(10f.pow(-2f)) - 10f * log10(boden)
+        assertTrue(abs(metriken.snrDb - erwartet) < 0.01f, "SNR ${metriken.snrDb}, erwartet $erwartet")
+    }
+
+    @Test
+    fun `viele Annotationen auf einem langen Spektrogramm bleiben schnell`() {
+        // Groessenordnung eines 10-min-Slices in der Zoom-Ansicht
+        val d = daten(nMels = 128, nFrames = 56_000)
+        val start = System.nanoTime()
+        var gerechnet = 0
+        for (i in 0 until 200) {
+            val t = i * 3f
+            if (AnnotationMetricsAnalyzer.compute(d, t, t + 3f, 1500f, 8000f).isComputed) gerechnet++
+        }
+        val ms = (System.nanoTime() - start) / 1_000_000
+        println("Metriken fuer 200 Annotationen: $ms ms, $gerechnet gerechnet")
+        assertTrue(gerechnet == 200)
+        assertTrue(ms < 3000, "zu langsam: $ms ms")
+    }
+}

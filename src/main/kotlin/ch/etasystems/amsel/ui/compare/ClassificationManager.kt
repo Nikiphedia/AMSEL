@@ -428,6 +428,12 @@ class ClassificationManager(
         logger.debug("[FullScan] Start: file={}, slices={}, duration={}s", audioFile?.name, sm?.sliceCount, totalDurationSec)
 
         backgroundScanJob = scope.launch {
+            val scanStartNano = System.nanoTime()
+            PerformanceLog.eintrag(
+                "Scan beginnt: ${audioFile?.name}, ${PerformanceLog.f1(totalDurationSec.toDouble())} s, " +
+                    "Slices ${sm?.sliceCount ?: 1}, Bereich ${if (scanStart != null) "$scanStart-$scanEnd s" else "ganze Datei"}, " +
+                    "Modell ${onnxClassifier.name}"
+            )
             onProcessingChanged(true)
             onStatusUpdate("BirdNET analysiert...", null)
 
@@ -471,13 +477,16 @@ class ClassificationManager(
 
                     // Phase 1: Sofort Ergebnisse anzeigen + UI freigeben
                     if (priorityResults.isNotEmpty()) {
+                        val t0 = System.nanoTime()
                         val tempAnnotations = createAnnotationsFromResultsQuick(priorityResults, allResults)
+                        val anlegenMs = PerformanceLog.msSeit(t0)
                         annotationManager.mergeAnnotations(
                             keep = { ann -> !ann.isBirdNetDetection },
                             newAnnotations = tempAnnotations,
                             activeId = tempAnnotations.firstOrNull()?.id,
                             spectrogramData = audioData.zoomedSpectrogramData()
                         )
+                        val uebernehmenMs = PerformanceLog.msSeit(t0) - anlegenMs
                         // Zoom auf erste Detektion
                         val first = tempAnnotations.first()
                         val margin = (first.endTimeSec - first.startTimeSec) * 0.5f
@@ -485,10 +494,18 @@ class ClassificationManager(
                             (first.startTimeSec - margin).coerceAtLeast(0f),
                             (first.endTimeSec + margin).coerceAtMost(totalDurationSec)
                         )
+                        PerformanceLog.eintrag(
+                            "  sichtbarer Slice: ${tempAnnotations.size} Annotationen anlegen ${PerformanceLog.f1(anlegenMs)} ms, " +
+                                "uebernehmen mit Messwerten ${PerformanceLog.f1(uebernehmenMs)} ms, " +
+                                "Zoom ausloesen ${PerformanceLog.f1(PerformanceLog.msSeit(t0) - anlegenMs - uebernehmenMs)} ms"
+                        )
                     }
+                    val t1 = System.nanoTime()
                     onProcessingChanged(false)  // UI FREIGEBEN nach Phase 1
+                    PerformanceLog.eintrag("  Oberflaeche freigeben ${PerformanceLog.f1(PerformanceLog.msSeit(t1))} ms")
                     _isBackgroundScanning.value = true
                     logger.debug("[FullScan] Phase 1 fertig: {} Detektionen, UI freigegeben", priorityResults.size)
+                    PerformanceLog.eintrag("Scan: sichtbarer Slice fertig und angezeigt nach ${PerformanceLog.f1(PerformanceLog.msSeit(scanStartNano))} ms")
 
                     // Phase 2: Restliche Slices im Hintergrund
                     val remainingSlices = sm.slices.filterIndexed { idx, _ -> idx != priorityIndex }
@@ -548,6 +565,8 @@ class ClassificationManager(
                 }
 
                 logger.debug("[FullScan] Gesamt: {} Detektionen", allResults.size)
+                val gerechnetMs = PerformanceLog.msSeit(scanStartNano)
+                PerformanceLog.eintrag("Scan: alle Abschnitte gerechnet nach ${PerformanceLog.f1(gerechnetMs)} ms, ${allResults.size} Treffer")
 
                 if (allResults.isEmpty()) {
                     onProcessingChanged(false)
@@ -605,6 +624,12 @@ class ClassificationManager(
                     ""
                 )
 
+                PerformanceLog.eintrag(
+                    "Scan fertig nach ${PerformanceLog.f1(PerformanceLog.msSeit(scanStartNano))} ms " +
+                        "(Nachbearbeitung ${PerformanceLog.f1(PerformanceLog.msSeit(scanStartNano) - gerechnetMs)} ms), " +
+                        "${newAnnotations.size} Annotationen"
+                )
+
                 // Zoom auf erste Detektion + Referenz-Suche ausloesen
                 if (newAnnotations.isNotEmpty()) {
                     val first = newAnnotations.first()
@@ -657,6 +682,7 @@ class ClassificationManager(
             full.subRangeSec(startSec, endSec)
         }
 
+        val lesenMs = PerformanceLog.msSeit(startNano)
         val sr = audioSeg.sampleRate
         // Nur klonen wenn in-place Modifikation noetig
         val needsVolumeEnvelope = audioData.volumeEnvelopeActive() && audioData.volumeEnvelope().isNotEmpty()
@@ -681,6 +707,9 @@ class ClassificationManager(
             val seg = AudioSegment(samples, sr)
             samples = ch.etasystems.amsel.core.audio.FilteredAudio.apply(seg, filterConfig, audioData.maxFreqHz())
         }
+
+        val vorbereitenMs = PerformanceLog.msSeit(startNano) - lesenMs
+        val klassStart = System.nanoTime()
 
         // ONNX-first: BirdNET V3.0 direkt, Python-Bridge als Fallback
         val rawResults = try {
@@ -729,6 +758,12 @@ class ClassificationManager(
             totalChunks = stats?.totalChunks ?: -1,
             skippedChunks = stats?.skippedChunks ?: -1,
             classifiedChunks = stats?.classifiedChunks ?: -1
+        )
+        PerformanceLog.eintrag(
+            "  davon: Audio lesen ${PerformanceLog.f1(lesenMs)} ms, Lautstaerke/Filter ${PerformanceLog.f1(vorbereitenMs)} ms, " +
+                "Klassifikation ${PerformanceLog.f1(PerformanceLog.msSeit(klassStart))} ms " +
+                "(Umtakten ${PerformanceLog.f1(stats?.resampleMs ?: 0.0)} ms, Inferenz ${PerformanceLog.f1(stats?.inferenzMs ?: 0.0)} ms), " +
+                "${rawResults.size} Treffer, Filter ${if (useFiltered) "an" else "aus"}"
         )
 
         // Zeitstempel auf absolute Position verschieben
