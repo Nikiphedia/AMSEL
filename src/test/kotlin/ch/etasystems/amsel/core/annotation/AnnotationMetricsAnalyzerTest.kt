@@ -41,6 +41,34 @@ class AnnotationMetricsAnalyzerTest {
     }
 
     @Test
+    fun `Ausschnitt mit Anfang rechnet an der richtigen Stelle`() {
+        // Derselbe Inhalt, einmal ab Aufnahmebeginn, einmal als Ausschnitt ab Sekunde 100
+        val d = daten(nMels = 64, nFrames = 1000)
+        val ausschnitt = d.copy(startSec = 100f)
+        val erwartet = AnnotationMetricsAnalyzer.compute(d, 2f, 3f, 0f, 16_000f)
+        val metriken = AnnotationMetricsAnalyzer.compute(ausschnitt, 102f, 103f, 0f, 16_000f)
+        assertTrue(metriken.isComputed)
+        assertTrue(metriken == erwartet, "Ausschnitt $metriken, ab Beginn $erwartet")
+        // Ohne den Anfang fiele dieselbe Annotation auf das Rauschen bei Sekunde 2 des Ausschnitts
+        val lautesBand = AnnotationMetricsAnalyzer.compute(d, 2f, 3f, 0f, 16_000f).peakFreqHz
+        assertTrue(abs(metriken.peakFreqHz - lautesBand) < 1f)
+        // Annotation vor oder nach dem Ausschnitt: keine Messwerte statt falscher
+        assertTrue(!AnnotationMetricsAnalyzer.compute(ausschnitt, 2f, 3f, 0f, 16_000f).isComputed)
+        assertTrue(!AnnotationMetricsAnalyzer.compute(ausschnitt, 500f, 501f, 0f, 16_000f).isComputed)
+    }
+
+    @Test
+    fun `Filter behalten den Anfang des Ausschnitts`() {
+        val ausschnitt = daten(nMels = 16, nFrames = 200).copy(startSec = 42f)
+        val gefiltert = kotlinx.coroutines.runBlocking {
+            ch.etasystems.amsel.core.filter.FilterPipeline.apply(
+                ausschnitt, ch.etasystems.amsel.core.filter.FilterConfig(medianFilter = true)
+            )
+        }
+        assertTrue(gefiltert.startSec == 42f)
+    }
+
+    @Test
     fun `Quantil-Auswahl liefert denselben Wert wie Sortieren`() {
         val rng = java.util.Random(3)
         repeat(50) {

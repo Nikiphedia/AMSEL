@@ -15,7 +15,11 @@ data class SpectrogramData(
     /** 0-dBFS-Referenzwert in log10-Einheiten (berechnet aus FFT-Groesse).
      *  Wird als festes Maximum fuer die Colormap verwendet, damit leise
      *  Aufnahmen optisch leiser erscheinen. 0 = nicht gesetzt (Legacy). */
-    val ref0dBFS: Float = 0f
+    val ref0dBFS: Float = 0f,
+    /** Zeitpunkt des ersten Frames in der Aufnahme (Sekunden). 0 fuer Daten ab Aufnahmebeginn;
+     *  ein Ausschnitt (Zoom-Ansicht) traegt hier seinen Anfang, damit absolute Zeiten
+     *  auf die richtigen Frames fallen. */
+    val startSec: Float = 0f
 ) {
     fun valueAt(mel: Int, frame: Int): Float = matrix[mel * nFrames + frame]
 

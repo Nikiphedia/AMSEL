@@ -356,7 +356,7 @@ class SpectrogramManager(
         startSec: Float, endSec: Float
     ): SpectrogramData {
         val settings = ch.etasystems.amsel.data.SettingsStore.load()
-        return if (segment != null) {
+        val daten = if (segment != null) {
             ChunkedSpectrogram.computeRegion(
                 segment, startSec, endSec, maxFreqHz,
                 settings.specWindowType, settings.specFftSize, settings.specHopFraction
@@ -374,6 +374,8 @@ class SpectrogramManager(
                 settings.specWindowType, settings.specFftSize, settings.specHopFraction
             )
         }
+        // Der Ausschnitt kennt seinen Anfang: Messwerte je Annotation rechnen mit absoluten Zeiten
+        return daten.copy(startSec = startSec)
     }
 
     fun zoomIn() {

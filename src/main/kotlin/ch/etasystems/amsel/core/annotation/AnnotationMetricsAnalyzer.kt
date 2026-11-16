@@ -38,9 +38,11 @@ object AnnotationMetricsAnalyzer {
         if (endSec <= startSec) return AnnotationMetrics()
         if (data.nFrames == 0) return AnnotationMetrics()
 
-        // 1. Frame-Range bestimmen
-        val fStart = (startSec * data.sampleRate / data.hopSize).toInt().coerceAtLeast(0)
-        val fEnd = (endSec * data.sampleRate / data.hopSize).toInt().coerceAtMost(data.nFrames)
+        // 1. Frame-Range bestimmen. Die Zeiten der Annotation sind absolut, die Daten koennen ein
+        //    Ausschnitt sein (Zoom-Ansicht): dessen Anfang abziehen. Liegt die Annotation ganz
+        //    ausserhalb des Ausschnitts, gibt es keine Messwerte.
+        val fStart = ((startSec - data.startSec) * data.sampleRate / data.hopSize).toInt().coerceAtLeast(0)
+        val fEnd = ((endSec - data.startSec) * data.sampleRate / data.hopSize).toInt().coerceAtMost(data.nFrames)
         if (fEnd <= fStart) return AnnotationMetrics()
         val nFramesInRange = fEnd - fStart
 
