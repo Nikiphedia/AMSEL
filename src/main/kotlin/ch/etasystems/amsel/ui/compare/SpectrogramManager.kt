@@ -350,8 +350,8 @@ class SpectrogramManager(
         }
     }
 
-    /** Berechnet Spektrogramm fuer eine Region aus verfuegbarer Audio-Quelle */
-    private suspend fun computeRegion(
+    /** Berechnet Spektrogramm fuer eine Region aus verfuegbarer Audio-Quelle (ungefiltert) */
+    internal suspend fun computeRegion(
         segment: AudioSegment?, cache: PcmCacheFile?, file: File?,
         startSec: Float, endSec: Float
     ): SpectrogramData {

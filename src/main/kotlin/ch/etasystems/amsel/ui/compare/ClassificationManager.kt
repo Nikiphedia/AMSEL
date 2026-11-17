@@ -47,6 +47,8 @@ data class ClassificationAudioProvider(
     val viewStartSec: () -> Float,
     val viewEndSec: () -> Float,
     val zoomedSpectrogramData: () -> SpectrogramData?,
+    /** Ungefilterte Zoom-Daten fuer die Messwerte je Annotation (unabhaengig vom Filter). */
+    val messwertDaten: () -> SpectrogramData? = zoomedSpectrogramData,
     val annotations: () -> List<Annotation>,
     val activeAnnotation: () -> Annotation?,
     val activeAnnotationId: () -> String?,
@@ -484,7 +486,7 @@ class ClassificationManager(
                             keep = { ann -> !ann.isBirdNetDetection },
                             newAnnotations = tempAnnotations,
                             activeId = tempAnnotations.firstOrNull()?.id,
-                            spectrogramData = audioData.zoomedSpectrogramData()
+                            spectrogramData = audioData.messwertDaten()
                         )
                         val uebernehmenMs = PerformanceLog.msSeit(t0) - anlegenMs
                         // Zoom auf erste Detektion
@@ -538,7 +540,7 @@ class ClassificationManager(
                                 keep = { ann -> !ann.isBirdNetDetection },
                                 newAnnotations = progressiveAnnotations,
                                 activeId = null,  // Aktive Annotation nicht aendern
-                                spectrogramData = audioData.zoomedSpectrogramData()
+                                spectrogramData = audioData.messwertDaten()
                             )
                         }
                     }
@@ -613,7 +615,7 @@ class ClassificationManager(
                     },
                     newAnnotations = newAnnotations,
                     activeId = newAnnotations.firstOrNull()?.id,
-                    spectrogramData = audioData.zoomedSpectrogramData()
+                    spectrogramData = audioData.messwertDaten()
                 )
                 onProcessingChanged(false)
                 onStatusUpdate(

@@ -68,6 +68,50 @@ class AnnotationMetricsAnalyzerTest {
         assertTrue(gefiltert.startSec == 42f)
     }
 
+    private fun ann(start: Float, ende: Float) =
+        Annotation(startTimeSec = start, endTimeSec = ende, lowFreqHz = 1000f, highFreqHz = 8000f)
+
+    @Test
+    fun `Bloecke enthalten jede Annotation samt Umfeld und bleiben kurz`() {
+        val liste = listOf(ann(100f, 103f), ann(1f, 4f), ann(30f, 33f), ann(58f, 61f), ann(598f, 600f), ann(700f, 705f))
+        val bloecke = AnnotationMetricsAnalyzer.bloecke(liste, dauerSec = 600f, maxSec = 60f)
+        // Die Annotation hinter dem Dateiende faellt weg, alle anderen kommen genau einmal vor
+        assertTrue(bloecke.sumOf { it.annotationen.size } == 5)
+        for (b in bloecke) {
+            assertTrue(b.startSec >= 0f && b.endSec <= 600f)
+            assertTrue(b.endSec - b.startSec <= 60f, "Block zu lang: $b")
+            for (a in b.annotationen) {
+                assertTrue(b.startSec <= (a.startTimeSec - 2f).coerceAtLeast(0f))
+                assertTrue(b.endSec >= (a.endTimeSec + 2f).coerceAtMost(600f))
+            }
+        }
+        // 1-4 s und 30-33 s teilen sich einen Block, 58-61 s passt nicht mehr dazu
+        assertTrue(bloecke.first().annotationen.size == 2)
+        // Eine einzelne lange Annotation bekommt einen eigenen, laengeren Block
+        val lang = AnnotationMetricsAnalyzer.bloecke(listOf(ann(10f, 200f)), 600f, 60f)
+        assertTrue(lang.size == 1 && lang[0].startSec == 8f && lang[0].endSec == 202f)
+    }
+
+    @Test
+    fun `Messwerte aus einem Block entsprechen denen aus der ganzen Aufnahme`() {
+        // 20 s Rauschen, darin 7 bis 9 s ein Ton bei 4 kHz
+        val rate = 48_000
+        val rng = java.util.Random(11)
+        val audio = FloatArray(20 * rate) { 0.01f * (rng.nextFloat() - 0.5f) }
+        for (i in 7 * rate until 9 * rate) audio[i] += 0.3f * kotlin.math.sin(2.0 * Math.PI * 4000.0 * i / rate).toFloat()
+        val spec = ch.etasystems.amsel.core.spectrogram.MelSpectrogram.auto(rate)
+        val (ganz, block) = kotlinx.coroutines.runBlocking {
+            spec.compute(audio) to spec.compute(audio.copyOfRange(5 * rate, 12 * rate)).copy(startSec = 5f)
+        }
+        val a = AnnotationMetricsAnalyzer.compute(ganz, 7f, 9f, 1000f, 8000f)
+        val b = AnnotationMetricsAnalyzer.compute(block, 7f, 9f, 1000f, 8000f)
+        assertTrue(a.isComputed && b.isComputed)
+        assertTrue(abs(a.peakFreqHz - 4000f) < 150f, "Peak ${a.peakFreqHz}")
+        assertTrue(abs(a.peakFreqHz - b.peakFreqHz) < 1f, "Peak ${a.peakFreqHz} / ${b.peakFreqHz}")
+        assertTrue(abs(a.bandwidth3dbHz - b.bandwidth3dbHz) < 5f)
+        assertTrue(abs(a.snrDb - b.snrDb) < 0.2f, "SNR ${a.snrDb} / ${b.snrDb}")
+    }
+
     @Test
     fun `Quantil-Auswahl liefert denselben Wert wie Sortieren`() {
         val rng = java.util.Random(3)

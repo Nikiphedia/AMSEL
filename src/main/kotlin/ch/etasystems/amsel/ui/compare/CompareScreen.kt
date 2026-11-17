@@ -707,6 +707,7 @@ fun CompareScreen(
                         onClearSelection = viewModel::clearMultiSelection,
                         onDeleteSelected = viewModel::deleteSelectedAnnotations,
                         onExportReport = viewModel::exportReport,
+                        onMesswerteNeu = viewModel::messwerteNeuBerechnen,
                         onShiftClick = viewModel::selectRange,
                         isSoloMode = uiState.isSoloMode,
                         viewStartSec = uiState.viewStartSec,

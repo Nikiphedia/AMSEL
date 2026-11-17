@@ -17,6 +17,43 @@ object AnnotationMetricsAnalyzer {
 
     private val logger = LoggerFactory.getLogger(AnnotationMetricsAnalyzer::class.java)
 
+    /** Umfeld vor und nach der Annotation, aus dem der Rauschboden bestimmt wird (Sekunden). */
+    const val KONTEXT_SEC = 2f
+
+    /** Zeitbereich, dessen Spektrogramm fuer mehrere Annotationen gemeinsam gerechnet wird. */
+    data class MesswertBlock(val startSec: Float, val endSec: Float, val annotationen: List<Annotation>)
+
+    /**
+     * Fasst Annotationen einer Datei zu Zeitbereichen zusammen, damit beim Neuberechnen nicht
+     * je Annotation ein eigenes Spektrogramm entsteht. Jeder Bereich enthaelt das Umfeld
+     * ([KONTEXT_SEC]) seiner Annotationen und ist hoechstens [maxSec] lang, ausser eine
+     * einzelne Annotation ist laenger. Annotationen ausserhalb der Datei fallen weg.
+     */
+    fun bloecke(annotationen: List<Annotation>, dauerSec: Float, maxSec: Float = 60f): List<MesswertBlock> {
+        val ergebnis = ArrayList<MesswertBlock>()
+        var start = 0f
+        var ende = 0f
+        var inhalt = ArrayList<Annotation>()
+        for (a in annotationen.sortedBy { it.startTimeSec }) {
+            val s = (a.startTimeSec - KONTEXT_SEC).coerceAtLeast(0f)
+            val e = (a.endTimeSec + KONTEXT_SEC).let { if (dauerSec > 0f) it.coerceAtMost(dauerSec) else it }
+            if (e <= s) continue
+            if (inhalt.isNotEmpty() && maxOf(ende, e) - start > maxSec) {
+                ergebnis.add(MesswertBlock(start, ende, inhalt))
+                inhalt = ArrayList()
+            }
+            if (inhalt.isEmpty()) {
+                start = s
+                ende = e
+            } else {
+                ende = maxOf(ende, e)
+            }
+            inhalt.add(a)
+        }
+        if (inhalt.isNotEmpty()) ergebnis.add(MesswertBlock(start, ende, inhalt))
+        return ergebnis
+    }
+
     /**
      * Berechnet akustische Messwerte fuer einen Zeitbereich im Spektrogramm.
      * Gibt AnnotationMetrics() (alles 0) zurueck wenn keine Berechnung moeglich.
@@ -209,7 +246,7 @@ object AnnotationMetricsAnalyzer {
         val signalDb = 10f * log10(peakEnergy.coerceAtLeast(1e-20f))
 
         // Kontext: ±2s ausserhalb des Zeit-Fensters
-        val contextFrames = (2f * data.sampleRate / data.hopSize).toInt().coerceAtLeast(1)
+        val contextFrames = (KONTEXT_SEC * data.sampleRate / data.hopSize).toInt().coerceAtLeast(1)
         val noiseStart1 = (fStart - contextFrames).coerceAtLeast(0)
         val noiseEnd2 = (fEnd + contextFrames).coerceAtMost(data.nFrames)
 

@@ -20,7 +20,9 @@ data class AnnotationViewportProvider(
     val viewStartSec: () -> Float,
     val viewEndSec: () -> Float,
     val totalDurationSec: () -> Float,
+    /** Ungefilterte Zoom-Daten: Messwerte duerfen nicht von der Filtereinstellung abhaengen. */
     val zoomedSpectrogramData: () -> SpectrogramData?,
+    /** Ungefilterte Uebersicht, aus demselben Grund. */
     val overviewSpectrogramData: () -> SpectrogramData?
 )
 
@@ -239,6 +241,7 @@ class AnnotationManager(
         highFreqHz: Float? = null
     ) {
         val totalDuration = viewport.totalDurationSec()
+        val data = viewport.zoomedSpectrogramData()
         _state.update { state ->
             state.copy(
                 annotations = state.annotations.map { ann ->
@@ -248,11 +251,23 @@ class AnnotationManager(
                     val newLow = lowFreqHz ?: ann.lowFreqHz
                     val newHigh = highFreqHz ?: ann.highFreqHz
                     // Sicherstellung: start < end, low < high
-                    ann.copy(
+                    val geaendert = ann.copy(
                         startTimeSec = minOf(newStart, newEnd - 0.01f).coerceAtLeast(0f),
                         endTimeSec = maxOf(newEnd, newStart + 0.01f).coerceAtMost(totalDuration),
                         lowFreqHz = minOf(newLow, newHigh - 1f).coerceAtLeast(0f),
                         highFreqHz = maxOf(newHigh, newLow + 1f)
+                    )
+                    // Neue Grenzen, neue Messwerte: die alten gehoeren zum alten Bereich.
+                    // Ohne Daten (oder ausserhalb der Ansicht) bleiben sie leer statt falsch.
+                    geaendert.copy(
+                        metrics = if (data != null) {
+                            AnnotationMetricsAnalyzer.compute(
+                                data, geaendert.startTimeSec, geaendert.endTimeSec,
+                                geaendert.lowFreqHz, geaendert.highFreqHz
+                            )
+                        } else {
+                            ch.etasystems.amsel.core.annotation.AnnotationMetrics()
+                        }
                     )
                 }
             )
@@ -441,6 +456,18 @@ class AnnotationManager(
                 annotations = existing + annotationenMitMetriken,
                 activeAnnotationId = activeId ?: it.activeAnnotationId
             )
+        }
+        onStateChanged()
+        onDirtyChanged()
+    }
+
+    /** Ersetzt die Messwerte der genannten Annotationen (Neuberechnen); die uebrigen bleiben. */
+    fun setzeMesswerte(messwerte: Map<String, ch.etasystems.amsel.core.annotation.AnnotationMetrics>) {
+        if (messwerte.isEmpty()) return
+        _state.update { state ->
+            state.copy(annotations = state.annotations.map { ann ->
+                messwerte[ann.id]?.let { ann.copy(metrics = it) } ?: ann
+            })
         }
         onStateChanged()
         onDirtyChanged()

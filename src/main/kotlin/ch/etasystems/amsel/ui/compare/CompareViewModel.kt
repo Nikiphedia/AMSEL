@@ -270,8 +270,8 @@ class CompareViewModel {
             viewStartSec = { _uiState.value.viewStartSec },
             viewEndSec = { _uiState.value.viewEndSec },
             totalDurationSec = { _uiState.value.totalDurationSec },
-            zoomedSpectrogramData = { _uiState.value.zoomedSpectrogramData },
-            overviewSpectrogramData = { _uiState.value.overviewSpectrogramData }
+            zoomedSpectrogramData = { _uiState.value.originalZoomedData ?: _uiState.value.zoomedSpectrogramData },
+            overviewSpectrogramData = { _uiState.value.originalOverviewData ?: _uiState.value.overviewSpectrogramData }
         ),
         onDirtyChanged = { projectManager.markDirty() },
         onZoomToRange = { start, end -> spectrogramManager.zoomToRange(start, end) },
@@ -293,6 +293,7 @@ class CompareViewModel {
             viewStartSec = { _uiState.value.viewStartSec },
             viewEndSec = { _uiState.value.viewEndSec },
             zoomedSpectrogramData = { _uiState.value.zoomedSpectrogramData },
+            messwertDaten = { _uiState.value.originalZoomedData ?: _uiState.value.zoomedSpectrogramData },
             annotations = { _uiState.value.annotations },
             activeAnnotation = { _uiState.value.activeAnnotation },
             activeAnnotationId = { _uiState.value.activeAnnotationId },
@@ -1394,6 +1395,67 @@ class CompareViewModel {
     fun clearMultiSelection() = annotationManager.clearMultiSelection()
     fun selectRange(toAnnotationId: String) = annotationManager.selectRange(toAnnotationId)
     fun deleteSelectedAnnotations() = annotationManager.deleteSelected()
+
+    /**
+     * Rechnet die Messwerte (Peak, Center, -3-dB-Grenzen, SNR) aller Annotationen neu,
+     * aus dem ungefilterten Spektrogramm der jeweiligen Datei. Noetig fuer Projekte, deren
+     * Werte mit falschem Zeitbezug oder aus gefiltertem Bild entstanden sind.
+     * Annotationen, deren Datei nicht geladen ist, behalten ihre Werte.
+     */
+    fun messwerteNeuBerechnen() {
+        val alle = _uiState.value.annotations
+        if (alle.isEmpty()) return
+        val audio = audioManager.state.value
+        scope.launch {
+            val startNano = System.nanoTime()
+            _localState.update { it.copy(isProcessing = true, sidebarStatus = "Berechne Messwerte...") }
+            try {
+                val neu = HashMap<String, ch.etasystems.amsel.core.annotation.AnnotationMetrics>()
+                var bearbeitet = 0
+                val jeDatei = alle.groupBy { it.audioFileId.ifEmpty { audio.activeFileId ?: "" } }
+                for ((fileId, gruppe) in jeDatei) {
+                    val datei = audio.loadedFiles[fileId]
+                    // Ohne Audio (Datei nicht geladen, Sonogramm-Bild) gibt es nichts zu rechnen
+                    if (datei == null || datei.durationSec <= 0f) continue
+                    val bloecke = ch.etasystems.amsel.core.annotation.AnnotationMetricsAnalyzer
+                        .bloecke(gruppe, datei.durationSec)
+                    for (block in bloecke) {
+                        val daten = spectrogramManager.computeRegion(
+                            datei.audioSegment, datei.pcmCache, datei.audioFile, block.startSec, block.endSec
+                        )
+                        for (a in block.annotationen) {
+                            val m = ch.etasystems.amsel.core.annotation.AnnotationMetricsAnalyzer.compute(
+                                daten, a.startTimeSec, a.endTimeSec, a.lowFreqHz, a.highFreqHz
+                            )
+                            if (m.isComputed) neu[a.id] = m
+                        }
+                        bearbeitet += block.annotationen.size
+                        _localState.update { it.copy(sidebarStatus = "Berechne Messwerte... $bearbeitet/${alle.size}") }
+                    }
+                }
+                annotationManager.setzeMesswerte(neu)
+                ch.etasystems.amsel.core.audio.PerformanceLog.eintrag(
+                    "Messwerte neu berechnet: ${neu.size} von ${alle.size} Annotationen in " +
+                        "${ch.etasystems.amsel.core.audio.PerformanceLog.f1(ch.etasystems.amsel.core.audio.PerformanceLog.msSeit(startNano))} ms"
+                )
+                val rest = alle.size - neu.size
+                _localState.update {
+                    it.copy(
+                        isProcessing = false, sidebarStatus = "",
+                        statusText = "Messwerte neu berechnet: ${neu.size} von ${alle.size}" +
+                            if (rest > 0) " ($rest unveraendert: Datei nicht geladen oder nicht messbar)" else ""
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn("Messwerte neu berechnen fehlgeschlagen", e)
+                _localState.update {
+                    it.copy(isProcessing = false, sidebarStatus = "", statusText = "Messwerte: Fehler: ${e.message}")
+                }
+            }
+        }
+    }
     fun getSelectedAnnotations(): List<Annotation> = annotationManager.getSelectedAnnotations()
 
     // ====================================================================
@@ -1880,7 +1942,8 @@ class CompareViewModel {
     /** Neue Annotation an der angegebenen Zeitposition erstellen (±1s Breite) */
     fun createAnnotationAt(timeSec: Float) {
         val s = _uiState.value
-        val data = s.zoomedSpectrogramData ?: return
+        // Ungefiltert: Messwerte duerfen nicht von der Filtereinstellung abhaengen
+        val data = s.originalZoomedData ?: s.zoomedSpectrogramData ?: return
         val startSec = (timeSec - 1f).coerceAtLeast(0f)
         val endSec = (timeSec + 1f).coerceAtMost(s.totalDurationSec)
         annotationManager.createAnnotationAtRange(startSec, endSec, data.fMin, data.fMax, spectrogramData = data)

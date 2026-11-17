@@ -58,6 +58,7 @@ fun AnnotationPanel(
     onClearSelection: () -> Unit = {},
     onDeleteSelected: () -> Unit = {},
     onExportReport: () -> Unit = {},
+    onMesswerteNeu: () -> Unit = {},
     onShiftClick: (String) -> Unit = {},
     // Solo-Modus: nur Annotations im sichtbaren Viewport anzeigen
     isSoloMode: Boolean = false,
@@ -138,6 +139,15 @@ fun AnnotationPanel(
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFFFEB3B)
                         )
+                    }
+                    if (annotations.isNotEmpty()) {
+                        TextButton(
+                            onClick = onMesswerteNeu,
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Text("Messwerte neu berechnen", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }
