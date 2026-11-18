@@ -117,6 +117,12 @@ fun ReferenceEditorScreen(
     var isExporting by remember { mutableStateOf(false) }
     var classificationResults by remember { mutableStateOf<List<ClassifierResult>>(emptyList()) }
     var isClassifying by remember { mutableStateOf(false) }
+    // Python-Pruefung einmal im Hintergrund (null = laeuft noch): im Zeichnen wuerde sie bei jedem
+    // Neuzeichnen einen Prozess starten und beim ersten Mal das Fenster sekundenlang anhalten
+    var birdnetVerfuegbar by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        birdnetVerfuegbar = withContext(Dispatchers.IO) { BirdNetBridge.isAvailable() }
+    }
 
     // Filter
     var filterConfig by remember { mutableStateOf(FilterConfig()) }
@@ -765,7 +771,7 @@ fun ReferenceEditorScreen(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = audioSegment != null && !isLoading && !isClassifying && BirdNetBridge.isAvailable(),
+                            enabled = audioSegment != null && !isLoading && !isClassifying && birdnetVerfuegbar == true,
                             contentPadding = PaddingValues(horizontal = 12.dp)
                         ) {
                             if (isClassifying) {
@@ -777,7 +783,7 @@ fun ReferenceEditorScreen(
                             Text(if (isClassifying) "Analysiere..." else "BirdNET Analyse")
                         }
 
-                        if (!BirdNetBridge.isAvailable()) {
+                        if (birdnetVerfuegbar == false) {
                             Text(
                                 "Python + birdnetlib nicht gefunden",
                                 style = MaterialTheme.typography.labelSmall,

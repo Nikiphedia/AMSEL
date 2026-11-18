@@ -376,9 +376,29 @@ class ClassificationManager(
      * Bei SliceManager: slice-weise Verarbeitung mit Overlap-Deduplizierung.
      * Bei aktiver Annotation: nur diesen Bereich analysieren.
      */
-    fun fullScanBirdNet() = scanBirdNetInternal(regionAnnotationId = null)
+    fun fullScanBirdNet() = scanStarten(regionAnnotationId = null)
 
-    /** true, solange die Pruefung fuer den Knopf "Analyse starten" laeuft (weitere Klicks zaehlen nicht). */
+    /**
+     * Startet den Scan, ohne den Aufrufer (Oberflaeche: F5, Kontextmenue) zu blockieren.
+     * Ohne ONNX-Modell prueft [scanBirdNetInternal] Python; das gehoert in den Hintergrund.
+     */
+    private fun scanStarten(regionAnnotationId: String?) {
+        if (onnxClassifier.isAvailable()) {
+            scanBirdNetInternal(regionAnnotationId)
+            return
+        }
+        if (!analyseStartLaeuft.compareAndSet(false, true)) return
+        onStatusUpdate("Pruefe BirdNET (Python)...", null)
+        scope.launch {
+            try {
+                scanBirdNetInternal(regionAnnotationId)
+            } finally {
+                analyseStartLaeuft.set(false)
+            }
+        }
+    }
+
+    /** true, solange eine Python-Pruefung vor dem Scan laeuft (weitere Ausloeser zaehlen nicht). */
     private val analyseStartLaeuft = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
@@ -399,7 +419,7 @@ class ClassificationManager(
         onStatusUpdate("Pruefe BirdNET (Python)...", null)
         scope.launch {
             try {
-                if (BirdNetBridge.isAvailable()) fullScanBirdNet() else detectEvents()
+                if (BirdNetBridge.isAvailable()) scanBirdNetInternal(regionAnnotationId = null) else detectEvents()
             } finally {
                 analyseStartLaeuft.set(false)
             }
@@ -410,7 +430,7 @@ class ClassificationManager(
      * BirdNET-Analyse fuer den Zeitbereich einer bestimmten Annotation.
      * Wird durch Rechtsklick auf eine Markierung ausgeloest.
      */
-    fun scanBirdNetRegion(annotationId: String) = scanBirdNetInternal(regionAnnotationId = annotationId)
+    fun scanBirdNetRegion(annotationId: String) = scanStarten(regionAnnotationId = annotationId)
 
     private fun scanBirdNetInternal(regionAnnotationId: String?) {
         val audioFile = audioData.audioFile()
