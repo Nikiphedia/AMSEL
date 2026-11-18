@@ -1473,6 +1473,7 @@ class CompareViewModel {
 
     fun searchSimilar(speciesQuery: String = "") = classificationManager.searchSimilar(speciesQuery)
     fun fullScanBirdNet() = classificationManager.fullScanBirdNet()
+    fun analyseStarten() = classificationManager.analyseStarten()
     fun scanBirdNetRegion(annotationId: String) = classificationManager.scanBirdNetRegion(annotationId)
     fun detectEvents() = classificationManager.detectEvents()
     fun adoptCandidate(annotationId: String, candidate: ch.etasystems.amsel.core.annotation.SpeciesCandidate) =

@@ -484,14 +484,9 @@ fun CompareScreen(
             isReferenceLooping = uiState.isReferenceLooping,
             playbackMode = uiState.playbackMode,
             onToggleLoop = { viewModel.toggleLoop() },
-            onDetectEvents = {
-                // BirdNET Full-Scan wenn verfuegbar, sonst lokale Event-Detection
-                if (ch.etasystems.amsel.core.classifier.BirdNetBridge.isAvailable()) {
-                    viewModel.fullScanBirdNet()
-                } else {
-                    viewModel.detectEvents()
-                }
-            },
+            // BirdNET-Scan wenn verfuegbar, sonst lokale Event-Erkennung (Entscheid im Manager,
+            // die Pruefung blockiert sonst das Fenster)
+            onDetectEvents = { viewModel.analyseStarten() },
             onNormalize = { viewModel.toggleNormalization() },
             onImportCompare = { showCompareDialog = true },
             hasCompareFile = uiState.compareFile != null,

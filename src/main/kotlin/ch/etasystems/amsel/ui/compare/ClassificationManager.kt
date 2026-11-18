@@ -378,6 +378,34 @@ class ClassificationManager(
      */
     fun fullScanBirdNet() = scanBirdNetInternal(regionAnnotationId = null)
 
+    /** true, solange die Pruefung fuer den Knopf "Analyse starten" laeuft (weitere Klicks zaehlen nicht). */
+    private val analyseStartLaeuft = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Knopf "Analyse starten": BirdNET-Scan, wenn ein Klassifikator da ist, sonst die lokale
+     * Event-Erkennung.
+     *
+     * Die Python-Pruefung (`BirdNetBridge.isAvailable`) startet beim ersten Mal Python mit
+     * birdnetlib und dauert Sekunden (gemessen: 7 s). Sie darf nicht im Oberflaechen-Thread
+     * laufen: das Fenster stand so lange still, der Klick schien wirkungslos, und jeder weitere
+     * Klick startete danach einen eigenen Scan. Mit ONNX-Modell wird sie gar nicht gebraucht.
+     */
+    fun analyseStarten() {
+        if (onnxClassifier.isAvailable()) {
+            fullScanBirdNet()
+            return
+        }
+        if (!analyseStartLaeuft.compareAndSet(false, true)) return
+        onStatusUpdate("Pruefe BirdNET (Python)...", null)
+        scope.launch {
+            try {
+                if (BirdNetBridge.isAvailable()) fullScanBirdNet() else detectEvents()
+            } finally {
+                analyseStartLaeuft.set(false)
+            }
+        }
+    }
+
     /**
      * BirdNET-Analyse fuer den Zeitbereich einer bestimmten Annotation.
      * Wird durch Rechtsklick auf eine Markierung ausgeloest.
