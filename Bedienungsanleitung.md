@@ -2,7 +2,7 @@
 
 ## Sonogramm-Analyse und Artenerkennung
 
-Version 0.0.9
+Version 0.0.10
 
 ---
 
@@ -29,11 +29,16 @@ AMSEL (Another Mel Spectrogram Event Locator) ist eine Desktop-Anwendung zur aku
 
 ### Voraussetzungen
 - Windows 10/11 (64-bit)
-- Java 21+ (wird mit dem Installer mitgeliefert)
+- Java muss nicht installiert sein (die Laufzeit ist im Installer enthalten)
 - Internetverbindung fuer Xeno-Canto API (optional, fuer Online-Vergleich und Datenbank-Download)
 
 ### Installation
-Installer `AMSEL-0.0.9.msi` ausfuehren und den Anweisungen folgen. Das Programm wird unter `C:\Program Files\AMSEL` installiert und ein Startmenue-Eintrag erstellt.
+1. Installer `AMSEL-0.0.10.msi` von https://github.com/Nikiphedia/AMSEL/releases/latest herunterladen.
+2. Installer ausfuehren und den Anweisungen folgen. Das Programm wird unter `C:\Program Files\AMSEL` installiert und ein Startmenue-Eintrag erstellt.
+
+Der Installer ist nicht mit einem anerkannten Zertifikat signiert. Windows SmartScreen zeigt deshalb beim Start eine Warnung: "Weitere Informationen" und dann "Trotzdem ausfuehren" waehlen.
+
+**Update von einer aelteren Version:** den neuen Installer ueber die bestehende Installation ausfuehren. Einstellungen, Modelle, Referenzen und Projekte unter `Dokumente\AMSEL\` bleiben erhalten. Wer Projekte aus einer Version vor 0.0.10 hat, sollte dort einmal "Messwerte neu berechnen" ausfuehren (Kapitel 7).
 
 ### Modelle einrichten
 
@@ -50,6 +55,10 @@ Nativ in AMSEL integriert — kein Python noetig. Erkennt 11'560 Arten.
    - `BirdNET+_V3.0-preview3_Global_11K_Labels.csv`
 3. Dateien ablegen unter `C:\Users\[NAME]\Documents\AMSEL\models\`
 4. AMSEL starten — Modell wird automatisch erkannt
+
+**Zweites Modell: Perch v2 (optional)**
+
+Ueber Einstellungen → Tab "Analyse" → "Modelle verwalten..." laesst sich ein weiteres ONNX-Modell hinzufuegen und als Klassifikator waehlen. Ein Modell, dessen Dateiname "perch" enthaelt, wird als Perch v2 behandelt. In der Kandidatenliste steht bei jedem Kandidaten, von welchem Modell er stammt.
 
 **Option 2: BirdNET V2.4 (Python, optional)**
 
@@ -90,6 +99,12 @@ Benoetigt Python 3.12: `pip install birdnet`
 - MP3
 - FLAC
 - M4A / AAC
+
+### Mehrkanal-Aufnahmen
+Von einer Aufnahme mit mehreren Kanaelen wird ein Kanal geladen. Einstellungen → Tab "Analyse" → "Kanal beim Import" legt fest, welcher; die Automatik laesst einen Kanal mit deutlich hoeherem Grundrauschen aus. Der geladene Kanal steht in der Dateiliste (z.B. "Kanal 3 von 4") und in den Exporten.
+
+### Lange Aufnahmen
+Lange Dateien werden beim Import nicht als Ganzes in den Speicher geladen. Sie werden in Abschnitte (Slices) geteilt, deren Laenge in den Einstellungen festgelegt ist.
 
 ### So geht's
 1. **Import-Button** (Ordnersymbol) in der Toolbar klicken, oder
@@ -158,6 +173,14 @@ Zu jeder Annotation werden automatisch berechnet:
 
 Die Werte erscheinen direkt unter dem Frequenzbereich-Text in der Annotationsliste (in Teal-Farbe).
 
+**Woraus gerechnet wird:** immer aus dem ungefilterten Spektrogramm, die Filtereinstellung aendert die Werte nicht. Wird eine Grenze der Annotation verschoben, werden die Werte neu gerechnet.
+
+**Messwerte neu berechnen:** Der Knopf im Kopf der Annotationsliste rechnet die Messwerte aller Annotationen der geladenen Dateien neu und ueberschreibt die vorhandenen. Noetig in zwei Faellen:
+- nach einem Scan: dieser gibt nur den Annotationen in der sichtbaren Zoom-Ansicht Messwerte
+- bei Projekten aus einer Version vor 0.0.10: dort konnten die Werte aus der falschen Stelle der Aufnahme stammen
+
+Annotationen, deren Audiodatei nicht geladen ist, behalten ihre Werte; die Statuszeile nennt die Anzahl.
+
 ### Verifikation
 - **Verifizieren**: Haken-Button neben einer Annotation → Annotation wird als korrekt markiert
 - **Ablehnen**: X-Button → Annotation wird als falsch markiert
@@ -186,6 +209,10 @@ Im **Dateipanel links** wird pro Audio-Datei angezeigt:
 3. BirdNET analysiert die gesamte Aufnahme in 3-Sekunden-Chunks
 4. Erkannte Arten erscheinen als farbige Annotationen im Sonogramm
 5. In der Seitenleiste: Arten gruppiert nach hoechster Konfidenz
+
+Der Scan rechnet zuerst den sichtbaren Abschnitt und zeigt dessen Ergebnisse an, danach den Rest. Die Laufzeiten stehen in `Dokumente\AMSEL\perf.log`.
+
+Unter Einstellungen → Tab "Analyse" → "Stille Abschnitte ueberspringen" laesst sich einstellen, ob leise Fenster ausgelassen werden (Vorgabe: aus, jedes Fenster wird gerechnet).
 
 ### Einzelsegment-Analyse
 1. Annotation auswaehlen
@@ -345,6 +372,10 @@ Filtereinstellungen koennen als benannte Presets gespeichert und geladen werden 
 - Format: `.amsel.json` (JSON, lesbar)
 - Auto-Save alle 5 Minuten
 
+Beim ersten Speichern einer Sitzung legt AMSEL den vorherigen Stand als Sicherungskopie neben die Projektdatei (`<Name>.amsel.json.bak`). Ist ein Projekt beschaedigt oder versehentlich ueberschrieben, laesst sich diese Datei umbenennen und oeffnen.
+
+Wird eine Audiodatei importiert, zu der im selben Ordner bereits ein Projekt liegt, oeffnet AMSEL dieses Projekt.
+
 ### Projekt laden
 - **Ordner-Symbol** → "Projekt oeffnen"
 - Oder: Letzte Projekte im Startmenue
@@ -400,7 +431,9 @@ Einstellungen oeffnen: Zahnrad-Symbol in der Toolbar.
 | `~/Documents/AMSEL/models/` | ONNX-Modelle, Labels, Python-Skripte |
 | `~/Documents/AMSEL/references/` | Xeno-Canto Referenz-Sonogramme |
 | `~/Documents/AMSEL/species/` | species_master.json, region_sets.json |
+| `~/Documents/AMSEL/perf.log` | Laufzeiten der Scans (wird ab 1 MB neu begonnen) |
 | `*.amsel.json` | Projektdatei (frei waehlbarer Speicherort) |
+| `*.amsel.json.bak` | Sicherungskopie des vorherigen Projektstands |
 
 ---
 
@@ -414,7 +447,7 @@ Einstellungen oeffnen: Zahnrad-Symbol in der Toolbar.
 
 ### Audio wird nicht geladen
 → Format pruefen: WAV, MP3, FLAC, M4A unterstuetzt. OGG nicht unterstuetzt.
-→ ffmpeg installieren fuer FLAC/M4A/MP3-Export (Import funktioniert ohne ffmpeg)
+→ ffmpeg installieren (muss im PATH liegen) fuer FLAC/M4A/MP3-Export und fuer zuverlaessigen M4A-Import
 
 ### GPX-Import setzt kein GPS
 → Zeitstempel der Audio-Dateien pruefen (Einstellungen → Metadaten bearbeiten)
@@ -422,6 +455,12 @@ Einstellungen oeffnen: Zahnrad-Symbol in der Toolbar.
 
 ### Spektrogramm sieht anders aus nach Einstellungen-Aenderung
 → Normal: Spektrogramm-Parameter wurden neu berechnet. Kein Duplikat in der Dateiliste.
+
+### Windows warnt beim Installieren ("Der Computer wurde durch Windows geschuetzt")
+→ Der Installer ist nicht mit einem anerkannten Zertifikat signiert. "Weitere Informationen" → "Trotzdem ausfuehren".
+
+### Messwerte (Peak, SNR) fehlen oder wirken falsch
+→ "Messwerte neu berechnen" im Kopf der Annotationsliste ausfuehren (Kapitel 7).
 
 ### Programm reagiert langsam
 → Zoomen Sie nicht zu weit hinein (max. ~30 Sekunden Ausschnitt empfohlen)
@@ -435,9 +474,9 @@ Einstellungen oeffnen: Zahnrad-Symbol in der Toolbar.
 - **Export-FFT:** 16384 Punkte bei 48 kHz → ~2.93 Hz Aufloesung
 - **Voegel:** Standard 100-16 kHz, 256 Mel-Bins
 - **Fledermaeusse:** 15-125 kHz (automatische Erkennung)
-- **BirdNET V3.0:** 3-Sekunden Chunks, 48 kHz, ONNX Runtime 1.19.0
+- **BirdNET V3.0:** 3-Sekunden Chunks, Modellrate 32 kHz (Aufnahmen werden umgetaktet), ONNX Runtime 1.31.0
 - **GPS-Import:** UTC-Annahme fuer GPX-Zeitstempel und Aufnahme-Zeitstempel
-- **Framework:** Kotlin 2.1.0, Jetbrains Compose Desktop 1.7.3, Material 3
+- **Framework:** Kotlin 2.4.21, Compose Multiplatform 1.12.2, Material 3
 
 ---
 

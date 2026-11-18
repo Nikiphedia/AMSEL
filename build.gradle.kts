@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "ch.etasystems.amsel"
-version = "0.0.9"
+version = "0.0.10"
 
 dependencies {
     // Compose Desktop
@@ -68,9 +68,12 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "AMSEL"
-            packageVersion = "0.0.9"
+            packageVersion = "0.0.10"
             description = "Sonogramm-Vergleichstool für Vögel und Fledermäuse"
             vendor = "ETA Systems"
+            // Vorschlag von "gradlew suggestRuntimeModules": JLargeArrays und Coroutines nutzen
+            // jdk.unsupported, Ktor java.management. Ohne Angabe fehlen sie in der mitgelieferten Laufzeit.
+            modules("java.instrument", "java.management", "jdk.unsupported")
 
             windows {
                 menuGroup = "AMSEL"

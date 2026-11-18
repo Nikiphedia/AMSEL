@@ -4,7 +4,7 @@
 
 **AMSEL** (Another Mel Spectrogram Event Locator) ist ein Desktop-Tool zur akustischen Bestimmung von Vogelarten, Fledermaeusen und anderen Tiergruppen. Es kombiniert Sonogramm-Visualisierung, Audio-Filterung, BirdNET-Klassifizierung und Embedding-basierte Aehnlichkeitssuche in einer einzigen Anwendung.
 
-**Version:** 0.0.9
+**Version:** 0.0.10
 **Zielgruppe:** Ornithologen, Fledermausforscher, Biologie-Studierende, Naturschuetzer.
 
 ## Tech-Stack

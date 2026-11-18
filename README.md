@@ -13,7 +13,9 @@
 - Spektrogramm-Analyse mit Zoom, Filter, Annotationen
 - BirdNET V3.0 ONNX Klassifikation (nativ, kein Python noetig)
 - Kandidatenliste mit Top-N Alternativvorschlaegen pro Erkennung
-- Akustische Messwerte pro Annotation: Peak-Frequenz, Bandbreite, SNR (automatisch berechnet)
+- Akustische Messwerte pro Annotation: Peak-Frequenz, Bandbreite, SNR (aus dem ungefilterten Spektrogramm, neu berechenbar)
+- Zweites Modell waehlbar: Perch v2 (ONNX); Herkunft je Kandidat sichtbar
+- Mehrkanal-Aufnahmen: Kanalwahl beim Import
 - Referenzbibliothek mit Xeno-Canto Integration (Spektrogramme + Audio)
 - Artensets / Regionfilter (Schweiz, Mitteleuropa, Global)
 - Species Master Table (11'565 Taxa, 23 EU-Sprachen)
@@ -25,12 +27,25 @@
 - Konfigurierbare Spektrogramm-Parameter (FFT-Fenster, Hop-Groesse, Mel-Bins)
 - Erweiterbar auf Fledermaeusse, Amphibien, Heuschrecken (Platzhalter vorhanden)
 
+## Download und Installation
+
+Fertiger Windows-Installer: **[Releases](https://github.com/Nikiphedia/AMSEL/releases/latest)** → `AMSEL-<Version>.msi` herunterladen.
+
+1. `AMSEL-<Version>.msi` ausfuehren. Der Installer ist nicht mit einem anerkannten Zertifikat signiert; Windows SmartScreen zeigt deshalb eine Warnung ("Weitere Informationen" → "Trotzdem ausfuehren").
+2. AMSEL aus dem Startmenue starten. Java muss nicht installiert sein, die Laufzeit ist im Installer enthalten.
+3. Modell einrichten: BirdNET V3.0 ONNX und die Label-Datei nach `Dokumente\AMSEL\models\` legen (Anleitung: [Bedienungsanleitung](Bedienungsanleitung.md), Kapitel 2). Das Modell ist nicht im Installer enthalten.
+
+Eine neue Version wird ueber die alte installiert; Einstellungen, Modelle, Referenzen und Projekte unter `Dokumente\AMSEL\` bleiben erhalten.
+
+Die vollstaendige Anleitung steht in der [Bedienungsanleitung](Bedienungsanleitung.md), die Aenderungen je Version im [Changelog](CHANGELOG.md).
+
 ## Voraussetzungen
 
 - Windows 10/11 (64-Bit)
-- Java 21+ (JDK)
 - ~500 MB Festplatte (App + Modelle + Referenzen)
 - Internetverbindung fuer Xeno-Canto Downloads
+- Optional: ffmpeg im PATH (M4A-Import, Export als FLAC/M4A/MP3)
+- Nur zum Bauen aus den Quellen: JDK 21
 
 ## Schnellstart
 
@@ -44,9 +59,17 @@ set "JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.10.7-hotspot"
 
 ### Installer bauen
 ```bash
+.\gradlew.bat test
 .\gradlew.bat packageMsi
-# Output: build/compose/binaries/main/msi/
+# Output: build/compose/binaries/main/msi/AMSEL-<Version>.msi
 ```
+
+### Release erstellen
+1. Version in `build.gradle.kts` an zwei Stellen anheben (`version`, `packageVersion`), ebenso in `Bedienungsanleitung.md` und `AMSEL_Projektbeschrieb.md`
+2. `CHANGELOG.md` nachfuehren
+3. `.\gradlew.bat test` und `.\gradlew.bat packageMsi`
+4. Commit, Tag `v<Version>`, Push
+5. GitHub-Release zum Tag anlegen und `AMSEL-<Version>.msi` anhaengen
 
 ### Erster Start
 1. App starten → BirdNET V3.0 Modell erkennen oder manuell einrichten
@@ -57,10 +80,12 @@ set "JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.10.7-hotspot"
 ## Datenverzeichnisse
 ```
 ~/Documents/AMSEL/
-├── models/       — ONNX-Modelle (BirdNET V3.0)
+├── models/       — ONNX-Modelle (BirdNET V3.0, Perch v2)
 ├── references/   — Referenzbibliothek (Xeno-Canto PNGs + MP3s)
 ├── cache/        — Feature-Vektoren
-└── species/      — species_master.json + region_sets.json
+├── species/      — species_master.json + region_sets.json
+├── settings.json — Einstellungen
+└── perf.log      — Laufzeiten der Scans
 ```
 
 ## JSON-Daten separat verwenden
@@ -78,9 +103,8 @@ Die Dateien werden beim ersten Start nach `~/Documents/AMSEL/species/` kopiert u
 
 ## Technologie
 
-- Kotlin 2.1.0, Compose Desktop 1.7.3, Material 3
-- ONNX Runtime 1.19.0
-- ~26k LOC, ~105 Kotlin-Dateien
+- Kotlin 2.4.21, Compose Multiplatform 1.12.2, Material 3
+- ONNX Runtime 1.31.0
 - Keine externen Datenbanken (rein dateibasiert)
 
 ## Lizenz

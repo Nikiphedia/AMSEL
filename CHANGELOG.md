@@ -2,6 +2,51 @@
 
 Alle relevanten Änderungen an AMSEL werden in dieser Datei dokumentiert.
 
+## [0.0.10] — 2026-11-18
+
+### Neue Funktionen
+- **Zweites Modell: Perch v2.** Der Klassifikator ist waehlbar (Einstellungen → Analyse → Modelle verwalten). Jeder Kandidat zeigt, von welchem Modell er stammt; die Herkunft steht auch in CSV, PDF und Raven-Tabelle
+- **Mehrkanal-Aufnahmen:** Kanalwahl beim Import (Einstellungen → Analyse → "Kanal beim Import"). Die Automatik laesst einen Kanal mit deutlich hoeherem Grundrauschen aus. Der geladene Kanal steht in der Dateiliste, im Projekt und in den Exporten (CSV-Spalte `Kanal`, Raven `Channel`)
+- **Sitta-Tabellen:** Erkennungstabellen des Sitta-Feldgeraets werden ueber den Raven-Import gelesen; ein Import fuellt alle geladenen Dateien, die Ortung (Kurs, Entfernung, Pegel, Kanal) bleibt je Annotation erhalten
+- **Messwerte neu berechnen:** Knopf im Kopf der Annotationsliste; rechnet Peak, Center, -3-dB-Grenzen und SNR aller Annotationen der geladenen Dateien neu
+- **Sicherungskopie der Projektdatei:** beim ersten Speichern einer Sitzung bleibt der vorherige Stand als `.bak` neben der Projektdatei; gespeichert wird ueber eine Zwischendatei, ein Abbruch beschaedigt das Projekt nicht
+- **Vorhandenes Projekt oeffnen:** wird eine Audiodatei importiert, zu der bereits ein Projekt existiert, wird dieses geoeffnet statt ueberschrieben
+- **Laufzeitprotokoll:** Scan-Zeiten stehen in `Dokumente/AMSEL/perf.log`
+- **Stille-Filter des BirdNET-Scans abschaltbar** (Einstellungen → Analyse → "Stille Abschnitte ueberspringen"), Vorgabe: aus
+- Die Ansicht laeuft bei der Wiedergabe mit
+- Benchmark-Messlauf fuer Entwickler (`gradlew benchmark`)
+
+### Schneller
+- BirdNET-Scan: 30 Minuten Aufnahme in rund 18 Sekunden (vorher deutlich laenger); Fenster werden parallel gerechnet
+- Nach dem ersten Abschnitt eines Scans erscheinen die Annotationen sofort (vorher rund 10 Sekunden Pause): Messwerte je Annotation zehnmal schneller
+- Import langer Dateien per Streaming, ohne die ganze Aufnahme im Speicher zu halten; die Uebersicht ist lueckenlos (kurze Rufe gehen nicht mehr zwischen den Frames verloren)
+- Spektrogramm-Berechnung, Bitmap-Erzeugung und Zugriff auf die Einstellungen beschleunigt
+- "Einstellungen speichern" baut das Spektrogramm nur noch neu auf, wenn sich ein betroffener Wert geaendert hat
+
+### Fehlerbehebungen
+- **Messwerte (Peak, Bandbreite, SNR) stammten aus der falschen Stelle der Aufnahme**, wenn die Zoom-Ansicht nicht bei Sekunde 0 begann. Betroffen waren auch die Messwert-Spalten in CSV und Raven-Tabelle. Bestehende Projekte: einmal "Messwerte neu berechnen" ausfuehren
+- Messwerte haengen nicht mehr von der Filtereinstellung ab (immer aus dem ungefilterten Spektrogramm); nach dem Verschieben von Annotationsgrenzen werden sie neu gerechnet
+- Knopf "Analyse starten" reagierte erst nach Sekunden und startete den Scan mehrfach: die Python-Pruefung lief im Thread der Oberflaeche. Gleiches im Referenz-Editor und bei F5 behoben
+- Projektdatei wurde beim Laden unter Umstaenden durch ein leeres Projekt ersetzt
+- "Speichern unter" verlor die Projekt-Metadaten
+- Audio-Decoder: 24-Bit-WAV, Stereo-MP3 und 24-Bit-FLAC werden korrekt gelesen; M4A ueber ffmpeg
+- Resampler mit Tiefpass (vorher Aliasing beim Umtakten auf die Modellrate); Auslegung wie in den Referenz-Implementierungen von BirdNET V3 und Perch
+- Fehler bei der Klassifikation erscheinen als Fehler, nicht mehr als leere Trefferliste
+- ONNX-Ergebnisse werden nach der Inferenz freigegeben (Speicherleck)
+- Raven-Import: Konfidenz wird als Kandidat uebernommen, erneuter Import erzeugt keine Doppel
+- Art-Filter der Embedding-Suche wirkt immer; Abbruch der Aehnlichkeitssuche wird nicht mehr als Fehler gemeldet
+- Zahlen in Exporten immer mit Dezimalpunkt (unabhaengig von der Sprache des Rechners)
+
+### Technisch
+- Kotlin 2.4.21, Compose Multiplatform 1.12.2, Gradle 9.8.2, ONNX Runtime 1.31.0
+- Unit-Tests (75) fuer Decoder, Spektrum, PCM-Cache, Projektdatei, Kanal/Herkunft, Modell-Adapter, Messwerte
+- `SpectrogramData.startSec`: ein Ausschnitt kennt seinen Anfang in der Aufnahme
+
+### Bekannte Einschraenkungen
+- Der Scan gibt nur Annotationen in der sichtbaren Zoom-Ansicht Messwerte; fuer die uebrigen "Messwerte neu berechnen" ausfuehren
+- Kalibrierung der Pegel (Sitta) ist noch nicht umgesetzt
+- Der Installer ist nicht mit einem anerkannten Zertifikat signiert: Windows SmartScreen warnt beim Start
+
 ## [0.0.9] — 2026-04-19
 
 ### Neue Features
