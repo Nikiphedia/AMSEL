@@ -1,0 +1,77 @@
+# Baut den Windows-Installer aus den Quellen. Mit eingerichtetem SignPath wird er signiert
+# und an den GitHub-Release des Tags gehaengt. Ablauf und Einrichtung: SIGNIEREN.md
+name: Installer bauen
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    # SignPath verlangt fuer Open-Source-Projekte GitHub-eigene Runner
+    runs-on: windows-latest
+    permissions:
+      contents: write   # Installer an den Release haengen
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: '21'
+
+      - name: Tests
+        run: .\gradlew.bat test --no-daemon
+
+      - name: Installer bauen
+        run: .\gradlew.bat packageMsi --no-daemon
+
+      - name: Unsignierten Installer hochladen
+        id: unsigniert
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMSEL-msi-unsigniert
+          path: build/compose/binaries/main/msi/*.msi
+          if-no-files-found: error
+
+      # Laeuft erst, wenn die Repository-Variablen von SignPath gesetzt sind (siehe SIGNIEREN.md).
+      # Jede Anfrage muss in SignPath von Hand freigegeben werden; der Schritt wartet darauf.
+      - name: Bei SignPath signieren lassen
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigniert.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signiert
+
+      - name: Signierten Installer hochladen
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMSEL-msi-signiert
+          path: signiert/*.msi
+          if-no-files-found: error
+
+      # Nur bei einem Tag und nur der signierte Installer: der Release selbst (Text, Titel)
+      # wird von Hand angelegt, ein vorhandener Installer gleichen Namens wird ersetzt.
+      - name: Signierten Installer an den Release haengen
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $msi = Get-ChildItem signiert -Filter *.msi | Select-Object -First 1
+          gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --draft --title "AMSEL $env:GITHUB_REF_NAME" --notes "Entwurf, vom Build angelegt."
+          }
+          gh release upload $env:GITHUB_REF_NAME $msi.FullName --repo $env:GITHUB_REPOSITORY --clobber
