@@ -19,7 +19,7 @@ Ohne SignPath endet der Lauf nach Schritt 3.
 
 | Bedingung | Stand bei AMSEL |
 |---|---|
-| OSI-Lizenz, **kein kommerzielles Dual-Licensing** | GPL v3. **Offen:** die Zeile "Fuer kommerzielle Lizenzoptionen: support@etasystems.ch" im README widerspricht dem und muesste weg |
+| OSI-Lizenz, **kein kommerzielles Dual-Licensing** | GPL v3. Die Zeile zu kommerziellen Lizenzoptionen ist am 18.11.2026 aus dem README entfernt worden |
 | keine proprietaeren Bestandteile | Die Modelle (BirdNET, Perch) sind nicht im Installer. Lizenzen der mitgelieferten Bibliotheken und der Artenliste (`species_master.json`) nicht einzeln geprueft |
 | Projekt gepflegt und bereits veroeffentlicht | ja (Releases v0.0.5 bis v0.0.10) |
 | Bau aus den Quellen, nachvollziehbar, auf GitHub-eigenen Runnern | mit dem Workflow vorbereitet, noch nicht gelaufen |
@@ -33,7 +33,7 @@ Die Annahme liegt im Ermessen von SignPath; einen Anspruch gibt es nicht.
 
 ## Schritte
 
-1. Entscheiden, ob die Zeile zu kommerziellen Lizenzen aus dem README entfernt wird. Ohne das ist der Antrag aussichtslos.
+1. Erledigt: Zeile zu kommerziellen Lizenzen aus dem README entfernt.
 2. Zwei-Faktor-Anmeldung im GitHub-Konto einschalten, falls noch nicht geschehen.
 3. Den Abschnitt "Code signing policy" (unten) ins README und in den Text der Releases uebernehmen.
 4. Workflow einmal von Hand laufen lassen und pruefen, dass ein Installer entsteht.

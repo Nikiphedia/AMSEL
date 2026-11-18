@@ -110,7 +110,6 @@ Die Dateien werden beim ersten Start nach `~/Documents/AMSEL/species/` kopiert u
 ## Lizenz
 
 GPL v3 — siehe [LICENSE](LICENSE)
-Fuer kommerzielle Lizenzoptionen: support@etasystems.ch
 
 ## Mitwirkende
 
